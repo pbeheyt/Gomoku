@@ -25,10 +25,10 @@ interface Position {
  */
 class GameBoard {
   private board: Player[][];
-  private currentPlayer: Player;
-  private blackCaptures: number;
-  private whiteCaptures: number;
-  private lastMove: Position | null;
+  public currentPlayer: Player;
+  public blackCaptures: number;
+  public whiteCaptures: number;
+  public lastMove: Position | null;
 
   constructor() {
     this.board = Array(BOARD_SIZE)
@@ -41,20 +41,62 @@ class GameBoard {
   }
 
   /**
-   * Place a stone at the specified position
+   * Place a stone at the specified position and check for captures.
    */
   placePiece(row: number, col: number): boolean {
     if (!this.isValidPosition(row, col) || this.board[row][col] !== Player.NONE) {
       return false;
     }
 
-    this.board[row][col] = this.currentPlayer;
+    const placingPlayer = this.currentPlayer;
+    this.board[row][col] = placingPlayer;
     this.lastMove = { row, col };
 
+    this.checkForCaptures(row, col);
+
     // Switch player
-    this.currentPlayer = this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
+    this.currentPlayer = placingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
 
     return true;
+  }
+
+  /**
+   * Checks for captures in all 8 directions around the newly placed stone.
+   */
+  private checkForCaptures(row: number, col: number): void {
+    const directions = [
+      { r: 0, c: 1 }, { r: 0, c: -1 }, // Horizontal
+      { r: 1, c: 0 }, { r: -1, c: 0 }, // Vertical
+      { r: 1, c: 1 }, { r: -1, c: -1 }, // Diagonal /
+      { r: 1, c: -1 }, { r: -1, c: 1 }  // Diagonal \
+    ];
+
+    const capturingPlayer = this.board[row][col];
+    const opponentPlayer = capturingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
+
+    for (const dir of directions) {
+      const r1 = row + dir.r;
+      const c1 = col + dir.c;
+      const r2 = row + 2 * dir.r;
+      const c2 = col + 2 * dir.c;
+      const r3 = row + 3 * dir.r;
+      const c3 = col + 3 * dir.c;
+
+      if (
+        this.getPiece(r1, c1) === opponentPlayer &&
+        this.getPiece(r2, c2) === opponentPlayer &&
+        this.getPiece(r3, c3) === capturingPlayer
+      ) {
+        // Capture occurred
+        this.board[r1][c1] = Player.NONE;
+        this.board[r2][c2] = Player.NONE;
+        if (capturingPlayer === Player.BLACK) {
+          this.blackCaptures += 2;
+        } else {
+          this.whiteCaptures += 2;
+        }
+      }
+    }
   }
 
   /**
@@ -62,6 +104,7 @@ class GameBoard {
    */
   getPiece(row: number, col: number): Player {
     if (!this.isValidPosition(row, col)) {
+      // Return NONE for out-of-bounds, simplifying checks
       return Player.NONE;
     }
     return this.board[row][col];
