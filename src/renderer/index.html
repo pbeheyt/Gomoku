@@ -2,12 +2,58 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Gomoku</title>
+    <title>Gomoku - IA de Jeu</title>
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Gomoku AI Project</h1>
-    <p>Electron App is running!</p>
+    <div class="container">
+        <header>
+            <h1>Gomoku - Intelligence Artificielle</h1>
+        </header>
+
+        <div class="game-layout">
+            <!-- Left panel: Game board -->
+            <div class="board-container">
+                <canvas id="gameBoard"></canvas>
+            </div>
+
+            <!-- Right panel: Game info -->
+            <div class="info-panel">
+                <div class="info-section">
+                    <h2>Informations</h2>
+                    <div id="currentPlayer" class="info-item">Tour: Noir</div>
+                </div>
+
+                <div class="info-section timer-section">
+                    <h2>⏱️ Timer IA</h2>
+                    <div id="timer" class="timer-display">0.000s</div>
+                    <p class="timer-note">Temps de réflexion de l'IA</p>
+                </div>
+
+                <div class="info-section">
+                    <h2>Captures</h2>
+                    <div id="blackCaptures" class="info-item">Noir: 0 pierres capturées</div>
+                    <div id="whiteCaptures" class="info-item">Blanc: 0 pierres capturées</div>
+                </div>
+
+                <div class="info-section">
+                    <h2>Contrôles</h2>
+                    <button id="resetBtn" class="btn-reset">Nouvelle Partie</button>
+                </div>
+
+                <div class="info-section rules">
+                    <h3>Règles</h3>
+                    <ul>
+                        <li>Alignez 5 pierres pour gagner</li>
+                        <li>Capturez 10 pierres adverses pour gagner</li>
+                        <li>Pas de double-trois autorisé</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
 </body>
 </html>

@@ -6,24 +6,25 @@
   "scripts": {
     "start": "electron . --no-sandbox",
     "build": "electron-builder",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm} dist/renderer"
   },
   "build": {
     "appId": "com.student.gomoku",
     "productName": "Gomoku",
     "files": [
-      "dist/**/*",
-      "src/renderer/index.html",
-      "src/renderer/style.css",
-      "src/renderer/ia_core.wasm"
+      "dist/",
+      "package.json"
     ],
     "linux": {
-      "target": "dir"
+      "target": "dir",
+      "artifactName": "${productName}"
     }
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "copyfiles": "^2.4.1",
     "electron": "^28.2.1",
     "electron-builder": "^24.9.1",
     "typescript": "^5.3.3"

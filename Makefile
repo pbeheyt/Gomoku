@@ -12,7 +12,7 @@ all: build
 start: build
 	@echo "\n\033[1;32m✅ Build finished successfully!\033[0m"
 	@echo "\n\033[1;33mTo run the application, execute this command in a NEW LOCAL terminal (not the Docker one):\033[0m"
-	@echo "\033[1;36m./dist/linux-unpacked/Gomoku\033[0m\n"
+	@echo "\033[1;36m./dist/linux-unpacked/gomoku\033[0m\n"
 
 install:
 	@echo "Installing Node.js dependencies..."
@@ -22,24 +22,27 @@ tsc:
 	@echo "Compiling TypeScript..."
 	$(DOCKER_EXEC) npx tsc
 
+copy-static:
+	@echo "Copying static files (HTML, CSS, WASM)..."
+	$(DOCKER_EXEC) npm run copy-static
+
 wasm:
 	@echo "Compiling C++ core to WebAssembly..."
 	$(DOCKER_EXEC) emcc ia_core/main.cpp -o src/renderer/ia_core.wasm -O3 -s WASM=1 -s SIDE_MODULE=1
 
-build: install wasm tsc
+build: install wasm tsc copy-static
 	@echo "Packaging application for production..."
 	$(DOCKER_EXEC) npm run build
 
 # Cleaning rules
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf dist .electron
+	$(DOCKER_EXEC) rm -rf dist .electron
 
 fclean: clean
 	@echo "Cleaning all generated files..."
-	rm -rf node_modules
-	rm -f src/renderer/ia_core.wasm
-	rm -rf dist
+	$(DOCKER_EXEC) rm -rf node_modules
+	$(DOCKER_EXEC) rm -f src/renderer/ia_core.wasm
 
 re: fclean all
 
