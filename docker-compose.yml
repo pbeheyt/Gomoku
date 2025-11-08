@@ -1,0 +1,7 @@
+services:
+  gomoku-dev:
+    build: .
+    container_name: gomoku-dev-container
+    working_dir: /app
+    volumes:
+      - .:/app
