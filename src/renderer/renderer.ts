@@ -23,6 +23,7 @@ class GameController {
   private isGameOver: boolean;
   private wasmAI: WasmAI | null = null;
   private isAIThinking: boolean = false;
+  private lastAIThinkingTime: number = 0;
 
   constructor(canvasId: string) {
     this.game = new GomokuGame();
@@ -72,6 +73,7 @@ class GameController {
   private setupGameEvents(): void {
     // Listen for move events
     gameEvents.on('move:made', (move) => {
+      console.log('Move made event received:', move);
       this.updateUI();
       this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
     });
@@ -92,9 +94,11 @@ class GameController {
 
     // Listen for player changed events
     gameEvents.on('player:changed', (player) => {
+      console.log('Player changed event received:', player, 'current player:', this.game.getCurrentPlayer());
       this.updateUI();
       // If AI should play now, trigger AI move
-      if (this.currentMode === GameMode.PLAYER_VS_AI && player === Player.WHITE && !this.isGameOver) {
+      if (this.currentMode === GameMode.PLAYER_VS_AI && player === Player.WHITE && !this.isGameOver && !this.isAIThinking) {
+        console.log('AI should play now, triggering makeAIMove');
         this.makeAIMove();
       }
     });
@@ -111,7 +115,13 @@ class GameController {
    * Handle click event
    */
   private handleClick(e: MouseEvent): void {
+    console.log(`handleClick: isGameOver=${this.isGameOver}, isAIThinking=${this.isAIThinking}, currentPlayer=${this.game.getCurrentPlayer()}`);
     if (this.isGameOver) return;
+    if (this.isAIThinking) return;
+    if (this.currentMode === GameMode.PLAYER_VS_AI && this.game.getCurrentPlayer() !== Player.BLACK) {
+      console.log('Cannot click - not your turn (BLACK)');
+      return;
+    }
 
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) {
@@ -146,13 +156,24 @@ class GameController {
    * Make a move on the board
    */
   private makeMove(row: number, col: number): void {
+    console.log(`makeMove called: row=${row}, col=${col}, currentPlayer=${this.game.getCurrentPlayer()}`);
+    const currentPlayer = this.game.getCurrentPlayer(); // Sauvegarder le joueur AVANT le move
     const result = this.game.makeMove(row, col);
     
     if (!result.isValid) {
+      console.log(`makeMove failed: ${result.reason}`);
       this.showMessage(`❌ Mouvement invalide: ${result.reason}`);
       return;
     }
 
+    console.log(`makeMove successful, new currentPlayer=${this.game.getCurrentPlayer()}`);
+    
+    // 🆕 Synchroniser l'état de l'IA C++ avec le move qui vient d'être fait
+    if (this.wasmAI && this.wasmAI.isReady()) {
+      this.wasmAI.makeMove({row, col}, currentPlayer);
+      console.log(`AI state synchronized: player ${currentPlayer} at (${row}, ${col})`);
+    }
+    
     // Clear hover position after successful move
     this.hoverPosition = null;
     this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
@@ -175,27 +196,49 @@ class GameController {
    * Make AI move using WebAssembly AI
    */
   private async makeAIMove(): Promise<void> {
-    if (this.isAIThinking) return;
+    if (this.isAIThinking) {
+      console.warn('⚠️ AI move already in progress, skipping to prevent race condition');
+      return;
+    }
     
-    console.log('AI move requested');
+    console.log('🤖 AI move requested - current player:', this.game.getCurrentPlayer());
     this.isAIThinking = true;
+    console.log('🔒 isAIThinking flag set to true');
     this.showMessage('🤖 IA réfléchit...');
     
     try {
       if (this.wasmAI && this.wasmAI.isReady()) {
+        console.log('WebAssembly AI is ready, updating game state');
         // Update AI with current game state
         this.wasmAI.updateGameState(this.game.getGameState());
         
+        // Measure AI thinking time
+        const startTime = performance.now();
+        
+        console.log('Getting best move from AI...');
         // Get the best move from AI
         const aiMove = this.wasmAI.getBestMove();
         
+        const endTime = performance.now();
+        this.lastAIThinkingTime = (endTime - startTime) / 1000; // Convert to seconds
+        
         if (aiMove) {
+          console.log('AI returned move:', aiMove);
+          
+          // 🆕 Valider que le move est vraiment valide sur le plateau actuel
+          if (!this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
+            console.error(`AI returned invalid move (${aiMove.row}, ${aiMove.col}), using fallback`);
+            this.makeFallbackAIMove();
+            return;
+          }
+          
           // Simulate thinking time for better UX
           await new Promise(resolve => setTimeout(resolve, 500));
           
+          console.log('Making AI move at position:', aiMove);
           // Make the AI move
           this.makeMove(aiMove.row, aiMove.col);
-          console.log(`AI made move: row ${aiMove.row}, col ${aiMove.col}`);
+          console.log(`AI made move: row ${aiMove.row}, col ${aiMove.col} (took ${this.lastAIThinkingTime.toFixed(6)}s)`);
         } else {
           console.warn('AI returned null move, using fallback');
           this.makeFallbackAIMove();
@@ -208,6 +251,9 @@ class GameController {
       console.error('Error making AI move:', error);
       this.makeFallbackAIMove();
     } finally {
+      // Reset AI thinking flag after all operations complete
+      // This ensures the flag stays true during the entire AI turn including the 500ms delay
+      console.log('AI turn completed, resetting isAIThinking flag');
       this.isAIThinking = false;
     }
   }
@@ -231,6 +277,7 @@ class GameController {
     this.isGameOver = false;
     this.hoverPosition = null;
     this.isAIThinking = false;
+    this.lastAIThinkingTime = 0;
     
     // Reset AI if available
     if (this.wasmAI && this.wasmAI.isReady()) {
@@ -265,10 +312,10 @@ class GameController {
       whiteCapturesEl.textContent = `Blanc: ${this.game.getWhiteCaptures()} pierres capturées`;
     }
 
-    // Timer (placeholder for AI)
+    // Timer (AI thinking time)
     const timerEl = document.getElementById('timer');
     if (timerEl) {
-      timerEl.textContent = '0.000s';
+      timerEl.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
     }
   }
 
