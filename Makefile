@@ -30,7 +30,7 @@ copy-static:
 
 wasm:
 	@echo "Compiling C++ core to WebAssembly..."
-	$(DOCKER_EXEC) emcc ia_core/main.cpp -o src/renderer/ia_core.wasm -O3 -s WASM=1 -s SIDE_MODULE=1
+	$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp ia_core/main.cpp -o src/renderer/ia_core.js -O3 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME="GomokuAI" -s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_add", "_malloc", "_free"]' -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "allocate", "intArrayFromString", "writeArrayToMemory"]' -s ALLOW_MEMORY_GROWTH=1
 
 build: install wasm tsc copy-static
 	@echo "Packaging application for production..."

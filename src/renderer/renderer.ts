@@ -7,6 +7,7 @@ import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
 import { CanvasRenderer } from '../ui/canvas.js';
 import { gameEvents, emitGameReset } from '../core/events.js';
+import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 
 // Constants
 const BOARD_SIZE = 19;
@@ -20,6 +21,8 @@ class GameController {
   private currentMode: GameMode;
   private hoverPosition: Position | null;
   private isGameOver: boolean;
+  private wasmAI: WasmAI | null = null;
+  private isAIThinking: boolean = false;
 
   constructor(canvasId: string) {
     this.game = new GomokuGame();
@@ -32,6 +35,7 @@ class GameController {
     
     this.setupEventListeners();
     this.setupGameEvents();
+    this.initializeAI();
     this.updateUI();
     this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
   }
@@ -155,17 +159,63 @@ class GameController {
   }
 
   /**
-   * Make AI move (placeholder for now)
+   * Initialize the WebAssembly AI
+   */
+  private async initializeAI(): Promise<void> {
+    try {
+      this.wasmAI = await createWasmAI();
+      console.log('WebAssembly AI initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize WebAssembly AI:', error);
+      this.wasmAI = null;
+    }
+  }
+
+  /**
+   * Make AI move using WebAssembly AI
    */
   private async makeAIMove(): Promise<void> {
-    console.log('AI move requested - implementing...');
-    // This will be implemented when we add the AI core
+    if (this.isAIThinking) return;
+    
+    console.log('AI move requested');
+    this.isAIThinking = true;
     this.showMessage('🤖 IA réfléchit...');
     
-    // Simulate AI thinking time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For now, make a random valid move
+    try {
+      if (this.wasmAI && this.wasmAI.isReady()) {
+        // Update AI with current game state
+        this.wasmAI.updateGameState(this.game.getGameState());
+        
+        // Get the best move from AI
+        const aiMove = this.wasmAI.getBestMove();
+        
+        if (aiMove) {
+          // Simulate thinking time for better UX
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Make the AI move
+          this.makeMove(aiMove.row, aiMove.col);
+          console.log(`AI made move: row ${aiMove.row}, col ${aiMove.col}`);
+        } else {
+          console.warn('AI returned null move, using fallback');
+          this.makeFallbackAIMove();
+        }
+      } else {
+        console.warn('WebAssembly AI not available, using fallback');
+        this.makeFallbackAIMove();
+      }
+    } catch (error) {
+      console.error('Error making AI move:', error);
+      this.makeFallbackAIMove();
+    } finally {
+      this.isAIThinking = false;
+    }
+  }
+
+  /**
+   * Fallback AI: make a random valid move
+   */
+  private async makeFallbackAIMove(): Promise<void> {
     const emptyPositions = this.game.getBoard().getEmptyPositions();
     if (emptyPositions.length > 0) {
       const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
@@ -180,6 +230,13 @@ class GameController {
     this.game.reset();
     this.isGameOver = false;
     this.hoverPosition = null;
+    this.isAIThinking = false;
+    
+    // Reset AI if available
+    if (this.wasmAI && this.wasmAI.isReady()) {
+      this.wasmAI.initAI(this.wasmAI.getAIPlayer());
+    }
+    
     emitGameReset();
     this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
     this.updateUI();
