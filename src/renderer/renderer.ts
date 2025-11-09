@@ -1,235 +1,117 @@
 /**
- * Gomoku Game Renderer
+ * Gomoku Game Renderer - Integrated with Core Modules
  * Handles the visual representation and user interaction for the Gomoku board
  */
 
+import { Player, Position, GameMode } from '../core/types.js';
+import { GomokuGame } from '../core/game.js';
+import { CanvasRenderer } from '../ui/canvas.js';
+import { gameEvents, emitGameReset } from '../core/events.js';
+
 // Constants
 const BOARD_SIZE = 19;
-const CELL_SIZE = 35;
-const BOARD_MARGIN = 40;
-const STONE_RADIUS = 15;
-
-enum Player {
-  NONE = 0,
-  BLACK = 1,
-  WHITE = 2,
-}
-
-interface Position {
-  row: number;
-  col: number;
-}
 
 /**
- * GameBoard class - Manages the game state
+ * GameController class - Manages the game flow and UI interaction
  */
-class GameBoard {
-  private board: Player[][];
-  public currentPlayer: Player;
-  public blackCaptures: number;
-  public whiteCaptures: number;
-  public lastMove: Position | null;
-
-  constructor() {
-    this.board = Array(BOARD_SIZE)
-      .fill(null)
-      .map(() => Array(BOARD_SIZE).fill(Player.NONE));
-    this.currentPlayer = Player.BLACK;
-    this.blackCaptures = 0;
-    this.whiteCaptures = 0;
-    this.lastMove = null;
-  }
-
-  /**
-   * Place a stone at the specified position and check for captures.
-   */
-  placePiece(row: number, col: number): boolean {
-    if (!this.isValidPosition(row, col) || this.board[row][col] !== Player.NONE) {
-      return false;
-    }
-
-    const placingPlayer = this.currentPlayer;
-    this.board[row][col] = placingPlayer;
-    this.lastMove = { row, col };
-
-    this.checkForCaptures(row, col);
-
-    // Switch player
-    this.currentPlayer = placingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
-
-    return true;
-  }
-
-  /**
-   * Checks for captures in all 8 directions around the newly placed stone.
-   */
-  private checkForCaptures(row: number, col: number): void {
-    const directions = [
-      { r: 0, c: 1 }, { r: 0, c: -1 }, // Horizontal
-      { r: 1, c: 0 }, { r: -1, c: 0 }, // Vertical
-      { r: 1, c: 1 }, { r: -1, c: -1 }, // Diagonal /
-      { r: 1, c: -1 }, { r: -1, c: 1 }  // Diagonal \
-    ];
-
-    const capturingPlayer = this.board[row][col];
-    const opponentPlayer = capturingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
-
-    for (const dir of directions) {
-      const r1 = row + dir.r;
-      const c1 = col + dir.c;
-      const r2 = row + 2 * dir.r;
-      const c2 = col + 2 * dir.c;
-      const r3 = row + 3 * dir.r;
-      const c3 = col + 3 * dir.c;
-
-      if (
-        this.getPiece(r1, c1) === opponentPlayer &&
-        this.getPiece(r2, c2) === opponentPlayer &&
-        this.getPiece(r3, c3) === capturingPlayer
-      ) {
-        // Capture occurred
-        this.board[r1][c1] = Player.NONE;
-        this.board[r2][c2] = Player.NONE;
-        if (capturingPlayer === Player.BLACK) {
-          this.blackCaptures += 2;
-        } else {
-          this.whiteCaptures += 2;
-        }
-      }
-    }
-  }
-
-  /**
-   * Get the piece at a position
-   */
-  getPiece(row: number, col: number): Player {
-    if (!this.isValidPosition(row, col)) {
-      // Return NONE for out-of-bounds, simplifying checks
-      return Player.NONE;
-    }
-    return this.board[row][col];
-  }
-
-  /**
-   * Check if position is valid
-   */
-  private isValidPosition(row: number, col: number): boolean {
-    return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
-  }
-
-  /**
-   * Reset the game
-   */
-  reset(): void {
-    this.board = Array(BOARD_SIZE)
-      .fill(null)
-      .map(() => Array(BOARD_SIZE).fill(Player.NONE));
-    this.currentPlayer = Player.BLACK;
-    this.blackCaptures = 0;
-    this.whiteCaptures = 0;
-    this.lastMove = null;
-  }
-
-  // Getters
-  getCurrentPlayer(): Player {
-    return this.currentPlayer;
-  }
-
-  getBlackCaptures(): number {
-    return this.blackCaptures;
-  }
-
-  getWhiteCaptures(): number {
-    return this.whiteCaptures;
-  }
-
-  getLastMove(): Position | null {
-    return this.lastMove;
-  }
-}
-
-/**
- * GameRenderer class - Handles Canvas drawing and user interaction
- */
-class GameRenderer {
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private gameBoard: GameBoard;
+class GameController {
+  private game: GomokuGame;
+  private canvasRenderer: CanvasRenderer;
+  private currentMode: GameMode;
   private hoverPosition: Position | null;
+  private isGameOver: boolean;
 
   constructor(canvasId: string) {
-    this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!this.canvas) {
-      throw new Error(`Canvas with id "${canvasId}" not found`);
-    }
-
-    const context = this.canvas.getContext('2d');
-    if (!context) {
-      throw new Error('Failed to get 2D context');
-    }
-    this.ctx = context;
-
-    this.gameBoard = new GameBoard();
+    this.game = new GomokuGame();
+    this.currentMode = GameMode.PLAYER_VS_PLAYER;
     this.hoverPosition = null;
+    this.isGameOver = false;
 
-    this.setupCanvas();
+    // Initialize canvas renderer
+    this.canvasRenderer = new CanvasRenderer(canvasId, this.game.getBoard());
+    
     this.setupEventListeners();
-    this.draw();
+    this.setupGameEvents();
     this.updateUI();
-  }
-
-  /**
-   * Setup canvas dimensions
-   */
-  private setupCanvas(): void {
-    const size = BOARD_SIZE * CELL_SIZE + BOARD_MARGIN * 2;
-    this.canvas.width = size;
-    this.canvas.height = size;
+    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
   }
 
   /**
    * Setup mouse event listeners
    */
   private setupEventListeners(): void {
-    this.canvas.addEventListener('click', (e) => this.handleClick(e));
-    this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+    const canvas = this.canvasRenderer.getCanvas();
+    
+    canvas.addEventListener('click', (e) => this.handleClick(e));
+    canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
 
     // Reset button
     const resetBtn = document.getElementById('resetBtn');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => this.resetGame());
     }
+
+    // Game mode selection
+    const gameModeSelect = document.getElementById('gameMode') as HTMLSelectElement;
+    if (gameModeSelect) {
+      gameModeSelect.addEventListener('change', (e) => {
+        const target = e.target as HTMLSelectElement;
+        this.setGameMode(target.value as GameMode);
+      });
+    }
+  }
+
+  /**
+   * Setup game event listeners
+   */
+  private setupGameEvents(): void {
+    // Listen for move events
+    gameEvents.on('move:made', (move) => {
+      this.updateUI();
+      this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+    });
+
+    // Listen for capture events
+    gameEvents.on('capture:made', (capture) => {
+      console.log('Capture made:', capture);
+      this.updateUI();
+    });
+
+    // Listen for game won events
+    gameEvents.on('game:won', (winner) => {
+      this.isGameOver = true;
+      const winnerText = winner === Player.BLACK ? 'Noir' : 'Blanc';
+      this.showMessage(`🎉 Victoire! ${winnerText} a gagné!`);
+      this.updateUI();
+    });
+
+    // Listen for player changed events
+    gameEvents.on('player:changed', (player) => {
+      this.updateUI();
+      // If AI should play now, trigger AI move
+      if (this.currentMode === GameMode.PLAYER_VS_AI && player === Player.WHITE && !this.isGameOver) {
+        this.makeAIMove();
+      }
+    });
   }
 
   /**
    * Convert canvas coordinates to board position
    */
   private canvasToBoard(x: number, y: number): Position | null {
-    const rect = this.canvas.getBoundingClientRect();
-    const canvasX = x - rect.left;
-    const canvasY = y - rect.top;
-
-    const col = Math.round((canvasX - BOARD_MARGIN) / CELL_SIZE);
-    const row = Math.round((canvasY - BOARD_MARGIN) / CELL_SIZE);
-
-    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
-      return { row, col };
-    }
-
-    return null;
+    return this.canvasRenderer.canvasToBoard(x, y);
   }
 
   /**
    * Handle click event
    */
   private handleClick(e: MouseEvent): void {
+    if (this.isGameOver) return;
+
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) {
-      if (this.gameBoard.placePiece(pos.row, pos.col)) {
-        this.draw();
-        this.updateUI();
-      }
+      this.makeMove(pos.row, pos.col);
     }
   }
 
@@ -237,13 +119,15 @@ class GameRenderer {
    * Handle mouse move event
    */
   private handleMouseMove(e: MouseEvent): void {
+    if (this.isGameOver) return;
+
     const pos = this.canvasToBoard(e.clientX, e.clientY);
-    if (pos && this.gameBoard.getPiece(pos.row, pos.col) === Player.NONE) {
+    if (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) {
       this.hoverPosition = pos;
     } else {
       this.hoverPosition = null;
     }
-    this.draw();
+    this.canvasRenderer.draw(this.game.getCurrentPlayer(), this.hoverPosition);
   }
 
   /**
@@ -251,160 +135,55 @@ class GameRenderer {
    */
   private handleMouseLeave(): void {
     this.hoverPosition = null;
-    this.draw();
+    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
   }
 
   /**
-   * Main draw function
+   * Make a move on the board
    */
-  private draw(): void {
-    this.clearCanvas();
-    this.drawBoard();
-    this.drawStones();
-    this.drawHover();
-  }
-
-  /**
-   * Clear the canvas
-   */
-  private clearCanvas(): void {
-    this.ctx.fillStyle = '#DEB887';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-  }
-
-  /**
-   * Draw the game board grid
-   */
-  private drawBoard(): void {
-    this.ctx.strokeStyle = '#000000';
-    this.ctx.lineWidth = 1;
-
-    // Draw grid lines
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      const pos = BOARD_MARGIN + i * CELL_SIZE;
-
-      // Vertical line
-      this.ctx.beginPath();
-      this.ctx.moveTo(pos, BOARD_MARGIN);
-      this.ctx.lineTo(pos, BOARD_MARGIN + (BOARD_SIZE - 1) * CELL_SIZE);
-      this.ctx.stroke();
-
-      // Horizontal line
-      this.ctx.beginPath();
-      this.ctx.moveTo(BOARD_MARGIN, pos);
-      this.ctx.lineTo(BOARD_MARGIN + (BOARD_SIZE - 1) * CELL_SIZE, pos);
-      this.ctx.stroke();
-    }
-
-    // Draw star points (hoshi)
-    this.drawStarPoints();
-  }
-
-  /**
-   * Draw star points on the board
-   */
-  private drawStarPoints(): void {
-    const starPoints = [
-      [3, 3], [3, 9], [3, 15],
-      [9, 3], [9, 9], [9, 15],
-      [15, 3], [15, 9], [15, 15],
-    ];
-
-    this.ctx.fillStyle = '#000000';
-    starPoints.forEach(([row, col]) => {
-      const x = BOARD_MARGIN + col * CELL_SIZE;
-      const y = BOARD_MARGIN + row * CELL_SIZE;
-      this.ctx.beginPath();
-      this.ctx.arc(x, y, 3, 0, Math.PI * 2);
-      this.ctx.fill();
-    });
-  }
-
-  /**
-   * Draw all stones on the board
-   */
-  private drawStones(): void {
-    for (let row = 0; row < BOARD_SIZE; row++) {
-      for (let col = 0; col < BOARD_SIZE; col++) {
-        const piece = this.gameBoard.getPiece(row, col);
-        if (piece !== Player.NONE) {
-          this.drawStone(row, col, piece);
-        }
-      }
-    }
-
-    // Highlight last move
-    const lastMove = this.gameBoard.getLastMove();
-    if (lastMove) {
-      this.highlightLastMove(lastMove);
-    }
-  }
-
-  /**
-   * Draw a single stone
-   */
-  private drawStone(row: number, col: number, player: Player): void {
-    const x = BOARD_MARGIN + col * CELL_SIZE;
-    const y = BOARD_MARGIN + row * CELL_SIZE;
-
-    // Shadow
-    this.ctx.beginPath();
-    this.ctx.arc(x + 2, y + 2, STONE_RADIUS, 0, Math.PI * 2);
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    this.ctx.fill();
-
-    // Stone
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, STONE_RADIUS, 0, Math.PI * 2);
+  private makeMove(row: number, col: number): void {
+    const result = this.game.makeMove(row, col);
     
-    if (player === Player.BLACK) {
-      this.ctx.fillStyle = '#000000';
-    } else {
-      this.ctx.fillStyle = '#FFFFFF';
+    if (!result.isValid) {
+      this.showMessage(`❌ Mouvement invalide: ${result.reason}`);
+      return;
     }
-    this.ctx.fill();
 
-    // Border
-    this.ctx.strokeStyle = player === Player.BLACK ? '#333333' : '#CCCCCC';
-    this.ctx.lineWidth = 1;
-    this.ctx.stroke();
+    // Clear hover position after successful move
+    this.hoverPosition = null;
+    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
   }
 
   /**
-   * Highlight the last move
+   * Make AI move (placeholder for now)
    */
-  private highlightLastMove(pos: Position): void {
-    const x = BOARD_MARGIN + pos.col * CELL_SIZE;
-    const y = BOARD_MARGIN + pos.row * CELL_SIZE;
-
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, 5, 0, Math.PI * 2);
-    this.ctx.fillStyle = '#FF0000';
-    this.ctx.fill();
-  }
-
-  /**
-   * Draw hover preview
-   */
-  private drawHover(): void {
-    if (!this.hoverPosition) return;
-
-    const x = BOARD_MARGIN + this.hoverPosition.col * CELL_SIZE;
-    const y = BOARD_MARGIN + this.hoverPosition.row * CELL_SIZE;
-
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, STONE_RADIUS, 0, Math.PI * 2);
+  private async makeAIMove(): Promise<void> {
+    console.log('AI move requested - implementing...');
+    // This will be implemented when we add the AI core
+    this.showMessage('🤖 IA réfléchit...');
     
-    const currentPlayer = this.gameBoard.getCurrentPlayer();
-    if (currentPlayer === Player.BLACK) {
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    } else {
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      this.ctx.strokeStyle = '#888888';
-      this.ctx.lineWidth = 1;
-      this.ctx.stroke();
+    // Simulate AI thinking time
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // For now, make a random valid move
+    const emptyPositions = this.game.getBoard().getEmptyPositions();
+    if (emptyPositions.length > 0) {
+      const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+      this.makeMove(randomPos.row, randomPos.col);
     }
-    this.ctx.fill();
+  }
+
+  /**
+   * Reset the game
+   */
+  private resetGame(): void {
+    this.game.reset();
+    this.isGameOver = false;
+    this.hoverPosition = null;
+    emitGameReset();
+    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+    this.updateUI();
+    this.clearMessage();
   }
 
   /**
@@ -414,44 +193,85 @@ class GameRenderer {
     // Current player
     const currentPlayerEl = document.getElementById('currentPlayer');
     if (currentPlayerEl) {
-      const player = this.gameBoard.getCurrentPlayer() === Player.BLACK ? 'Noir' : 'Blanc';
+      const player = this.game.getCurrentPlayer() === Player.BLACK ? 'Noir' : 'Blanc';
       currentPlayerEl.textContent = `Tour: ${player}`;
     }
 
     // Captures
     const blackCapturesEl = document.getElementById('blackCaptures');
     if (blackCapturesEl) {
-      blackCapturesEl.textContent = `Noir: ${this.gameBoard.getBlackCaptures()} pierres capturées`;
+      blackCapturesEl.textContent = `Noir: ${this.game.getBlackCaptures()} pierres capturées`;
     }
 
     const whiteCapturesEl = document.getElementById('whiteCaptures');
     if (whiteCapturesEl) {
-      whiteCapturesEl.textContent = `Blanc: ${this.gameBoard.getWhiteCaptures()} pierres capturées`;
+      whiteCapturesEl.textContent = `Blanc: ${this.game.getWhiteCaptures()} pierres capturées`;
     }
 
     // Timer (placeholder for AI)
     const timerEl = document.getElementById('timer');
     if (timerEl) {
-      timerEl.textContent = 'Timer IA: 0.000s';
+      timerEl.textContent = '0.000s';
     }
   }
 
   /**
-   * Reset the game
+   * Show message to user
    */
-  private resetGame(): void {
-    this.gameBoard.reset();
-    this.hoverPosition = null;
-    this.draw();
-    this.updateUI();
+  private showMessage(message: string): void {
+    // Create or update message element
+    let messageEl = document.getElementById('gameMessage');
+    if (!messageEl) {
+      messageEl = document.createElement('div');
+      messageEl.id = 'gameMessage';
+      messageEl.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+      document.body.appendChild(messageEl);
+    }
+    messageEl.textContent = message;
+    messageEl.style.display = 'block';
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      if (messageEl) {
+        messageEl.style.display = 'none';
+      }
+    }, 3000);
+  }
+
+  /**
+   * Clear message
+   */
+  private clearMessage(): void {
+    const messageEl = document.getElementById('gameMessage');
+    if (messageEl) {
+      messageEl.style.display = 'none';
+    }
+  }
+
+  /**
+   * Set game mode
+   */
+  public setGameMode(mode: GameMode): void {
+    this.currentMode = mode;
+    this.resetGame();
+  }
+
+  /**
+   * Get current game mode
+   */
+  public getGameMode(): GameMode {
+    return this.currentMode;
   }
 }
 
 // Initialize the game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   try {
-    new GameRenderer('gameBoard');
+    const gameController = new GameController('gameBoard');
     console.log('Gomoku game initialized successfully');
+    
+    // Make gameController available globally for debugging
+    (window as any).gameController = gameController;
   } catch (error) {
     console.error('Failed to initialize game:', error);
   }

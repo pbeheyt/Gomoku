@@ -38,6 +38,15 @@
                 </div>
 
                 <div class="info-section">
+                    <h2>Mode de Jeu</h2>
+                    <select id="gameMode" class="game-mode-select">
+                        <option value="pvp">Joueur vs Joueur</option>
+                        <option value="pva">Joueur vs IA</option>
+                        <option value="suggest">Mode Suggestion</option>
+                    </select>
+                </div>
+
+                <div class="info-section">
                     <h2>Contrôles</h2>
                     <button id="resetBtn" class="btn-reset">Nouvelle Partie</button>
                 </div>
@@ -54,6 +63,6 @@
         </div>
     </div>
 
-    <script src="renderer.js"></script>
+    <script type="module" src="renderer.js"></script>
 </body>
 </html>

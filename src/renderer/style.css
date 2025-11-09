@@ -179,6 +179,36 @@ header h1 {
     font-weight: bold;
 }
 
+/* Game Mode Selector */
+.game-mode-select {
+    width: 100%;
+    padding: 12px 15px;
+    font-size: 1rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.game-mode-select:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.game-mode-select:focus {
+    outline: none;
+    border-color: #FFD700;
+    box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+}
+
+.game-mode-select option {
+    background: #2a5298;
+    color: #ffffff;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
     .game-layout {

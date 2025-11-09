@@ -20,7 +20,9 @@ install:
 
 tsc:
 	@echo "Compiling TypeScript..."
-	$(DOCKER_EXEC) npx tsc
+	$(DOCKER_EXEC) npx tsc --project tsconfig.json
+	$(DOCKER_EXEC) npx tsc --project tsconfig.preload.json
+	$(DOCKER_EXEC) npx tsc --project tsconfig.renderer.json
 
 copy-static:
 	@echo "Copying static files (HTML, CSS, WASM)..."
