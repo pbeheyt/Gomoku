@@ -24,4 +24,6 @@ Thumbs.db
 codebase*.md
 agents.md
 
+git-diff.md
+
 .clinerules/gomoku-subject.md

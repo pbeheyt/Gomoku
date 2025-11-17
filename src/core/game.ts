@@ -34,7 +34,12 @@ export class GomokuGame {
       return { isValid: false, reason: 'Position invalide ou occupée' };
     }
 
-    // Garde-fou 2: Règle du Double-Trois
+    // Garde-fou 2: Règle du coup suicidaire interdit
+    if (this.isSuicideMove(row, col, this.currentPlayer)) {
+      return { isValid: false, reason: 'Coup suicidaire interdit' };
+    }
+
+    // Garde-fou 3: Règle du Double-Trois
     // Un double-trois est interdit, SAUF si le même coup effectue une capture.
     const preCaptures = this.checkCaptures(row, col);
     const isDoubleThree = this.checkDoubleThree(row, col, this.currentPlayer);
@@ -147,6 +152,41 @@ export class GomokuGame {
         this.whiteCaptures += 2;
       }
     }
+  }
+
+  /**
+   * Check if a move is a "suicide move", which is forbidden.
+   * A suicide move is placing a stone in a position where it immediately
+   * forms a pair that gets captured by the opponent.
+   */
+  private isSuicideMove(row: number, col: number, player: Player): boolean {
+    const opponent = player === Player.BLACK ? Player.WHITE : Player.WHITE;
+    const directions = [
+      { r: 0, c: 1 },  // Horizontal
+      { r: 1, c: 0 },  // Vertical
+      { r: 1, c: 1 },  // Diagonal \
+      { r: 1, c: -1 }  // Diagonal /
+    ];
+
+    for (const dir of directions) {
+      // Check pattern O P X O (where X is the current move)
+      const p1 = this.board.getPiece(row - 2 * dir.r, col - 2 * dir.c);
+      const p2 = this.board.getPiece(row - 1 * dir.r, col - 1 * dir.c);
+      const p3 = this.board.getPiece(row + 1 * dir.r, col + 1 * dir.c);
+      if (p1 === opponent && p2 === player && p3 === opponent) {
+        return true;
+      }
+
+      // Check pattern O X P O (where X is the current move)
+      const p4 = this.board.getPiece(row - 1 * dir.r, col - 1 * dir.c);
+      const p5 = this.board.getPiece(row + 1 * dir.r, col + 1 * dir.c);
+      const p6 = this.board.getPiece(row + 2 * dir.r, col + 2 * dir.c);
+      if (p4 === opponent && p5 === player && p6 === opponent) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
