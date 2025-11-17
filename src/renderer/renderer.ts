@@ -297,19 +297,19 @@ class GameController {
     // Current player
     const currentPlayerEl = document.getElementById('currentPlayer');
     if (currentPlayerEl) {
-      const player = this.game.getCurrentPlayer() === Player.BLACK ? 'Noir' : 'Blanc';
-      currentPlayerEl.textContent = `Tour: ${player}`;
+      const playerText = this.game.getCurrentPlayer() === Player.BLACK ? 'Au tour des Noirs' : 'Au tour des Blancs';
+      currentPlayerEl.textContent = this.isGameOver ? `Partie terminée` : playerText;
     }
 
     // Captures
     const blackCapturesEl = document.getElementById('blackCaptures');
     if (blackCapturesEl) {
-      blackCapturesEl.textContent = `Noir: ${this.game.getBlackCaptures()} pierres capturées`;
+      blackCapturesEl.textContent = `Noir: ${this.game.getBlackCaptures()} / 10`;
     }
 
     const whiteCapturesEl = document.getElementById('whiteCaptures');
     if (whiteCapturesEl) {
-      whiteCapturesEl.textContent = `Blanc: ${this.game.getWhiteCaptures()} pierres capturées`;
+      whiteCapturesEl.textContent = `Blanc: ${this.game.getWhiteCaptures()} / 10`;
     }
 
     // Timer (AI thinking time)

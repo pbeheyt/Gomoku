@@ -9,10 +9,11 @@
 <body>
     <div class="container">
         <header>
-            <h1>Gomoku - Intelligence Artificielle</h1>
+            <h1>Gomoku</h1>
+            <p class="subtitle">Une Intelligence Artificielle développée avec C++ et Electron</p>
         </header>
 
-        <div class="game-layout">
+        <main class="main-content">
             <!-- Left panel: Game board -->
             <div class="board-container">
                 <canvas id="gameBoard"></canvas>
@@ -20,47 +21,54 @@
 
             <!-- Right panel: Game info -->
             <div class="info-panel">
-                <div class="info-section">
-                    <h2>Informations</h2>
-                    <div id="currentPlayer" class="info-item">Tour: Noir</div>
+                <!-- Game Status -->
+                <div class="info-section status-section">
+                    <h2 id="currentPlayer">Au tour des Noirs</h2>
                 </div>
 
+                <!-- AI Timer -->
                 <div class="info-section timer-section">
-                    <h2>⏱️ Timer IA</h2>
-                    <div id="timer" class="timer-display">0.000s</div>
-                    <p class="timer-note">Temps de réflexion de l'IA</p>
+                    <h3>⏱️ Temps de Réflexion IA</h3>
+                    <div id="timer" class="timer-display">0.0000s</div>
                 </div>
 
+                <!-- Captures -->
                 <div class="info-section">
-                    <h2>Captures</h2>
-                    <div id="blackCaptures" class="info-item">Noir: 0 pierres capturées</div>
-                    <div id="whiteCaptures" class="info-item">Blanc: 0 pierres capturées</div>
+                    <h3>Captures</h3>
+                    <div class="captures-grid">
+                        <div id="blackCaptures" class="info-item">Noir: 0 / 10</div>
+                        <div id="whiteCaptures" class="info-item">Blanc: 0 / 10</div>
+                    </div>
                 </div>
 
+                <!-- Controls -->
                 <div class="info-section">
-                    <h2>Mode de Jeu</h2>
+                    <h3>Mode de Jeu</h3>
                     <select id="gameMode" class="game-mode-select">
                         <option value="pvp">Joueur vs Joueur</option>
                         <option value="pva">Joueur vs IA</option>
                         <option value="suggest">Mode Suggestion</option>
                     </select>
                 </div>
-
+                
                 <div class="info-section">
-                    <h2>Contrôles</h2>
                     <button id="resetBtn" class="btn-reset">Nouvelle Partie</button>
                 </div>
 
-                <div class="info-section rules">
-                    <h3>Règles</h3>
-                    <ul>
-                        <li>Alignez 5 pierres pour gagner</li>
-                        <li>Capturez 10 pierres adverses pour gagner</li>
-                        <li>Pas de double-trois autorisé</li>
-                    </ul>
+                <!-- Rules (Collapsible) -->
+                <div class="info-section rules-section">
+                    <details>
+                        <summary>Règles du jeu</summary>
+                        <ul>
+                            <li>Alignez 5 pierres pour gagner.</li>
+                            <li>Capturez 10 pierres (5 paires) pour gagner.</li>
+                            <li>Une victoire par alignement n'est valide que si la ligne ne peut pas être cassée par une capture adverse.</li>
+                            <li>Le coup "double-trois" est interdit.</li>
+                        </ul>
+                    </details>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <script type="module" src="renderer.js"></script>
