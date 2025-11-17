@@ -7,62 +7,78 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Main Menu Overlay -->
+    <div class="menu-overlay" id="mainMenu">
+        <div class="menu-box">
+            <h1>Gomoku</h1>
+            <p>Choisissez votre mode de jeu</p>
+            <div class="menu-buttons">
+                <button id="pvpBtn" class="btn-menu">Joueur vs Joueur</button>
+                <button id="pvaBtn" class="btn-menu">Joueur vs IA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div class="menu-overlay hidden" id="gameOverMenu">
+        <div class="menu-box">
+            <h1 id="winnerMessage">Le joueur Noir a gagné !</h1>
+            <p>Que voulez-vous faire ?</p>
+            <div class="menu-buttons">
+                <button id="replayBtn" class="btn-menu">Rejouer</button>
+                <button id="gameOverMenuBtn" class="btn-menu">Menu Principal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div class="container hidden" id="gameContainer">
         <header>
             <h1>Gomoku</h1>
             <p class="subtitle">Une Intelligence Artificielle développée avec C++ et Electron</p>
         </header>
 
         <main class="main-content">
-            <!-- Left panel: Game board -->
             <div class="board-container">
                 <canvas id="gameBoard"></canvas>
             </div>
 
-            <!-- Right panel: Game info -->
             <div class="info-panel">
-                <!-- Game Status -->
                 <div class="info-section status-section">
                     <h2 id="currentPlayer">Au tour des Noirs</h2>
                 </div>
-
-                <!-- AI Timer -->
+                
                 <div class="info-section timer-section">
                     <h3>⏱️ Temps de Réflexion IA</h3>
                     <div id="timer" class="timer-display">0.0000s</div>
                 </div>
 
-                <!-- Captures -->
                 <div class="info-section">
-                    <h3>Captures</h3>
-                    <div class="captures-grid">
-                        <div id="blackCaptures" class="info-item">Noir: 0 / 10</div>
-                        <div id="whiteCaptures" class="info-item">Blanc: 0 / 10</div>
+                    <h3>Scores</h3>
+                    <div class="player-info" id="playerInfoBlack">
+                        <span class="player-name">Noir</span>
+                        <span class="player-captures" id="blackCaptures">Captures: 0 / 10</span>
+                    </div>
+                    <div class="player-info" id="playerInfoWhite">
+                        <span class="player-name">Blanc</span>
+                        <span class="player-captures" id="whiteCaptures">Captures: 0 / 10</span>
                     </div>
                 </div>
 
-                <!-- Controls -->
-                <div class="info-section">
-                    <h3>Mode de Jeu</h3>
-                    <select id="gameMode" class="game-mode-select">
-                        <option value="pvp">Joueur vs Joueur</option>
-                        <option value="pva">Joueur vs IA</option>
-                        <option value="suggest">Mode Suggestion</option>
-                    </select>
-                </div>
-                
-                <div class="info-section">
-                    <button id="resetBtn" class="btn-reset">Nouvelle Partie</button>
+                <div class="info-section controls-section">
+                    <h3>Contrôles</h3>
+                    <button id="suggestBtn" class="btn-control">💡 Suggérer un coup</button>
+                    <button id="resetBtn" class="btn-control">Nouvelle Partie</button>
+                    <button id="menuBtn" class="btn-control">Menu Principal</button>
                 </div>
 
-                <!-- Rules (Collapsible) -->
                 <div class="info-section rules-section">
                     <details>
                         <summary>Règles du jeu</summary>
                         <ul>
                             <li>Alignez 5 pierres pour gagner.</li>
                             <li>Capturez 10 pierres (5 paires) pour gagner.</li>
-                            <li>Une victoire par alignement n'est valide que si la ligne ne peut pas être cassée par une capture adverse.</li>
+                            <li>Victoire par alignement annulée si la ligne est cassable.</li>
                             <li>Le coup "double-trois" est interdit.</li>
                         </ul>
                     </details>

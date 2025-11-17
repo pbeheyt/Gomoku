@@ -1,329 +1,246 @@
 /**
- * Gomoku Game Renderer - Integrated with Core Modules
- * Handles the visual representation and user interaction for the Gomoku board
+ * Gomoku Game Renderer - V2 with Game Flow Management
  */
-
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
 import { CanvasRenderer } from '../ui/canvas.js';
 import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 
-// Constants
-const BOARD_SIZE = 19;
+type AppState = 'MENU' | 'IN_GAME' | 'GAME_OVER';
 
-/**
- * GameController class - Manages the game flow and UI interaction
- */
 class GameController {
   private game: GomokuGame;
   private canvasRenderer: CanvasRenderer;
-  private currentMode: GameMode;
-  private hoverPosition: Position | null;
-  private isGameOver: boolean;
+  private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
+  private hoverPosition: Position | null = null;
+  private suggestionPosition: Position | null = null;
   private wasmAI: WasmAI | null = null;
   private isAIThinking: boolean = false;
   private lastAIThinkingTime: number = 0;
+  private appState: AppState = 'MENU';
+
+  // HTML Elements
+  private mainMenuEl: HTMLElement | null;
+  private gameOverMenuEl: HTMLElement | null;
+  private gameContainerEl: HTMLElement | null;
+  private winnerMessageEl: HTMLElement | null;
+  private suggestBtnEl: HTMLElement | null;
 
   constructor(canvasId: string) {
     this.game = new GomokuGame();
-    this.currentMode = GameMode.PLAYER_VS_PLAYER;
-    this.hoverPosition = null;
-    this.isGameOver = false;
-
-    // Initialize canvas renderer
     this.canvasRenderer = new CanvasRenderer(canvasId, this.game.getBoard());
-    
-    this.setupEventListeners();
+
+    // Cache DOM elements
+    this.mainMenuEl = document.getElementById('mainMenu');
+    this.gameOverMenuEl = document.getElementById('gameOverMenu');
+    this.gameContainerEl = document.getElementById('gameContainer');
+    this.winnerMessageEl = document.getElementById('winnerMessage');
+    this.suggestBtnEl = document.getElementById('suggestBtn');
+
+    this.setupMenuListeners();
+    this.setupGameEventListeners();
     this.setupGameEvents();
     this.initializeAI();
-    this.updateUI();
-    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+
+    this.showView('MENU');
   }
 
-  /**
-   * Setup mouse event listeners
-   */
-  private setupEventListeners(): void {
+  private showView(view: AppState): void {
+    this.appState = view;
+    this.mainMenuEl?.classList.toggle('hidden', view !== 'MENU');
+    this.gameContainerEl?.classList.toggle('hidden', view !== 'IN_GAME');
+    this.gameOverMenuEl?.classList.toggle('hidden', view !== 'GAME_OVER');
+  }
+
+  private setupMenuListeners(): void {
+    document.getElementById('pvpBtn')?.addEventListener('click', () => this.startGame(GameMode.PLAYER_VS_PLAYER));
+    document.getElementById('pvaBtn')?.addEventListener('click', () => this.startGame(GameMode.PLAYER_VS_AI));
+    document.getElementById('replayBtn')?.addEventListener('click', () => this.startGame(this.currentMode));
+    document.getElementById('gameOverMenuBtn')?.addEventListener('click', () => this.showView('MENU'));
+  }
+
+  private setupGameEventListeners(): void {
     const canvas = this.canvasRenderer.getCanvas();
-    
     canvas.addEventListener('click', (e) => this.handleClick(e));
     canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
 
-    // Reset button
-    const resetBtn = document.getElementById('resetBtn');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => this.resetGame());
-    }
-
-    // Game mode selection
-    const gameModeSelect = document.getElementById('gameMode') as HTMLSelectElement;
-    if (gameModeSelect) {
-      gameModeSelect.addEventListener('change', (e) => {
-        const target = e.target as HTMLSelectElement;
-        this.setGameMode(target.value as GameMode);
-      });
-    }
+    document.getElementById('resetBtn')?.addEventListener('click', () => this.resetGame(false));
+    document.getElementById('menuBtn')?.addEventListener('click', () => this.showView('MENU'));
+    this.suggestBtnEl?.addEventListener('click', () => this.showAISuggestion());
   }
 
-  /**
-   * Setup game event listeners
-   */
   private setupGameEvents(): void {
-    // Listen for move events
-    gameEvents.on('move:made', (move) => {
-      console.log('Move made event received:', move);
-      this.updateUI();
-      this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
-    });
-
-    // Listen for capture events
-    gameEvents.on('capture:made', (capture) => {
-      console.log('Capture made:', capture);
-      this.updateUI();
-    });
-
-    // Listen for game won events
+    gameEvents.on('move:made', () => this.redraw());
+    gameEvents.on('capture:made', () => this.updateUI());
     gameEvents.on('game:won', (winner) => {
-      this.isGameOver = true;
-      const winnerText = winner === Player.BLACK ? 'Noir' : 'Blanc';
-      this.showMessage(`🎉 Victoire! ${winnerText} a gagné!`);
-      this.updateUI();
-    });
-
-    // Listen for player changed events
-    gameEvents.on('player:changed', (player) => {
-      console.log('Player changed event received:', player, 'current player:', this.game.getCurrentPlayer());
-      this.updateUI();
-      // If AI should play now, trigger AI move
-      if (this.currentMode === GameMode.PLAYER_VS_AI && player === Player.WHITE && !this.isGameOver && !this.isAIThinking) {
-        console.log('AI should play now, triggering makeAIMove');
-        this.makeAIMove();
+      if (this.winnerMessageEl) {
+        this.winnerMessageEl.textContent = `🎉 ${winner === Player.BLACK ? 'Noir' : 'Blanc'} a gagné !`;
       }
+      this.showView('GAME_OVER');
+      this.updateUI();
     });
+    gameEvents.on('player:changed', () => this.updateUI());
   }
 
-  /**
-   * Convert canvas coordinates to board position
-   */
+  private startGame(mode: GameMode): void {
+    this.currentMode = mode;
+    this.resetGame(true);
+    this.showView('IN_GAME');
+  }
+
   private canvasToBoard(x: number, y: number): Position | null {
     return this.canvasRenderer.canvasToBoard(x, y);
   }
 
-  /**
-   * Handle click event
-   */
   private handleClick(e: MouseEvent): void {
-    console.log(`handleClick: isGameOver=${this.isGameOver}, isAIThinking=${this.isAIThinking}, currentPlayer=${this.game.getCurrentPlayer()}`);
-    if (this.isGameOver) return;
-    if (this.isAIThinking) return;
-    if (this.currentMode === GameMode.PLAYER_VS_AI && this.game.getCurrentPlayer() !== Player.BLACK) {
-      console.log('Cannot click - not your turn (BLACK)');
-      return;
-    }
+    if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking) return;
+    if (this.currentMode === GameMode.PLAYER_VS_AI && this.game.getCurrentPlayer() !== Player.BLACK) return;
 
     const pos = this.canvasToBoard(e.clientX, e.clientY);
-    if (pos) {
-      this.makeMove(pos.row, pos.col);
-    }
+    if (pos) this.makeMove(pos.row, pos.col);
   }
 
-  /**
-   * Handle mouse move event
-   */
   private handleMouseMove(e: MouseEvent): void {
-    if (this.isGameOver) return;
-
+    if (this.appState !== 'IN_GAME' || this.game.isGameOver()) return;
     const pos = this.canvasToBoard(e.clientX, e.clientY);
-    if (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) {
-      this.hoverPosition = pos;
-    } else {
-      this.hoverPosition = null;
-    }
-    this.canvasRenderer.draw(this.game.getCurrentPlayer(), this.hoverPosition);
+    this.hoverPosition = (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) ? pos : null;
+    this.redraw();
   }
 
-  /**
-   * Handle mouse leave event
-   */
   private handleMouseLeave(): void {
     this.hoverPosition = null;
-    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+    this.redraw();
   }
 
-  /**
-   * Make a move on the board
-   */
   private makeMove(row: number, col: number): void {
-    console.log(`makeMove called: row=${row}, col=${col}, currentPlayer=${this.game.getCurrentPlayer()}`);
-    const currentPlayer = this.game.getCurrentPlayer(); // Sauvegarder le joueur AVANT le move
     const result = this.game.makeMove(row, col);
-    
     if (!result.isValid) {
-      console.log(`makeMove failed: ${result.reason}`);
       this.showMessage(`❌ Mouvement invalide: ${result.reason}`);
       return;
     }
-
-    console.log(`makeMove successful, new currentPlayer=${this.game.getCurrentPlayer()}`);
-    
-    // 🆕 Synchroniser l'état de l'IA C++ avec le move qui vient d'être fait
-    if (this.wasmAI && this.wasmAI.isReady()) {
-      this.wasmAI.makeMove({row, col}, currentPlayer);
-      console.log(`AI state synchronized: player ${currentPlayer} at (${row}, ${col})`);
-    }
-    
-    // Clear hover position after successful move
     this.hoverPosition = null;
-    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+    this.suggestionPosition = null;
+    if (this.currentMode === GameMode.PLAYER_VS_AI && !this.game.isGameOver()) {
+      this.triggerAIMove();
+    }
   }
 
-  /**
-   * Initialize the WebAssembly AI
-   */
   private async initializeAI(): Promise<void> {
     try {
       this.wasmAI = await createWasmAI();
       console.log('WebAssembly AI initialized successfully');
     } catch (error) {
       console.error('Failed to initialize WebAssembly AI:', error);
-      this.wasmAI = null;
     }
   }
 
-  /**
-   * Make AI move using WebAssembly AI
-   */
-  private async makeAIMove(): Promise<void> {
-    if (this.isAIThinking) {
-      console.warn('⚠️ AI move already in progress, skipping to prevent race condition');
-      return;
-    }
-    
-    console.log('🤖 AI move requested - current player:', this.game.getCurrentPlayer());
+  private async triggerAIMove(): Promise<void> {
+    if (this.isAIThinking) return;
     this.isAIThinking = true;
-    console.log('🔒 isAIThinking flag set to true');
     this.showMessage('🤖 IA réfléchit...');
-    
+    this.updateUI();
+
     try {
-      if (this.wasmAI && this.wasmAI.isReady()) {
-        console.log('WebAssembly AI is ready, updating game state');
-        // Update AI with current game state
+      if (this.wasmAI?.isReady()) {
         this.wasmAI.updateGameState(this.game.getGameState());
-        
-        // Measure AI thinking time
         const startTime = performance.now();
-        
-        console.log('Getting best move from AI...');
-        // Get the best move from AI
         const aiMove = this.wasmAI.getBestMove();
-        
         const endTime = performance.now();
-        this.lastAIThinkingTime = (endTime - startTime) / 1000; // Convert to seconds
-        
-        if (aiMove) {
-          console.log('AI returned move:', aiMove);
-          
-          // 🆕 Valider que le move est vraiment valide sur le plateau actuel
-          if (!this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
-            console.error(`AI returned invalid move (${aiMove.row}, ${aiMove.col}), using fallback`);
-            this.makeFallbackAIMove();
-            return;
-          }
-          
-          // Simulate thinking time for better UX
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          console.log('Making AI move at position:', aiMove);
-          // Make the AI move
+        this.lastAIThinkingTime = (endTime - startTime) / 1000;
+
+        await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+
+        if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
           this.makeMove(aiMove.row, aiMove.col);
-          console.log(`AI made move: row ${aiMove.row}, col ${aiMove.col} (took ${this.lastAIThinkingTime.toFixed(6)}s)`);
         } else {
-          console.warn('AI returned null move, using fallback');
-          this.makeFallbackAIMove();
+          console.error("AI returned invalid move or null, using fallback.");
         }
-      } else {
-        console.warn('WebAssembly AI not available, using fallback');
-        this.makeFallbackAIMove();
       }
     } catch (error) {
       console.error('Error making AI move:', error);
-      this.makeFallbackAIMove();
     } finally {
-      // Reset AI thinking flag after all operations complete
-      // This ensures the flag stays true during the entire AI turn including the 500ms delay
-      console.log('AI turn completed, resetting isAIThinking flag');
       this.isAIThinking = false;
+      this.updateUI();
     }
   }
 
-  /**
-   * Fallback AI: make a random valid move
-   */
-  private async makeFallbackAIMove(): Promise<void> {
-    const emptyPositions = this.game.getBoard().getEmptyPositions();
-    if (emptyPositions.length > 0) {
-      const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
-      this.makeMove(randomPos.row, randomPos.col);
+  private async showAISuggestion(): Promise<void> {
+    if (this.isAIThinking || !this.wasmAI?.isReady()) return;
+    this.isAIThinking = true;
+    this.showMessage("💡 L'IA cherche le meilleur coup...");
+    this.updateUI();
+
+    try {
+      this.wasmAI.updateGameState(this.game.getGameState());
+      const suggestion = this.wasmAI.getBestMove();
+      if (suggestion) {
+        this.suggestionPosition = suggestion;
+        this.redraw();
+        setTimeout(() => {
+          this.suggestionPosition = null;
+          this.redraw();
+        }, 3000); // Highlight for 3 seconds
+      }
+    } finally {
+      this.isAIThinking = false;
+      this.updateUI();
     }
   }
 
-  /**
-   * Reset the game
-   */
-  private resetGame(): void {
+  private resetGame(isNewGame: boolean): void {
     this.game.reset();
-    this.isGameOver = false;
     this.hoverPosition = null;
+    this.suggestionPosition = null;
     this.isAIThinking = false;
     this.lastAIThinkingTime = 0;
-    
-    // Reset AI if available
-    if (this.wasmAI && this.wasmAI.isReady()) {
-      this.wasmAI.initAI(this.wasmAI.getAIPlayer());
+    this.wasmAI?.initAI(Player.WHITE);
+    if (!isNewGame) {
+      emitGameReset();
     }
-    
-    emitGameReset();
-    this.canvasRenderer.draw(this.game.getCurrentPlayer(), null);
+    this.redraw();
     this.updateUI();
     this.clearMessage();
   }
 
-  /**
-   * Update UI elements
-   */
-  private updateUI(): void {
-    // Current player
-    const currentPlayerEl = document.getElementById('currentPlayer');
-    if (currentPlayerEl) {
-      const playerText = this.game.getCurrentPlayer() === Player.BLACK ? 'Au tour des Noirs' : 'Au tour des Blancs';
-      currentPlayerEl.textContent = this.isGameOver ? `Partie terminée` : playerText;
-    }
-
-    // Captures
-    const blackCapturesEl = document.getElementById('blackCaptures');
-    if (blackCapturesEl) {
-      blackCapturesEl.textContent = `Noir: ${this.game.getBlackCaptures()} / 10`;
-    }
-
-    const whiteCapturesEl = document.getElementById('whiteCaptures');
-    if (whiteCapturesEl) {
-      whiteCapturesEl.textContent = `Blanc: ${this.game.getWhiteCaptures()} / 10`;
-    }
-
-    // Timer (AI thinking time)
-    const timerEl = document.getElementById('timer');
-    if (timerEl) {
-      timerEl.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
-    }
+  private redraw(): void {
+    this.canvasRenderer.draw(
+      this.game.getCurrentPlayer(),
+      this.hoverPosition,
+      this.game.getLastMove(),
+      this.suggestionPosition
+    );
+    this.updateUI();
   }
 
-  /**
-   * Show message to user
-   */
+  private updateUI(): void {
+    const currentPlayer = this.game.getCurrentPlayer();
+    const isGameOver = this.game.isGameOver();
+
+    // Player turn text
+    const currentPlayerEl = document.getElementById('currentPlayer');
+    if (currentPlayerEl) {
+      const playerText = currentPlayer === Player.BLACK ? 'Au tour des Noirs' : 'Au tour des Blancs';
+      currentPlayerEl.textContent = isGameOver ? 'Partie terminée' : playerText;
+    }
+
+    // Active player highlight
+    document.getElementById('playerInfoBlack')?.classList.toggle('active-player', !isGameOver && currentPlayer === Player.BLACK);
+    document.getElementById('playerInfoWhite')?.classList.toggle('active-player', !isGameOver && currentPlayer === Player.WHITE);
+
+    // Captures
+    document.getElementById('blackCaptures')!.textContent = `Captures: ${this.game.getBlackCaptures()} / 10`;
+    document.getElementById('whiteCaptures')!.textContent = `Captures: ${this.game.getWhiteCaptures()} / 10`;
+
+    // Timer
+    document.getElementById('timer')!.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
+
+    // Suggest button visibility
+    this.suggestBtnEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_PLAYER || isGameOver);
+  }
+
   private showMessage(message: string): void {
-    // Create or update message element
     let messageEl = document.getElementById('gameMessage');
     if (!messageEl) {
       messageEl = document.createElement('div');
@@ -333,48 +250,18 @@ class GameController {
     }
     messageEl.textContent = message;
     messageEl.style.display = 'block';
-
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      if (messageEl) {
-        messageEl.style.display = 'none';
-      }
-    }, 3000);
+    setTimeout(() => { if (messageEl) messageEl.style.display = 'none'; }, 3000);
   }
 
-  /**
-   * Clear message
-   */
   private clearMessage(): void {
     const messageEl = document.getElementById('gameMessage');
-    if (messageEl) {
-      messageEl.style.display = 'none';
-    }
-  }
-
-  /**
-   * Set game mode
-   */
-  public setGameMode(mode: GameMode): void {
-    this.currentMode = mode;
-    this.resetGame();
-  }
-
-  /**
-   * Get current game mode
-   */
-  public getGameMode(): GameMode {
-    return this.currentMode;
+    if (messageEl) messageEl.style.display = 'none';
   }
 }
 
-// Initialize the game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const gameController = new GameController('gameBoard');
-    console.log('Gomoku game initialized successfully');
-    
-    // Make gameController available globally for debugging
     (window as any).gameController = gameController;
   } catch (error) {
     console.error('Failed to initialize game:', error);

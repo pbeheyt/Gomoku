@@ -73,10 +73,16 @@ export class CanvasRenderer {
   /**
    * Main draw function
    */
-  draw(currentPlayer: Player, hoverPos: Position | null): void {
+  draw(currentPlayer: Player, hoverPos: Position | null, lastMove: Position | null = null, suggestionPos: Position | null = null): void {
     this.clearCanvas();
     this.drawBoard();
     this.drawStones();
+    if (lastMove) {
+      this.drawLastMoveMarker(lastMove);
+    }
+    if (suggestionPos) {
+      this.drawSuggestionHighlight(suggestionPos);
+    }
     this.drawHover(currentPlayer, hoverPos);
   }
 
@@ -204,18 +210,31 @@ export class CanvasRenderer {
   }
 
   /**
-   * Highlight the last move
+   * Highlight the last move with a small dot
    */
-  drawLastMove(lastMove: Position | null): void {
-    if (!lastMove) return;
-
-    const x = BOARD_MARGIN + lastMove.col * CELL_SIZE;
-    const y = BOARD_MARGIN + lastMove.row * CELL_SIZE;
+  private drawLastMoveMarker(pos: Position): void {
+    const x = BOARD_MARGIN + pos.col * CELL_SIZE;
+    const y = BOARD_MARGIN + pos.row * CELL_SIZE;
 
     this.ctx.beginPath();
     this.ctx.arc(x, y, 5, 0, Math.PI * 2);
-    this.ctx.fillStyle = '#FF0000';
+    const piece = this.board.getPiece(pos.row, pos.col);
+    this.ctx.fillStyle = piece === Player.BLACK ? 'white' : 'black';
     this.ctx.fill();
+  }
+
+  /**
+   * Highlight a suggested move
+   */
+  private drawSuggestionHighlight(pos: Position): void {
+    const x = BOARD_MARGIN + pos.col * CELL_SIZE;
+    const y = BOARD_MARGIN + pos.row * CELL_SIZE;
+
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, STONE_RADIUS, 0, Math.PI * 2);
+    this.ctx.strokeStyle = '#00ff89';
+    this.ctx.lineWidth = 3;
+    this.ctx.stroke();
   }
 
   /**

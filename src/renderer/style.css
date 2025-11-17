@@ -1,4 +1,4 @@
-/* --- GOMOKU "GLASS ARENA" THEME --- */
+/* --- GOMOKU "GLASS ARENA" THEME V2 --- */
 
 /* 1. Global Styles & Variables */
 :root {
@@ -8,7 +8,8 @@
     --text-primary: #f0f0f0;
     --text-secondary: #a0a0a0;
     --accent-color: #00aaff;
-    --timer-color: #00ff89;
+    --active-glow: #00ff89;
+    --timer-color: var(--active-glow);
     --button-gradient: linear-gradient(135deg, #00aaff 0%, #0077cc 100%);
     --button-hover-gradient: linear-gradient(135deg, #0077cc 0%, #00aaff 100%);
     --font-main: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
@@ -32,7 +33,65 @@ body {
     padding: 20px;
 }
 
-/* 2. Main Layout & Header */
+.hidden {
+    display: none !important;
+}
+
+/* 2. Menu & Game Over Overlays */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+.menu-box {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+.menu-box h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+.menu-box p {
+    color: var(--text-secondary);
+    margin-bottom: 30px;
+    font-size: 1.1rem;
+}
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.btn-menu {
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--button-gradient);
+    color: white;
+}
+.btn-menu:hover {
+    background: var(--button-hover-gradient);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* 3. Main Game Layout & Header */
 .container {
     width: 100%;
     max-width: 1400px;
@@ -40,26 +99,11 @@ body {
     display: flex;
     flex-direction: column;
 }
+header { text-align: center; padding: 10px 0; }
+header h1 { font-size: 2.8rem; font-weight: 700; text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5); }
+header .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 300; }
 
-header {
-    text-align: center;
-    padding: 10px 0;
-}
-
-header h1 {
-    font-size: 2.8rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-header .subtitle {
-    font-size: 1rem;
-    color: var(--text-secondary);
-    font-weight: 300;
-}
-
-/* 3. The "Glass" Main Content Area */
+/* 4. The "Glass" Main Content Area */
 .main-content {
     flex-grow: 1;
     display: flex;
@@ -75,91 +119,46 @@ header .subtitle {
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-/* 4. Board & Info Panel Layout */
-.board-container {
-    background: #f0f0f0; /* Light background for contrast */
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
+/* 5. Board & Info Panel Layout */
+.board-container { background: #f0f0f0; border-radius: 10px; padding: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+#gameBoard { display: block; cursor: pointer; border-radius: 5px; }
+.info-panel { width: 320px; height: 100%; display: flex; flex-direction: column; gap: 15px; }
+.info-section { padding: 10px 0; border-bottom: 1px solid var(--glass-border); }
+.info-section:last-child { border-bottom: none; }
+.info-section h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); }
 
-#gameBoard {
-    display: block;
-    cursor: pointer;
-    border-radius: 5px;
-}
+/* 6. Specific Info Panel Components */
+.status-section h2 { font-size: 1.8rem; font-weight: 700; text-align: center; color: var(--text-primary); padding: 10px; }
+.timer-section { border: 1px solid var(--accent-color); border-radius: 12px; padding: 15px !important; background: rgba(0, 170, 255, 0.05); text-align: center; }
+.timer-section h3 { margin-bottom: 10px; color: var(--accent-color); }
+.timer-display { color: var(--timer-color); font-size: 2.8rem; font-weight: bold; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0, 255, 137, 0.5); letter-spacing: 2px; }
 
-.info-panel {
-    width: 320px;
-    height: 100%;
+/* Player Info & Active Player Indicator */
+.player-info {
     display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.info-section {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--glass-border);
-}
-.info-section:last-child {
-    border-bottom: none;
-}
-.info-section h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--text-secondary);
-}
-
-/* 5. Specific Info Panel Components */
-
-/* Game Status */
-.status-section h2 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    text-align: center;
-    color: var(--text-primary);
-    padding: 10px;
-}
-
-/* AI Timer - CRITICAL FOR GRADING */
-.timer-section {
-    border: 1px solid var(--accent-color);
-    border-radius: 12px;
-    padding: 15px !important;
-    background: rgba(0, 170, 255, 0.05);
-    text-align: center;
-}
-.timer-section h3 {
-    margin-bottom: 10px;
-    color: var(--accent-color);
-}
-.timer-display {
-    color: var(--timer-color);
-    font-size: 2.8rem;
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 10px rgba(0, 255, 137, 0.5);
-    letter-spacing: 2px;
-}
-
-/* Captures */
-.captures-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-.info-item {
-    background: rgba(0, 0, 0, 0.2);
+    justify-content: space-between;
+    align-items: center;
     padding: 12px 15px;
     border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 500;
-    text-align: center;
+    margin-bottom: 8px;
+    border: 2px solid transparent;
+    background: rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+.player-info.active-player {
+    background: rgba(0, 255, 137, 0.1);
+    border-color: var(--active-glow);
+    box-shadow: 0 0 15px rgba(0, 255, 137, 0.3);
+}
+.player-name { font-size: 1.1rem; font-weight: 600; }
+.player-captures { font-size: 1rem; color: var(--text-secondary); }
+.player-info.active-player .player-name, .player-info.active-player .player-captures {
+    color: var(--text-primary);
 }
 
 /* Controls */
-.game-mode-select, .btn-reset {
+.controls-section { display: flex; flex-direction: column; gap: 10px; }
+.btn-control {
     width: 100%;
     padding: 12px;
     font-size: 1rem;
@@ -168,71 +167,25 @@ header .subtitle {
     border: 1px solid var(--glass-border);
     cursor: pointer;
     transition: all 0.2s ease;
-}
-.game-mode-select {
-    background: var(--glass-bg);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
 }
-.game-mode-select:focus {
-    outline: none;
+.btn-control:hover {
+    background: rgba(255, 255, 255, 0.2);
     border-color: var(--accent-color);
 }
-.game-mode-select option {
-    background: #333;
-}
+#resetBtn { background: var(--button-gradient); border: none; color: white; }
+#resetBtn:hover { background: var(--button-hover-gradient); }
 
-.btn-reset {
-    background: var(--button-gradient);
-    color: white;
-    border: none;
-}
-.btn-reset:hover {
-    background: var(--button-hover-gradient);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-}
+/* Rules */
+.rules-section summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 5px; border-radius: 5px; transition: background 0.2s ease; }
+.rules-section summary:hover { background: rgba(255, 255, 255, 0.1); }
+.rules-section ul { list-style-type: none; padding: 10px 0 0 15px; color: var(--text-secondary); }
+.rules-section li { padding-left: 20px; position: relative; margin-bottom: 8px; font-size: 0.9rem; }
+.rules-section li::before { content: "▸"; position: absolute; left: 0; color: var(--accent-color); }
 
-/* Rules Section */
-.rules-section details {
-    margin-top: auto; /* Pushes to the bottom */
-}
-.rules-section summary {
-    cursor: pointer;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 5px;
-    border-radius: 5px;
-    transition: background 0.2s ease;
-}
-.rules-section summary:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-.rules-section ul {
-    list-style-type: none;
-    padding: 10px 0 0 15px;
-    color: var(--text-secondary);
-}
-.rules-section li {
-    padding-left: 20px;
-    position: relative;
-    margin-bottom: 8px;
-    font-size: 0.9rem;
-}
-.rules-section li::before {
-    content: "▸";
-    position: absolute;
-    left: 0;
-    color: var(--accent-color);
-}
-
-/* 6. Responsive Design */
+/* Responsive */
 @media (max-width: 1200px) {
-    .main-content {
-        flex-direction: column;
-        padding: 20px;
-    }
-    .info-panel {
-        width: 100%;
-        max-width: 500px; /* Limit width on column layout */
-    }
+    .main-content { flex-direction: column; padding: 20px; }
+    .info-panel { width: 100%; max-width: 500px; }
 }
