@@ -190,6 +190,48 @@ export class GomokuGame {
   }
 
   /**
+   * Checks if a potential winning line of 5+ stones can be broken by an opponent's capture.
+   * A win is only valid if the opponent cannot immediately capture a pair within the line.
+   * @param winningLine An array of positions forming the winning line.
+   * @param opponent The opponent player.
+   * @returns {boolean} True if the line is breakable, false otherwise.
+   */
+  private isLineBreakableByCapture(winningLine: Position[], opponent: Player): boolean {
+    if (winningLine.length < 2) return false;
+
+    // Determine the direction of the line from the first two stones
+    const dir = {
+      r: winningLine[1].row - winningLine[0].row,
+      c: winningLine[1].col - winningLine[0].col,
+    };
+
+    // Check every pair of adjacent stones in the winning line
+    for (let i = 0; i < winningLine.length - 1; i++) {
+      const stone1 = winningLine[i];
+      const stone2 = winningLine[i + 1];
+
+      // Get the two positions that flank the pair
+      const flankBeforePos = { row: stone1.row - dir.r, col: stone1.col - dir.c };
+      const flankAfterPos = { row: stone2.row + dir.r, col: stone2.col + dir.c };
+
+      const flankBeforePiece = this.board.getPiece(flankBeforePos.row, flankBeforePos.col);
+      const flankAfterPiece = this.board.getPiece(flankAfterPos.row, flankAfterPos.col);
+
+      // Check for a capture scenario: one side is opponent, the other is empty
+      if (
+        (flankBeforePiece === opponent && flankAfterPiece === Player.NONE) ||
+        (flankBeforePiece === Player.NONE && flankAfterPiece === opponent)
+      ) {
+        // This pair can be captured, so the line is breakable.
+        return true;
+      }
+    }
+
+    // No capturable pairs were found in the line.
+    return false;
+  }
+
+  /**
    * Check for win by alignment (5 in a row)
    */
   private checkWin(row: number, col: number): boolean {
@@ -201,30 +243,39 @@ export class GomokuGame {
     ];
 
     const player = this.board.getPiece(row, col);
+    const opponent = player === Player.BLACK ? Player.WHITE : Player.BLACK;
 
     for (const dir of directions) {
-      let count = 1; // Include the current stone
+      const currentLine: Position[] = [{ row, col }];
+      let count = 1;
 
-      // Count in positive direction
+      // Count in positive direction, storing positions
       let r = row + dir.r;
       let c = col + dir.c;
       while (this.board.getPiece(r, c) === player) {
+        currentLine.push({ row: r, col: c });
         count++;
         r += dir.r;
         c += dir.c;
       }
 
-      // Count in negative direction
+      // Count in negative direction, storing positions
       r = row - dir.r;
       c = col - dir.c;
       while (this.board.getPiece(r, c) === player) {
+        currentLine.unshift({ row: r, col: c }); // Add to the beginning to keep order
         count++;
         r -= dir.r;
         c -= dir.c;
       }
 
       if (count >= 5) {
-        return true;
+        // A 5-in-a-row is found. Now, check if it's breakable by an opponent's capture.
+        if (!this.isLineBreakableByCapture(currentLine, opponent)) {
+          // The line is not breakable, this is a valid win.
+          return true;
+        }
+        // If the line is breakable, we don't return true and continue checking other directions.
       }
     }
 
