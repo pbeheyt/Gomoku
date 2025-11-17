@@ -1,5 +1,5 @@
 /**
- * Gomoku Game Renderer - V2 with Game Flow Management
+ * Gomoku Game Renderer - V3 with Generic Modal Logic
  */
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
@@ -8,6 +8,7 @@ import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 
 type AppState = 'MENU' | 'IN_GAME' | 'GAME_OVER';
+type ModalButton = { text: string; callback: () => void; className?: string; };
 
 class GameController {
   private game: GomokuGame;
@@ -26,6 +27,11 @@ class GameController {
   private gameContainerEl: HTMLElement | null;
   private winnerMessageEl: HTMLElement | null;
   private suggestBtnEl: HTMLElement | null;
+  private aiTimerSectionEl: HTMLElement | null = null;
+  private genericModalEl: HTMLElement | null;
+  private modalTitleEl: HTMLElement | null;
+  private modalBodyEl: HTMLElement | null;
+  private modalFooterEl: HTMLElement | null;
 
   constructor(canvasId: string) {
     this.game = new GomokuGame();
@@ -37,6 +43,11 @@ class GameController {
     this.gameContainerEl = document.getElementById('gameContainer');
     this.winnerMessageEl = document.getElementById('winnerMessage');
     this.suggestBtnEl = document.getElementById('suggestBtn');
+    this.aiTimerSectionEl = document.getElementById('aiTimerSection');
+    this.genericModalEl = document.getElementById('genericModal');
+    this.modalTitleEl = document.getElementById('modalTitle');
+    this.modalBodyEl = document.getElementById('modalBody');
+    this.modalFooterEl = document.getElementById('modalFooter');
 
     this.setupMenuListeners();
     this.setupGameEventListeners();
@@ -66,9 +77,10 @@ class GameController {
     canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
 
-    document.getElementById('resetBtn')?.addEventListener('click', () => this.resetGame(false));
-    document.getElementById('menuBtn')?.addEventListener('click', () => this.showView('MENU'));
+    document.getElementById('resetBtn')?.addEventListener('click', () => this.confirmReset());
+    document.getElementById('menuBtn')?.addEventListener('click', () => this.confirmGoToMenu());
     this.suggestBtnEl?.addEventListener('click', () => this.showAISuggestion());
+    document.getElementById('rulesBtn')?.addEventListener('click', () => this.showRulesModal());
   }
 
   private setupGameEvents(): void {
@@ -82,6 +94,52 @@ class GameController {
       this.updateUI();
     });
     gameEvents.on('player:changed', () => this.updateUI());
+  }
+  
+  private showModal(title: string, contentHTML: string, buttons: ModalButton[]): void {
+    if (!this.genericModalEl || !this.modalTitleEl || !this.modalBodyEl || !this.modalFooterEl) return;
+    
+    this.modalTitleEl.textContent = title;
+    this.modalBodyEl.innerHTML = contentHTML;
+    this.modalFooterEl.innerHTML = ''; // Clear previous buttons
+
+    buttons.forEach(btnInfo => {
+        const button = document.createElement('button');
+        button.textContent = btnInfo.text;
+        button.className = `btn-modal ${btnInfo.className || ''}`;
+        button.onclick = () => {
+            this.genericModalEl?.classList.add('hidden');
+            btnInfo.callback();
+        };
+        this.modalFooterEl!.appendChild(button);
+    });
+
+    this.genericModalEl.classList.remove('hidden');
+  }
+
+  private showRulesModal(): void {
+    const rulesHTML = `
+      <ul>
+        <li><b>Victoire par Alignement :</b> Le premier joueur à aligner 5 pierres (ou plus) horizontalement, verticalement ou en diagonale gagne.</li>
+        <li><b>Victoire par Capture :</b> Capturez 10 pierres adverses (5 paires) pour gagner. Une capture se fait en encerclant exactement deux pierres adverses avec les vôtres.</li>
+        <li><b>Règle de Fin de Partie :</b> Une victoire par alignement n'est validée que si l'adversaire ne peut pas "casser" la ligne en capturant une paire de pierres à l'intérieur de celle-ci lors de son prochain tour.</li>
+        <li><b>Double-Trois Interdit :</b> Il est interdit de jouer un coup qui crée simultanément deux lignes de trois pierres "libres" (non bloquées aux extrémités).</li>
+      </ul>`;
+    this.showModal('Règles du Gomoku', rulesHTML, [{ text: 'Fermer', callback: () => {} }]);
+  }
+
+  private confirmReset(): void {
+    this.showModal('Recommencer', '<p>Êtes-vous sûr de vouloir recommencer la partie ?</p>', [
+        { text: 'Oui', callback: () => this.resetGame(false), className: 'primary' },
+        { text: 'Non', callback: () => {} }
+    ]);
+  }
+
+  private confirmGoToMenu(): void {
+    this.showModal('Menu Principal', '<p>Êtes-vous sûr de vouloir quitter la partie et retourner au menu principal ?</p>', [
+        { text: 'Oui', callback: () => this.showView('MENU'), className: 'primary' },
+        { text: 'Non', callback: () => {} }
+    ]);
   }
 
   private startGame(mode: GameMode): void {
@@ -218,13 +276,6 @@ class GameController {
     const currentPlayer = this.game.getCurrentPlayer();
     const isGameOver = this.game.isGameOver();
 
-    // Player turn text
-    const currentPlayerEl = document.getElementById('currentPlayer');
-    if (currentPlayerEl) {
-      const playerText = currentPlayer === Player.BLACK ? 'Au tour des Noirs' : 'Au tour des Blancs';
-      currentPlayerEl.textContent = isGameOver ? 'Partie terminée' : playerText;
-    }
-
     // Active player highlight
     document.getElementById('playerInfoBlack')?.classList.toggle('active-player', !isGameOver && currentPlayer === Player.BLACK);
     document.getElementById('playerInfoWhite')?.classList.toggle('active-player', !isGameOver && currentPlayer === Player.WHITE);
@@ -235,6 +286,7 @@ class GameController {
 
     // Timer
     document.getElementById('timer')!.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
+    this.aiTimerSectionEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_AI);
 
     // Suggest button visibility
     this.suggestBtnEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_PLAYER || isGameOver);

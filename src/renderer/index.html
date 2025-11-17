@@ -31,11 +31,23 @@
         </div>
     </div>
 
+    <!-- Generic Modal Overlay -->
+    <div class="modal-overlay hidden" id="genericModal">
+        <div class="modal-box">
+            <h2 id="modalTitle">Titre de la modale</h2>
+            <div id="modalBody">
+                <p>Contenu de la modale.</p>
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn-modal">OK</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Game Container -->
     <div class="container hidden" id="gameContainer">
         <header>
             <h1>Gomoku</h1>
-            <p class="subtitle">Une Intelligence Artificielle développée avec C++ et Electron</p>
         </header>
 
         <main class="main-content">
@@ -44,11 +56,7 @@
             </div>
 
             <div class="info-panel">
-                <div class="info-section status-section">
-                    <h2 id="currentPlayer">Au tour des Noirs</h2>
-                </div>
-                
-                <div class="info-section timer-section">
+                <div class="info-section timer-section" id="aiTimerSection">
                     <h3>⏱️ Temps de Réflexion IA</h3>
                     <div id="timer" class="timer-display">0.0000s</div>
                 </div>
@@ -73,15 +81,7 @@
                 </div>
 
                 <div class="info-section rules-section">
-                    <details>
-                        <summary>Règles du jeu</summary>
-                        <ul>
-                            <li>Alignez 5 pierres pour gagner.</li>
-                            <li>Capturez 10 pierres (5 paires) pour gagner.</li>
-                            <li>Victoire par alignement annulée si la ligne est cassable.</li>
-                            <li>Le coup "double-trois" est interdit.</li>
-                        </ul>
-                    </details>
+                    <button id="rulesBtn" class="btn-control">Règles du jeu</button>
                 </div>
             </div>
         </main>
