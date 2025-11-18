@@ -21,9 +21,9 @@ export class LlmAI {
   /**
    * Requests the best move from the LLM based on the current game state.
    * @param gameState The current state of the game.
-   * @returns A promise that resolves to the position of the best move.
+   * @returns A promise that resolves to the position and the reasoning.
    */
-  public async getBestMove(gameState: GameState): Promise<Position> {
+  public async getBestMove(gameState: GameState): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
 
     // --- DEBUG: Log the prompt sent to the LLM ---
@@ -55,6 +55,10 @@ export class LlmAI {
       // --- DEBUG: Log the raw response from the LLM ---
       console.log("%c--- RÉPONSE BRUTE DU LLM ---", "color: yellow; font-weight: bold;", "\n", content);
       
+      // Extract reasoning from <reasoning> tags
+      const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
+      const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Aucun raisonnement fourni.";
+
       // More robust parsing using regex to find "row": [number] and "col": [number]
       // This avoids strict JSON parsing errors (e.g., leading zeros like "09", trailing commas).
       const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
@@ -65,7 +69,10 @@ export class LlmAI {
         const col = parseInt(colMatch[1], 10);
 
         if (!isNaN(row) && !isNaN(col)) {
-          return { row, col };
+          return { 
+            position: { row, col },
+            reasoning: reasoning
+          };
         }
       }
 

@@ -36,6 +36,8 @@ class GameController {
   private timerLabelEl: HTMLElement | null = null;
   private timerDisplayEl: HTMLElement | null = null;
   private miniSpinnerEl: HTMLElement | null = null;
+  private aiReasoningSectionEl: HTMLElement | null = null;
+  private aiReasoningDisplayEl: HTMLElement | null = null;
   private genericModalEl: HTMLElement | null;
   
   private timerInterval: any = null; // For the live counter
@@ -61,6 +63,8 @@ class GameController {
     this.timerLabelEl = document.getElementById('timerLabel');
     this.timerDisplayEl = document.getElementById('timer');
     this.miniSpinnerEl = document.getElementById('miniSpinner');
+    this.aiReasoningSectionEl = document.getElementById('aiReasoningSection');
+    this.aiReasoningDisplayEl = document.getElementById('aiReasoningDisplay');
     this.genericModalEl = document.getElementById('genericModal');
     this.modalTitleEl = document.getElementById('modalTitle');
     this.modalBodyEl = document.getElementById('modalBody');
@@ -418,12 +422,20 @@ class GameController {
         this.showMessage(`🧠 IA LLM réfléchit... (Essai ${attempt}/${MAX_ATTEMPTS})`);
         
         const startTime = performance.now();
-        const llmMove = await this.llmAI.getBestMove(this.game.getGameState());
+        const result = await this.llmAI.getBestMove(this.game.getGameState());
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
+        const llmMove = result.position;
+
         if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
           await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+          
+          // Display reasoning
+          if (this.aiReasoningDisplayEl) {
+             this.aiReasoningDisplayEl.textContent = result.reasoning;
+          }
+
           this.makeMove(llmMove.row, llmMove.col);
           validMoveFound = true;
           break; // Exit loop on valid move
@@ -500,6 +512,12 @@ class GameController {
     if (!isNewGame) {
       emitGameReset();
     }
+    
+    // Clear reasoning display
+    if (this.aiReasoningDisplayEl) {
+        this.aiReasoningDisplayEl.textContent = "En attente...";
+    }
+
     this.redraw();
     this.updateUI();
     this.clearMessage();
@@ -530,6 +548,10 @@ class GameController {
     // Timer Section Visibility
     const isAiGame = this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM || this.currentMode === GameMode.AI_VS_LLM;
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
+
+    // Reasoning Section Visibility (Only for LLM modes)
+    const isLlmMode = this.currentMode === GameMode.PLAYER_VS_LLM || this.currentMode === GameMode.AI_VS_LLM;
+    this.aiReasoningSectionEl?.classList.toggle('hidden', !isLlmMode);
     
     // Note: We do NOT force update the timer text here anymore if AI is thinking,
     // because the interval handles it. We only update if NOT thinking.
