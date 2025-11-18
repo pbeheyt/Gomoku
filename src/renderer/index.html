@@ -14,7 +14,9 @@
             <p>Choisissez votre mode de jeu</p>
             <div class="menu-buttons">
                 <button id="pvpBtn" class="btn-menu">Joueur vs Joueur</button>
-                <button id="pvaBtn" class="btn-menu">Joueur vs IA</button>
+                <button id="pvaBtn" class="btn-menu">Joueur vs IA C++</button>
+                <button id="llmPvpBtn" class="btn-menu">Joueur vs IA LLM</button>
+                <button id="aiVsLlmBtn" class="btn-menu">IA C++ vs IA LLM</button>
             </div>
         </div>
     </div>
@@ -27,6 +29,37 @@
             <div class="menu-buttons">
                 <button id="replayBtn" class="btn-menu">Rejouer</button>
                 <button id="gameOverMenuBtn" class="btn-menu">Menu Principal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal Overlay -->
+    <div class="modal-overlay hidden" id="settingsModal">
+        <div class="modal-box">
+            <h2>Paramètres</h2>
+            <div class="config-form">
+                <p class="settings-desc">
+                    Pour jouer contre une IA LLM, veuillez fournir votre propre clé API OpenRouter.
+                    Elle sera sauvegardée localement sur votre machine.
+                </p>
+                <div class="form-group">
+                    <label for="apiKeyInput">Clé API OpenRouter</label>
+                    <input type="password" id="apiKeyInput" placeholder="sk-or-...">
+                </div>
+                <div class="form-group">
+                    <label for="modelSelect">Modèle LLM par défaut</label>
+                    <select id="modelSelect">
+                        <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
+                        <option value="meta-llama/llama-3-8b-instruct">Llama 3 8B</option>
+                        <option value="google/gemma-7b-it">Gemma 7B</option>
+                        <option value="anthropic/claude-3-haiku-20240307">Claude 3 Haiku</option>
+                        <option value="openai/gpt-4o">GPT-4o</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettingsBtn" class="btn-modal primary">Sauvegarder</button>
+                <button id="cancelSettingsBtn" class="btn-modal">Annuler</button>
             </div>
         </div>
     </div>
@@ -78,6 +111,7 @@
                     <button id="suggestBtn" class="btn-control">💡 Suggérer un coup</button>
                     <button id="resetBtn" class="btn-control">Nouvelle Partie</button>
                     <button id="menuBtn" class="btn-control">Menu Principal</button>
+                    <button id="settingsBtn" class="btn-control">⚙️ Paramètres</button>
                 </div>
 
                 <div class="info-section rules-section">

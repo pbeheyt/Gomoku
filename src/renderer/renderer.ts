@@ -6,9 +6,13 @@ import { GomokuGame } from '../core/game.js';
 import { CanvasRenderer } from '../ui/canvas.js';
 import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
+import { LlmAI } from '../llm/llm_ai.js';
 
 type AppState = 'MENU' | 'IN_GAME' | 'GAME_OVER';
 type ModalButton = { text: string; callback: () => void; className?: string; };
+
+const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
+const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
 class GameController {
   private game: GomokuGame;
@@ -17,6 +21,7 @@ class GameController {
   private hoverPosition: Position | null = null;
   private suggestionPosition: Position | null = null;
   private wasmAI: WasmAI | null = null;
+  private llmAI: LlmAI | null = null;
   private isAIThinking: boolean = false;
   private lastAIThinkingTime: number = 0;
   private appState: AppState = 'MENU';
@@ -32,6 +37,9 @@ class GameController {
   private modalTitleEl: HTMLElement | null;
   private modalBodyEl: HTMLElement | null;
   private modalFooterEl: HTMLElement | null;
+  private settingsModalEl: HTMLElement | null = null;
+  private apiKeyInputEl: HTMLInputElement | null = null;
+  private modelSelectEl: HTMLSelectElement | null = null;
 
   constructor(canvasId: string) {
     this.game = new GomokuGame();
@@ -48,9 +56,13 @@ class GameController {
     this.modalTitleEl = document.getElementById('modalTitle');
     this.modalBodyEl = document.getElementById('modalBody');
     this.modalFooterEl = document.getElementById('modalFooter');
+    this.settingsModalEl = document.getElementById('settingsModal');
+    this.apiKeyInputEl = document.getElementById('apiKeyInput') as HTMLInputElement;
+    this.modelSelectEl = document.getElementById('modelSelect') as HTMLSelectElement;
 
     this.setupMenuListeners();
     this.setupGameEventListeners();
+    this.setupSettingsListeners();
     this.setupGameEvents();
     this.initializeAI();
 
@@ -67,6 +79,9 @@ class GameController {
   private setupMenuListeners(): void {
     document.getElementById('pvpBtn')?.addEventListener('click', () => this.startGame(GameMode.PLAYER_VS_PLAYER));
     document.getElementById('pvaBtn')?.addEventListener('click', () => this.startGame(GameMode.PLAYER_VS_AI));
+    document.getElementById('llmPvpBtn')?.addEventListener('click', () => this.startGame(GameMode.PLAYER_VS_LLM));
+    document.getElementById('aiVsLlmBtn')?.addEventListener('click', () => this.startGame(GameMode.AI_VS_LLM));
+
     document.getElementById('replayBtn')?.addEventListener('click', () => this.startGame(this.currentMode));
     document.getElementById('gameOverMenuBtn')?.addEventListener('click', () => this.showView('MENU'));
   }
@@ -81,6 +96,46 @@ class GameController {
     document.getElementById('menuBtn')?.addEventListener('click', () => this.confirmGoToMenu());
     this.suggestBtnEl?.addEventListener('click', () => this.showAISuggestion());
     document.getElementById('rulesBtn')?.addEventListener('click', () => this.showRulesModal());
+  }
+
+  private setupSettingsListeners(): void {
+    document.getElementById('settingsBtn')?.addEventListener('click', () => this.openSettingsModal());
+    document.getElementById('saveSettingsBtn')?.addEventListener('click', () => this.saveSettings());
+    document.getElementById('cancelSettingsBtn')?.addEventListener('click', () => this.settingsModalEl?.classList.add('hidden'));
+  }
+
+  private openSettingsModal(): void {
+    if (!this.apiKeyInputEl || !this.modelSelectEl || !this.settingsModalEl) return;
+    
+    // Load saved values from localStorage
+    const savedApiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
+    const savedModel = localStorage.getItem(LOCAL_STORAGE_MODEL);
+
+    if (savedApiKey) {
+      this.apiKeyInputEl.value = savedApiKey;
+    }
+    if (savedModel) {
+      this.modelSelectEl.value = savedModel;
+    }
+
+    this.settingsModalEl.classList.remove('hidden');
+  }
+
+  private saveSettings(): void {
+    if (!this.apiKeyInputEl || !this.modelSelectEl || !this.settingsModalEl) return;
+
+    const apiKey = this.apiKeyInputEl.value;
+    const model = this.modelSelectEl.value;
+
+    if (apiKey) {
+      localStorage.setItem(LOCAL_STORAGE_API_KEY, apiKey);
+    }
+    if (model) {
+      localStorage.setItem(LOCAL_STORAGE_MODEL, model);
+    }
+
+    this.settingsModalEl.classList.add('hidden');
+    this.showMessage('✅ Paramètres sauvegardés !');
   }
 
   private setupGameEvents(): void {
@@ -143,9 +198,27 @@ class GameController {
   }
 
   private startGame(mode: GameMode): void {
+    // For LLM modes, check if API key is set
+    if (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM) {
+      const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
+      if (!apiKey || apiKey.trim() === '') {
+        this.showModal(
+          'Clé API requise',
+          '<p>Pour jouer contre une IA LLM, vous devez d\'abord configurer votre clé API OpenRouter dans les paramètres.</p>',
+          [{ text: 'Ouvrir les Paramètres', callback: () => this.openSettingsModal(), className: 'primary' }]
+        );
+        return; // Stop game from starting
+      }
+    }
+
     this.currentMode = mode;
     this.resetGame(true);
     this.showView('IN_GAME');
+
+    // If AI vs LLM, AI (C++) starts first
+    if (mode === GameMode.AI_VS_LLM) {
+      this.triggerAIMove();
+    }
   }
 
   private canvasToBoard(x: number, y: number): Position | null {
@@ -180,8 +253,31 @@ class GameController {
     }
     this.hoverPosition = null;
     this.suggestionPosition = null;
-    if (this.currentMode === GameMode.PLAYER_VS_AI && !this.game.isGameOver()) {
-      this.triggerAIMove();
+
+    if (this.game.isGameOver()) return;
+
+    // Determine next action based on game mode
+    switch (this.currentMode) {
+      case GameMode.PLAYER_VS_AI:
+        if (this.game.getCurrentPlayer() === this.wasmAI?.getAIPlayer()) {
+          this.triggerAIMove();
+        }
+        break;
+      
+      case GameMode.PLAYER_VS_LLM:
+        // Assuming player is always BLACK (1), LLM is WHITE (2)
+        if (this.game.getCurrentPlayer() === Player.WHITE) {
+          this.triggerLlmMove();
+        }
+        break;
+
+      case GameMode.AI_VS_LLM:
+        if (this.game.getCurrentPlayer() === this.wasmAI?.getAIPlayer()) {
+          this.triggerAIMove();
+        } else {
+          this.triggerLlmMove();
+        }
+        break;
     }
   }
 
@@ -197,7 +293,7 @@ class GameController {
   private async triggerAIMove(): Promise<void> {
     if (this.isAIThinking) return;
     this.isAIThinking = true;
-    this.showMessage('🤖 IA réfléchit...');
+    this.showMessage('🤖 IA C++ réfléchit...');
     this.updateUI();
 
     try {
@@ -218,6 +314,41 @@ class GameController {
       }
     } catch (error) {
       console.error('Error making AI move:', error);
+    } finally {
+      this.isAIThinking = false;
+      this.updateUI();
+    }
+  }
+
+  private async triggerLlmMove(): Promise<void> {
+    if (this.isAIThinking) return;
+    this.isAIThinking = true;
+    this.showMessage('🧠 IA LLM réfléchit...');
+    this.updateUI();
+
+    try {
+      const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
+      const model = localStorage.getItem(LOCAL_STORAGE_MODEL);
+      if (!apiKey || !model) throw new Error("API Key or Model not configured.");
+
+      this.llmAI = new LlmAI(apiKey, model);
+      
+      const startTime = performance.now();
+      const llmMove = await this.llmAI.getBestMove(this.game.getGameState());
+      const endTime = performance.now();
+      this.lastAIThinkingTime = (endTime - startTime) / 1000;
+
+      await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+
+      if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
+        this.makeMove(llmMove.row, llmMove.col);
+      } else {
+        console.error("LLM AI returned invalid move or null.");
+        this.showMessage("❌ L'IA LLM a retourné un coup invalide.");
+      }
+    } catch (error) {
+      console.error('Error making LLM AI move:', error);
+      this.showMessage(`❌ Erreur IA LLM: ${error}`);
     } finally {
       this.isAIThinking = false;
       this.updateUI();
@@ -253,7 +384,15 @@ class GameController {
     this.suggestionPosition = null;
     this.isAIThinking = false;
     this.lastAIThinkingTime = 0;
-    this.wasmAI?.initAI(Player.WHITE);
+    this.llmAI = null;
+
+    // Configure AI players based on game mode
+    if (this.currentMode === GameMode.PLAYER_VS_AI) {
+      this.wasmAI?.initAI(Player.WHITE); // Human is BLACK, AI is WHITE
+    } else if (this.currentMode === GameMode.AI_VS_LLM) {
+      this.wasmAI?.initAI(Player.BLACK); // C++ AI is BLACK, LLM is WHITE
+    }
+
     if (!isNewGame) {
       emitGameReset();
     }
@@ -285,8 +424,9 @@ class GameController {
     document.getElementById('whiteCaptures')!.textContent = `Captures: ${this.game.getWhiteCaptures()} / 10`;
 
     // Timer
+    const isAiGame = this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM || this.currentMode === GameMode.AI_VS_LLM;
     document.getElementById('timer')!.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
-    this.aiTimerSectionEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_AI);
+    this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
 
     // Suggest button visibility
     this.suggestBtnEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_PLAYER || isGameOver);

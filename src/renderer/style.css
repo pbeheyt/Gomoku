@@ -260,3 +260,26 @@ header .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 3
 .btn-modal.primary:hover {
     background: var(--button-hover-gradient);
 }
+
+/* 8. Settings Modal Form Styles */
+.config-form { text-align: left; margin-bottom: 25px; }
+.settings-desc { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem; }
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: var(--font-main);
+}
+.form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 10px rgba(0, 170, 255, 0.3);
+}
+
+/* END OF FILE */

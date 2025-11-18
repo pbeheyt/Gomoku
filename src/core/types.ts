@@ -11,6 +11,8 @@ export enum Player {
 export enum GameMode {
   PLAYER_VS_PLAYER = 'pvp',
   PLAYER_VS_AI = 'pva',
+  PLAYER_VS_LLM = 'pvllm',
+  AI_VS_LLM = 'aivllm',
   AI_SUGGEST = 'suggest',
 }
 
