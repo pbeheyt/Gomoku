@@ -358,26 +358,39 @@ class GameController {
     this.showMessage('🧠 IA LLM réfléchit...');
     this.updateUI();
 
+    const MAX_ATTEMPTS = 3;
+    let validMoveFound = false;
+
     try {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       const model = localStorage.getItem(LOCAL_STORAGE_MODEL);
       if (!apiKey || !model) throw new Error("API Key or Model not configured.");
 
       this.llmAI = new LlmAI(apiKey, model);
-      
-      const startTime = performance.now();
-      const llmMove = await this.llmAI.getBestMove(this.game.getGameState());
-      const endTime = performance.now();
-      this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
-      await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        this.showMessage(`🧠 IA LLM réfléchit... (Essai ${attempt}/${MAX_ATTEMPTS})`);
+        
+        const startTime = performance.now();
+        const llmMove = await this.llmAI.getBestMove(this.game.getGameState());
+        const endTime = performance.now();
+        this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
-      if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
-        this.makeMove(llmMove.row, llmMove.col);
-      } else {
-        console.error("LLM AI returned invalid move or null.");
-        this.showMessage("❌ L'IA LLM a retourné un coup invalide.");
+        if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
+          await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+          this.makeMove(llmMove.row, llmMove.col);
+          validMoveFound = true;
+          break; // Exit loop on valid move
+        } else {
+          console.warn(`Attempt ${attempt}: LLM returned an invalid move:`, llmMove);
+          // The loop will continue for another attempt.
+        }
       }
+
+      if (!validMoveFound) {
+        throw new Error(`L'IA LLM n'a pas réussi à fournir un coup valide après ${MAX_ATTEMPTS} essais.`);
+      }
+
     } catch (error) {
       console.error('Error making LLM AI move:', error);
       this.showMessage(`❌ Erreur IA LLM: ${error}`);

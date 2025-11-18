@@ -15,7 +15,7 @@ export class LlmAI {
       throw new Error("API key is required for LlmAI");
     }
     this.apiKey = apiKey;
-    this.model = model || 'deepseek/deepseek-chat'; // Default model
+    this.model = model;
   }
 
   /**
@@ -24,6 +24,7 @@ export class LlmAI {
    * @returns A promise that resolves to the position of the best move.
    */
   public async getBestMove(gameState: GameState): Promise<Position> {
+    console.log("getBestMove called");
     const prompt = this.generatePrompt(gameState);
 
     // --- DEBUG: Log the prompt sent to the LLM ---
@@ -55,7 +56,19 @@ export class LlmAI {
       // --- DEBUG: Log the raw response from the LLM ---
       console.log("%c--- RÉPONSE BRUTE DU LLM ---", "color: yellow; font-weight: bold;", "\n", content);
       
-      const move = JSON.parse(content);
+      // This regex finds the last occurrence of a JSON object in the string.
+      // This is crucial for the "Chain of Thought" process, ensuring we parse the final answer.
+      const jsonRegex = /{[^}]*}/g;
+      const matches = content.match(jsonRegex);
+
+      if (!matches || matches.length === 0) {
+        throw new Error("No valid JSON object found in the LLM response.");
+      }
+
+      // Get the last JSON object found in the response
+      const jsonString = matches[matches.length - 1];
+      const move = JSON.parse(jsonString);
+
       if (typeof move.row === 'number' && typeof move.col === 'number') {
         return move;
       }
@@ -80,15 +93,14 @@ export class LlmAI {
     const boardString = this.formatBoard(gameState.board, playerChar, opponentChar);
 
     return `
-Tu es un joueur expert de Gomoku. Ton objectif est de déterminer le meilleur prochain coup possible.
+Tu es un stratège expert du jeu de Gomoku. Ton objectif est de gagner en suivant un processus de raisonnement rigoureux.
 
-**Règles Actuelles :**
-- Plateau de 19x19.
-- Victoire par alignement de 5 pierres ou par capture de 10 pierres adverses.
-- Une capture se fait en encerclant exactement deux pierres adverses adjacentes (ex: OXXO).
+**Règles du Jeu (Rappel) :**
+- **Alignement :** Gagne en alignant 5 pierres.
+- **Capture :** Gagne en capturant 10 pierres adverses (5 paires). Une paire (XX) est capturée en l'encerclant (OXXO).
+- **Menaces :** Une ligne de 4 pierres non bloquée (un "quatre libre" comme \`_XXXX_\`) est une menace de victoire immédiate. Une ligne de 3 pierres non bloquée (un "trois libre" comme \`_XXX_\`) est une menace très puissante.
 
-**État du Plateau :**
-Le plateau est représenté ci-dessous. '.' est une case vide, '${playerChar}' représente tes pierres, et '${opponentChar}' représente les pierres de l'adversaire.
+**État Actuel du Plateau :**
 \`\`\`
 ${boardString}
 \`\`\`
@@ -96,14 +108,28 @@ ${boardString}
 **Ton Tour :**
 Tu joues avec les pierres '${playerChar}'.
 
-**Instructions :**
-Analyse la position et choisis le meilleur coup. Pense à l'attaque (créer tes propres menaces) et à la défense (bloquer les menaces de l'adversaire).
+**Instructions de Réflexion (TRÈS IMPORTANT) :**
+Avant de donner ta réponse finale, tu DOIS suivre ces 3 étapes de raisonnement à l'intérieur d'une balise <thinking>:
 
-**Format de Réponse OBLIGATOIRE :**
-Réponds UNIQUEMENT avec un objet JSON contenant les coordonnées de ton coup, comme ceci :
+1.  **<analyse>**
+    -   Décris la situation. Où sont les menaces de l'adversaire ? (Ex: "L'adversaire a un trois semi-ouvert en ligne 8.")
+    -   Où sont tes propres opportunités ? (Ex: "Je peux étendre ma ligne en colonne D pour former un trois.")
+    **</analyse>**
+
+2.  **<candidats>**
+    -   Liste 2 ou 3 coups possibles.
+    -   Pour chaque coup, explique brièvement la stratégie. (Ex: "Coup 1: (8, 10) - Bloque la menace adverse et prolonge ma propre ligne. Coup 2: (12, 5) - Crée une nouvelle menace loin du combat principal.")
+    **</candidats>**
+
+3.  **<decision>**
+    -   Choisis le meilleur coup parmi tes candidats et justifie ton choix final. (Ex: "Je choisis (8, 10) car la défense est prioritaire. Bloquer sa menace est plus important que de créer la mienne.")
+    **</decision>**
+
+</thinking>
+
+**Format de Réponse Final :**
+Après ta réflexion dans la balise <thinking>, et SANS AUCUN AUTRE TEXTE APRÈS, fournis ton coup final dans le format JSON strict suivant :
 {"row": R, "col": C}
-
-Ne fournis AUCUNE autre explication, salutation ou texte. Ta réponse doit être uniquement le JSON.
     `;
   }
 
