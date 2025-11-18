@@ -24,6 +24,15 @@ export class UIManager {
   private apiKeyInputEl: HTMLInputElement | null;
   private modelSelectEl: HTMLSelectElement | null;
   private messageEl: HTMLElement | null = null;
+  
+  // Setup Modal Elements
+  private setupModalEl: HTMLElement | null;
+  private setupModelSelectEl: HTMLSelectElement | null;
+  private setupColorBtns: NodeListOf<Element>;
+  private setupStartBtn: HTMLElement | null;
+  private setupCancelBtn: HTMLElement | null;
+  private setupModelSection: HTMLElement | null;
+  private setupColorSection: HTMLElement | null;
 
   private timerInterval: any = null;
   private thinkingStartTime: number = 0;
@@ -47,6 +56,15 @@ export class UIManager {
     this.settingsModalEl = document.getElementById('settingsModal');
     this.apiKeyInputEl = document.getElementById('apiKeyInput') as HTMLInputElement;
     this.modelSelectEl = document.getElementById('modelSelect') as HTMLSelectElement;
+
+    // Setup Modal
+    this.setupModalEl = document.getElementById('setupModal');
+    this.setupModelSelectEl = document.getElementById('setupModelSelect') as HTMLSelectElement;
+    this.setupColorBtns = document.querySelectorAll('.btn-color');
+    this.setupStartBtn = document.getElementById('startGameBtn');
+    this.setupCancelBtn = document.getElementById('cancelSetupBtn');
+    this.setupModelSection = document.getElementById('modelSelectionSection');
+    this.setupColorSection = document.getElementById('colorSelection');
   }
 
   public showView(view: AppState): void {
@@ -149,14 +167,85 @@ export class UIManager {
   }
 
   public populateModels(models: { name: string; id: string }[]): void {
-    if (!this.modelSelectEl) return;
-    this.modelSelectEl.innerHTML = '';
-    models.forEach(model => {
-      const option = document.createElement('option');
-      option.value = model.id;
-      option.textContent = model.name;
-      this.modelSelectEl!.appendChild(option);
+    // Populate global settings select
+    if (this.modelSelectEl) {
+        this.modelSelectEl.innerHTML = '';
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            this.modelSelectEl!.appendChild(option);
+        });
+    }
+    // Populate setup modal select
+    if (this.setupModelSelectEl) {
+        this.setupModelSelectEl.innerHTML = '';
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            this.setupModelSelectEl!.appendChild(option);
+        });
+    }
+  }
+
+  public showSetupModal(
+    mode: GameMode, 
+    onStart: (config: { color: Player, modelId?: string }) => void,
+    onCancel: () => void
+  ): void {
+    if (!this.setupModalEl) return;
+
+    // Reset state
+    this.setupColorBtns.forEach(btn => {
+        btn.classList.remove('selected');
+        if (btn.getAttribute('data-color') === '1') btn.classList.add('selected');
     });
+
+    // Logic to show/hide sections based on mode
+    const needsModel = (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM);
+    const needsColor = (mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM);
+
+    if (this.setupModelSection) this.setupModelSection.classList.toggle('hidden', !needsModel);
+    if (this.setupColorSection) this.setupColorSection.classList.toggle('hidden', !needsColor);
+
+    // Bind Color Buttons
+    this.setupColorBtns.forEach(btn => {
+        (btn as HTMLElement).onclick = () => {
+            this.setupColorBtns.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        };
+    });
+
+    // Bind Start
+    if (this.setupStartBtn) {
+        this.setupStartBtn.onclick = () => {
+            let selectedColor = Player.BLACK;
+            this.setupColorBtns.forEach(btn => {
+                if (btn.classList.contains('selected')) {
+                    selectedColor = parseInt(btn.getAttribute('data-color') || '1');
+                }
+            });
+
+            const config: any = { color: selectedColor };
+            if (needsModel && this.setupModelSelectEl) {
+                config.modelId = this.setupModelSelectEl.value;
+            }
+            
+            this.setupModalEl?.classList.add('hidden');
+            onStart(config);
+        };
+    }
+
+    // Bind Cancel
+    if (this.setupCancelBtn) {
+        this.setupCancelBtn.onclick = () => {
+            this.setupModalEl?.classList.add('hidden');
+            onCancel();
+        };
+    }
+
+    this.setupModalEl.classList.remove('hidden');
   }
 
   public showMessage(message: string): void {
@@ -182,28 +271,39 @@ export class UIManager {
     onLlmPvp: () => void,
     onAiVsLlm: () => void,
     onReplay: () => void,
-    onMenu: () => void
+    onMenu: () => void,
+    onSettings: () => void
   }): void {
-    document.getElementById('pvpBtn')?.addEventListener('click', actions.onPvp);
-    document.getElementById('pvaBtn')?.addEventListener('click', actions.onPva);
-    document.getElementById('llmPvpBtn')?.addEventListener('click', actions.onLlmPvp);
-    document.getElementById('aiVsLlmBtn')?.addEventListener('click', actions.onAiVsLlm);
+    // Card clicks
+    document.getElementById('cardPvp')?.addEventListener('click', actions.onPvp);
+    document.getElementById('cardPva')?.addEventListener('click', actions.onPva);
+    document.getElementById('cardLlm')?.addEventListener('click', actions.onLlmPvp);
+    document.getElementById('cardArena')?.addEventListener('click', actions.onAiVsLlm);
+    
+    // Main Menu Settings
+    document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
+
+    // Game Over Buttons
     document.getElementById('replayBtn')?.addEventListener('click', actions.onReplay);
     document.getElementById('gameOverMenuBtn')?.addEventListener('click', actions.onMenu);
   }
 
   public bindGameControls(actions: {
     onReset: () => void,
-    onMenu: () => void,
     onSuggest: () => void,
+  }): void {
+    document.getElementById('resetBtn')?.addEventListener('click', actions.onReset);
+    this.suggestBtnEl?.addEventListener('click', actions.onSuggest);
+  }
+
+  public bindHeaderControls(actions: {
+    onHome: () => void,
     onRules: () => void,
     onSettings: () => void
   }): void {
-    document.getElementById('resetBtn')?.addEventListener('click', actions.onReset);
-    document.getElementById('menuBtn')?.addEventListener('click', actions.onMenu);
-    this.suggestBtnEl?.addEventListener('click', actions.onSuggest);
-    document.getElementById('rulesBtn')?.addEventListener('click', actions.onRules);
-    document.getElementById('settingsBtn')?.addEventListener('click', actions.onSettings);
+    document.getElementById('headerHomeBtn')?.addEventListener('click', actions.onHome);
+    document.getElementById('headerRulesBtn')?.addEventListener('click', actions.onRules);
+    document.getElementById('headerSettingsBtn')?.addEventListener('click', actions.onSettings);
   }
 
   public bindSettingsActions(actions: {

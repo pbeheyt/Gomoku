@@ -9,14 +9,64 @@
 <body>
     <!-- Main Menu Overlay -->
     <div class="menu-overlay" id="mainMenu">
-        <div class="menu-box">
-            <h1>Gomoku</h1>
-            <p>Choisissez votre mode de jeu</p>
-            <div class="menu-buttons">
-                <button id="pvpBtn" class="btn-menu">Joueur vs Joueur</button>
-                <button id="pvaBtn" class="btn-menu">Joueur vs IA C++</button>
-                <button id="llmPvpBtn" class="btn-menu">Joueur vs IA LLM</button>
-                <button id="aiVsLlmBtn" class="btn-menu">IA C++ vs IA LLM</button>
+        <div class="launcher-box">
+            <div class="launcher-header">
+                <h1>Gomoku</h1>
+                <button id="mainSettingsBtn" class="btn-icon" title="Paramètres">⚙️</button>
+            </div>
+            <p class="launcher-subtitle">Sélectionnez un mode de jeu</p>
+            
+            <div class="mode-grid">
+                <div class="mode-card" id="cardPvp">
+                    <div class="card-icon">👥</div>
+                    <h3>Versus Local</h3>
+                    <p>Jouez contre un ami sur le même écran.</p>
+                </div>
+                <div class="mode-card" id="cardPva">
+                    <div class="card-icon">🤖</div>
+                    <h3>Solo vs C++</h3>
+                    <p>Défiez l'IA Minimax native (haute performance).</p>
+                </div>
+                <div class="mode-card" id="cardLlm">
+                    <div class="card-icon">🧠</div>
+                    <h3>Challenge LLM</h3>
+                    <p>Affrontez une IA Générative (GPT, Claude...).</p>
+                </div>
+                <div class="mode-card" id="cardArena">
+                    <div class="card-icon">⚔️</div>
+                    <h3>Arène IA</h3>
+                    <p>Regardez l'IA C++ affronter le LLM.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Setup Modal -->
+    <div class="modal-overlay hidden" id="setupModal">
+        <div class="modal-box setup-box">
+            <h2 id="setupTitle">Configuration de la partie</h2>
+            
+            <div class="setup-section" id="colorSelection">
+                <label>Choisissez votre couleur :</label>
+                <div class="color-options">
+                    <button class="btn-color selected" data-color="1">
+                        <span class="stone-preview black"></span> Noir (Commence)
+                    </button>
+                    <button class="btn-color" data-color="2">
+                        <span class="stone-preview white"></span> Blanc
+                    </button>
+                </div>
+            </div>
+
+            <div class="setup-section hidden" id="modelSelectionSection">
+                <label>Modèle LLM :</label>
+                <select id="setupModelSelect" class="full-width-select"></select>
+                <p class="setup-hint">Configurez votre clé API dans les paramètres si nécessaire.</p>
+            </div>
+
+            <div class="modal-footer">
+                <button id="startGameBtn" class="btn-modal primary">Lancer la partie</button>
+                <button id="cancelSetupBtn" class="btn-modal">Annuler</button>
             </div>
         </div>
     </div>
@@ -75,8 +125,15 @@
 
     <!-- Main Game Container -->
     <div class="container hidden" id="gameContainer">
-        <header>
+        <header class="game-header">
+            <div class="header-left">
+                <button id="headerHomeBtn" class="btn-icon" title="Menu Principal">🏠</button>
+            </div>
             <h1>Gomoku</h1>
+            <div class="header-right">
+                <button id="headerRulesBtn" class="btn-icon" title="Règles">📖</button>
+                <button id="headerSettingsBtn" class="btn-icon" title="Paramètres">⚙️</button>
+            </div>
         </header>
 
         <main class="main-content">
@@ -113,15 +170,9 @@
                 </div>
 
                 <div class="info-section controls-section">
-                    <h3>Contrôles</h3>
+                    <h3>Actions</h3>
                     <button id="suggestBtn" class="btn-control">💡 Suggérer un coup</button>
-                    <button id="resetBtn" class="btn-control">Nouvelle Partie</button>
-                    <button id="menuBtn" class="btn-control">Menu Principal</button>
-                    <button id="settingsBtn" class="btn-control">⚙️ Paramètres</button>
-                </div>
-
-                <div class="info-section rules-section">
-                    <button id="rulesBtn" class="btn-control">Règles du jeu</button>
+                    <button id="resetBtn" class="btn-control">🔄 Recommencer</button>
                 </div>
             </div>
         </main>

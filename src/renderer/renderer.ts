@@ -18,6 +18,7 @@ class GameController {
   private canvasRenderer: CanvasRenderer;
   private ui: UIManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
+  private lastGameConfig: any = {}; // Store config for replay
   private hoverPosition: Position | null = null;
   private suggestionPosition: Position | null = null;
   private wasmAI: WasmAI | null = null;
@@ -40,23 +41,28 @@ class GameController {
   }
 
   private setupBindings(): void {
-    // Menu Actions
+    // Menu Actions (Launcher)
     this.ui.bindMenuButtons({
-      onPvp: () => this.startGame(GameMode.PLAYER_VS_PLAYER),
-      onPva: () => this.startGame(GameMode.PLAYER_VS_AI),
-      onLlmPvp: () => this.startGame(GameMode.PLAYER_VS_LLM),
-      onAiVsLlm: () => this.startGame(GameMode.AI_VS_LLM),
-      onReplay: () => this.startGame(this.currentMode),
-      onMenu: () => this.showView('MENU')
+      onPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_PLAYER),
+      onPva: () => this.initiateGameStart(GameMode.PLAYER_VS_AI),
+      onLlmPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_LLM),
+      onAiVsLlm: () => this.initiateGameStart(GameMode.AI_VS_LLM),
+      onReplay: () => this.startGame(this.currentMode, this.lastGameConfig), // Replay with last config
+      onMenu: () => this.showView('MENU'),
+      onSettings: () => this.openSettingsModal()
     });
 
-    // Game Controls
+    // In-Game Controls (Side Panel)
     this.ui.bindGameControls({
       onReset: () => this.confirmReset(),
-      onMenu: () => this.confirmGoToMenu(),
       onSuggest: () => this.showAISuggestion(),
-      onRules: () => this.showRulesModal(),
-      onSettings: () => this.openSettingsModal()
+    });
+
+    // Header Controls
+    this.ui.bindHeaderControls({
+        onHome: () => this.confirmGoToMenu(),
+        onRules: () => this.showRulesModal(),
+        onSettings: () => this.openSettingsModal()
     });
 
     // Settings Actions
@@ -134,7 +140,7 @@ class GameController {
 
   private confirmReset(): void {
     this.ui.showModal('Recommencer', '<p>Êtes-vous sûr de vouloir recommencer la partie ?</p>', [
-        { text: 'Oui', callback: () => this.resetGame(false), className: 'primary' },
+        { text: 'Oui', callback: () => this.resetGame(false, this.lastGameConfig), className: 'primary' },
         { text: 'Non', callback: () => {} }
     ]);
   }
@@ -146,7 +152,8 @@ class GameController {
     ]);
   }
 
-  private startGame(mode: GameMode): void {
+  private initiateGameStart(mode: GameMode): void {
+    // Check requirements for LLM
     if (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM) {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       if (!apiKey || apiKey.trim() === '') {
@@ -159,12 +166,42 @@ class GameController {
       }
     }
 
+    // Show Setup Modal
+    this.ui.showSetupModal(mode, (config) => {
+        this.startGame(mode, config);
+    }, () => {
+        // On cancel, do nothing (stay in menu)
+    });
+  }
+
+  private startGame(mode: GameMode, config: any): void {
     this.currentMode = mode;
-    this.resetGame(true);
+    this.lastGameConfig = config;
+
+    // Save selected model to local storage for convenience
+    if (config.modelId) {
+        localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId);
+    }
+
+    this.resetGame(true, config);
     this.showView('IN_GAME');
 
+    // If AI starts (e.g., AI vs LLM, or Player vs AI where Player chose White)
     if (mode === GameMode.AI_VS_LLM) {
-      this.triggerAIMove();
+        // AI (C++) is Black, LLM is White (by default in this logic)
+        // Or we could make AI play the color assigned.
+        // In AI vs LLM, let's say AI C++ is Black for now.
+        this.triggerAIMove();
+    } else if (mode === GameMode.PLAYER_VS_AI) {
+        // If Player chose White (2), AI is Black (1) and starts
+        if (config.color === Player.WHITE) {
+            this.triggerAIMove();
+        }
+    } else if (mode === GameMode.PLAYER_VS_LLM) {
+        // If Player chose White (2), LLM is Black (1) and starts
+        if (config.color === Player.WHITE) {
+            this.triggerLlmMove();
+        }
     }
   }
 
@@ -174,7 +211,24 @@ class GameController {
 
   private handleClick(e: MouseEvent): void {
     if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking) return;
-    if (this.currentMode === GameMode.PLAYER_VS_AI && this.game.getCurrentPlayer() !== Player.BLACK) return;
+    
+    // Prevent player from moving during AI's turn in PvA or PvLLM
+    const currentPlayer = this.game.getCurrentPlayer();
+    
+    if (this.currentMode === GameMode.PLAYER_VS_AI) {
+        // If I am Black, I can only play if current is Black.
+        // If I am White, I can only play if current is White.
+        // The AI color is stored in wasmAI.
+        if (currentPlayer === this.wasmAI?.getAIPlayer()) return;
+    }
+
+    if (this.currentMode === GameMode.PLAYER_VS_LLM) {
+        // If I played Black, I am Black.
+        // config.color stores my color.
+        if (this.lastGameConfig && this.lastGameConfig.color !== currentPlayer) return;
+    }
+
+    if (this.currentMode === GameMode.AI_VS_LLM) return; // Spectator only
 
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) this.makeMove(pos.row, pos.col);
@@ -332,7 +386,7 @@ class GameController {
     }
   }
 
-  private resetGame(isNewGame: boolean): void {
+  private resetGame(isNewGame: boolean, config: any = {}): void {
     this.game.reset();
     this.hoverPosition = null;
     this.suggestionPosition = null;
@@ -340,12 +394,18 @@ class GameController {
     this.lastAIThinkingTime = 0;
     this.llmAI = null;
 
+    // Configure C++ AI based on mode and config
     if (this.currentMode === GameMode.PLAYER_VS_AI) {
-      this.wasmAI?.initAI(Player.WHITE);
+        // If Player is Black (1), AI is White (2)
+        // If Player is White (2), AI is Black (1)
+        const aiColor = (config.color === Player.WHITE) ? Player.BLACK : Player.WHITE;
+        this.wasmAI?.initAI(aiColor);
     } else if (this.currentMode === GameMode.AI_VS_LLM) {
-      this.wasmAI?.initAI(Player.BLACK);
+        // In Arena, C++ is Black (1) by default for now
+        this.wasmAI?.initAI(Player.BLACK);
     } else {
-      this.wasmAI?.initAI(Player.WHITE);
+        // Default / PvP / Suggestion mode
+        this.wasmAI?.initAI(Player.WHITE);
     }
 
     if (!isNewGame) emitGameReset();
