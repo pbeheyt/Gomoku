@@ -72,13 +72,13 @@
     </div>
 
     <!-- Game Over Overlay -->
-    <div class="menu-overlay hidden" id="gameOverMenu">
-        <div class="menu-box">
-            <h1 id="winnerMessage">Le joueur Noir a gagné !</h1>
-            <p>Que voulez-vous faire ?</p>
-            <div class="menu-buttons">
-                <button id="replayBtn" class="btn-menu">Rejouer</button>
-                <button id="gameOverMenuBtn" class="btn-menu">Menu Principal</button>
+    <div class="modal-overlay hidden" id="gameOverMenu">
+        <div class="modal-box">
+            <h2 id="winnerMessage" style="font-size: 2rem; margin-bottom: 15px; color: var(--active-glow);">Victoire !</h2>
+            <p style="margin-bottom: 25px; color: var(--text-secondary);">La partie est terminée. Que voulez-vous faire ?</p>
+            <div class="modal-footer">
+                <button id="replayBtn" class="btn-modal primary">Rejouer</button>
+                <button id="gameOverMenuBtn" class="btn-modal">Menu Principal</button>
             </div>
         </div>
     </div>
