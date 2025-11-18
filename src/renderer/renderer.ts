@@ -358,9 +358,6 @@ class GameController {
     this.showMessage('🧠 IA LLM réfléchit...');
     this.updateUI();
 
-    const MAX_ATTEMPTS = 3;
-    let validMoveFound = false;
-
     try {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       const model = localStorage.getItem(LOCAL_STORAGE_MODEL);
@@ -368,27 +365,24 @@ class GameController {
 
       this.llmAI = new LlmAI(apiKey, model);
 
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        this.showMessage(`🧠 IA LLM réfléchit... (Essai ${attempt}/${MAX_ATTEMPTS})`);
-        
-        const startTime = performance.now();
-        const llmMove = await this.llmAI.getBestMove(this.game.getGameState());
-        const endTime = performance.now();
-        this.lastAIThinkingTime = (endTime - startTime) / 1000;
+      const startTime = performance.now();
+      
+      // Pass a validator callback that uses the actual Game Rules
+      const llmMove = await this.llmAI.getBestMove(
+        this.game.getGameState(),
+        (row, col) => this.game.validateMove(row, col)
+      );
 
-        if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
-          await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
-          this.makeMove(llmMove.row, llmMove.col);
-          validMoveFound = true;
-          break; // Exit loop on valid move
-        } else {
-          console.warn(`Attempt ${attempt}: LLM returned an invalid move:`, llmMove);
-          // The loop will continue for another attempt.
-        }
-      }
+      const endTime = performance.now();
+      
+      this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
-      if (!validMoveFound) {
-        throw new Error(`L'IA LLM n'a pas réussi à fournir un coup valide après ${MAX_ATTEMPTS} essais.`);
+      // Double check validity (though LlmAI guarantees it, the game engine is the authority)
+      if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
+        await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
+        this.makeMove(llmMove.row, llmMove.col);
+      } else {
+        throw new Error("L'IA a renvoyé un coup invalide malgré les vérifications.");
       }
 
     } catch (error) {
