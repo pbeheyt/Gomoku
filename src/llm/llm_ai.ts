@@ -110,28 +110,25 @@ ${boardString}
 \`\`\`
 
 **Your Task:**
-Find the best move. To do this, follow the hierarchy below and then explain your choice in the Chain of Thought.
+Find the best move. Your reasoning process MUST follow the \`Decision Hierarchy\` below. Provide your final analysis in the specified \`<reasoning>\` block. Be extremely concise.
 
-**Decision Hierarchy (Follow this strict order of priority):**
-1.  **Check for Immediate Win:** Can YOU win in this single move? (e.g., by making a 5-in-a-row). If yes, this is your move.
-2.  **Block Immediate Loss:** Can the OPPONENT win on their very next move? (e.g., they have an open four \`_XXXX_\`). If yes, you MUST block them. This is your move.
-3.  **Create a Major Threat:** Can you create an "open three" (\`_XXX_\`) or a serious capture threat? This is often the best offensive move.
-4.  **Block Opponent's Major Threat:** Does the opponent have an "open three" you need to neutralize? This is often the best defensive move.
-5.  **Strategic Development:** If none of the above apply, make the best move to improve your position (e.g., extend a line of two, restrict the opponent's space, prepare a future capture).
+**Decision Hierarchy (Strict Priority Order):**
+1.  **Immediate Win:** Can YOU make a 5-in-a-row and win?
+2.  **Block Opponent's Win:** Can the OPPONENT make a 5-in-a-row or an open four on their next turn? If yes, you MUST block it.
+3.  **Create Forking Attack (Win in 2 moves):** Can you create an attack that generates two simultaneous threats (like a double three, or a four and a capture threat) that the opponent cannot block at the same time?
+4.  **Create Major Threat:** Can you create an "open three" (\`_XXX_\`) or a capture threat that forces an immediate response?
+5.  **Block Opponent's Major Threat:** Does the opponent have an "open three" that you must neutralize?
+6.  **Strategic Development:** If none of the above apply, make the best move to improve your position (e.g., extend a line of two, prepare a future threat).
 
-**Chain of Thought:**
-1.  **<Identity Check>**
-    -   State your symbol and the opponent's symbol.
-2.  **<Strategic Analysis & Choice>**
-    -   **Priority:** Following the Decision Hierarchy, what is the highest priority action? (e.g., "Priority 2: Block Immediate Loss").
-    -   **Analysis:** Describe the specific threat or opportunity on the board that corresponds to this priority. (e.g., "Opponent has an open four at row 9, cols 5-8").
-    -   **Best Move:** State the coordinates of the one move that satisfies this priority.
-    -   **Justification:** Briefly explain why this move is the correct one based on the hierarchy.
-
-</thinking>
+**Final Reasoning Format (inside a single <reasoning> tag):**
+<reasoning>
+Priority: [State the number and name of the highest priority from the hierarchy that applies]
+Analysis: [ONE sentence explaining the threat or opportunity]
+Move: [The coordinates of your chosen move]
+</reasoning>
 
 **Final Answer Format:**
-After your thinking process, provide your final move in the following strict JSON format:
+After the \`<reasoning>\` block, provide your final move in the following strict JSON format:
 {"row": R, "col": C}
     `;
   }
