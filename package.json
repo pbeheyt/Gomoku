@@ -7,7 +7,7 @@
     "start": "electron . --no-sandbox",
     "build": "electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js} dist/renderer"
+    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json} dist/renderer"
   },
   "build": {
     "appId": "com.student.gomoku",

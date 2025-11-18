@@ -65,6 +65,7 @@ class GameController {
     this.setupSettingsListeners();
     this.setupGameEvents();
     this.initializeAI();
+    this.populateModelSelector(); // Load models at startup
 
     this.showView('MENU');
   }
@@ -136,6 +137,37 @@ class GameController {
 
     this.settingsModalEl.classList.add('hidden');
     this.showMessage('✅ Paramètres sauvegardés !');
+  }
+
+  private async populateModelSelector(): Promise<void> {
+    if (!this.modelSelectEl) return;
+
+    try {
+      const response = await fetch('./openrouter_models.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load models config: ${response.statusText}`);
+      }
+      const models: { name: string; id: string }[] = await response.json();
+
+      this.modelSelectEl.innerHTML = ''; // Clear loading message
+
+      models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.name;
+        this.modelSelectEl!.appendChild(option);
+      });
+
+      // After populating, try to set the saved value
+      const savedModel = localStorage.getItem(LOCAL_STORAGE_MODEL);
+      if (savedModel) {
+        this.modelSelectEl.value = savedModel;
+      }
+
+    } catch (error) {
+      console.error('Error populating model selector:', error);
+      this.modelSelectEl.innerHTML = '<option value="">Erreur de chargement</option>';
+    }
   }
 
   private setupGameEvents(): void {
