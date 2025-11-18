@@ -7,7 +7,8 @@
     "start": "electron . --no-sandbox",
     "build": "electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json} dist/renderer"
+    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json} dist/renderer && npm run copy-worker",
+    "copy-worker": "copyfiles -u 2 dist/wasm/ai_worker.js dist/renderer"
   },
   "build": {
     "appId": "com.student.gomoku",

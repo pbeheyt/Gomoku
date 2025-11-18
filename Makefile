@@ -34,6 +34,7 @@ tsc:
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.json
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.preload.json
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.renderer.json
+	@$(DOCKER_EXEC) npx tsc --project tsconfig.worker.json
 
 # Copy static files to the distribution folder.
 copy-static:

@@ -33,7 +33,13 @@ class GameController {
   private winnerMessageEl: HTMLElement | null;
   private suggestBtnEl: HTMLElement | null;
   private aiTimerSectionEl: HTMLElement | null = null;
+  private timerLabelEl: HTMLElement | null = null;
+  private timerDisplayEl: HTMLElement | null = null;
+  private miniSpinnerEl: HTMLElement | null = null;
   private genericModalEl: HTMLElement | null;
+  
+  private timerInterval: any = null; // For the live counter
+  private thinkingStartTime: number = 0; // To track start time for UI throttling
   private modalTitleEl: HTMLElement | null;
   private modalBodyEl: HTMLElement | null;
   private modalFooterEl: HTMLElement | null;
@@ -52,6 +58,9 @@ class GameController {
     this.winnerMessageEl = document.getElementById('winnerMessage');
     this.suggestBtnEl = document.getElementById('suggestBtn');
     this.aiTimerSectionEl = document.getElementById('aiTimerSection');
+    this.timerLabelEl = document.getElementById('timerLabel');
+    this.timerDisplayEl = document.getElementById('timer');
+    this.miniSpinnerEl = document.getElementById('miniSpinner');
     this.genericModalEl = document.getElementById('genericModal');
     this.modalTitleEl = document.getElementById('modalTitle');
     this.modalBodyEl = document.getElementById('modalBody');
@@ -322,40 +331,77 @@ class GameController {
     }
   }
 
+  private startThinkingTimer(): void {
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      
+      this.thinkingStartTime = performance.now();
+      if (this.timerLabelEl) this.timerLabelEl.textContent = "Réflexion en cours...";
+      if (this.miniSpinnerEl) this.miniSpinnerEl.classList.remove('hidden');
+      
+      this.timerInterval = setInterval(() => {
+          const current = (performance.now() - this.thinkingStartTime) / 1000;
+          if (this.timerDisplayEl) {
+              this.timerDisplayEl.textContent = `${current.toFixed(4)}s`;
+          }
+      }, 50);
+  }
+
+  private async stopThinkingTimer(finalDuration: number): Promise<void> {
+      // Stop the live counter immediately so it doesn't overshoot
+      if (this.timerInterval) {
+          clearInterval(this.timerInterval);
+          this.timerInterval = null;
+      }
+      
+      // Show the actual final time immediately
+      if (this.timerDisplayEl) this.timerDisplayEl.textContent = `${finalDuration.toFixed(4)}s`;
+
+      // Ensure minimum display time to prevent UI flashing
+      const MIN_DISPLAY_TIME = 600; // ms
+      const elapsed = performance.now() - this.thinkingStartTime;
+      if (elapsed < MIN_DISPLAY_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_DISPLAY_TIME - elapsed));
+      }
+
+      // Update UI state to "Finished"
+      if (this.timerLabelEl) this.timerLabelEl.textContent = "Dernier coup";
+      if (this.miniSpinnerEl) this.miniSpinnerEl.classList.add('hidden');
+  }
+
   private async triggerAIMove(): Promise<void> {
-    if (this.isAIThinking) return;
+    if (this.isAIThinking || !this.wasmAI) return;
     this.isAIThinking = true;
-    this.showMessage('🤖 IA C++ réfléchit...');
+    this.startThinkingTimer();
     this.updateUI();
 
     try {
-      if (this.wasmAI?.isReady()) {
-        this.wasmAI.updateGameState(this.game.getGameState());
+        await this.wasmAI.updateGameState(this.game.getGameState());
+        
         const startTime = performance.now();
-        const aiMove = this.wasmAI.getBestMove();
+        const aiMove = await this.wasmAI.getBestMove();
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
-        await new Promise(resolve => setTimeout(resolve, 300)); // UX delay
-
         if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
-          this.makeMove(aiMove.row, aiMove.col);
+            this.makeMove(aiMove.row, aiMove.col);
         } else {
-          console.error("AI returned invalid move or null, using fallback.");
+            console.error("AI returned invalid move or null.", aiMove);
+            this.showMessage("❌ L'IA a retourné un coup invalide.");
         }
-      }
     } catch (error) {
-      console.error('Error making AI move:', error);
+        console.error('Error making AI move:', error);
+        this.showMessage(`❌ Erreur IA C++: ${error}`);
     } finally {
-      this.isAIThinking = false;
-      this.updateUI();
+        await this.stopThinkingTimer(this.lastAIThinkingTime);
+        this.isAIThinking = false;
+        this.updateUI();
     }
   }
 
   private async triggerLlmMove(): Promise<void> {
     if (this.isAIThinking) return;
     this.isAIThinking = true;
-    this.showMessage('🧠 IA LLM réfléchit...');
+    this.startThinkingTimer();
     this.updateUI();
 
     const MAX_ATTEMPTS = 3;
@@ -395,31 +441,40 @@ class GameController {
       console.error('Error making LLM AI move:', error);
       this.showMessage(`❌ Erreur IA LLM: ${error}`);
     } finally {
+      await this.stopThinkingTimer(this.lastAIThinkingTime);
       this.isAIThinking = false;
       this.updateUI();
     }
   }
 
   private async showAISuggestion(): Promise<void> {
-    if (this.isAIThinking || !this.wasmAI?.isReady()) return;
+    if (this.isAIThinking || !this.wasmAI) return;
     this.isAIThinking = true;
-    this.showMessage("💡 L'IA cherche le meilleur coup...");
+    this.startThinkingTimer();
     this.updateUI();
 
     try {
-      this.wasmAI.updateGameState(this.game.getGameState());
-      const suggestion = this.wasmAI.getBestMove();
-      if (suggestion) {
-        this.suggestionPosition = suggestion;
-        this.redraw();
-        setTimeout(() => {
-          this.suggestionPosition = null;
-          this.redraw();
-        }, 3000); // Highlight for 3 seconds
-      }
+        await this.wasmAI.updateGameState(this.game.getGameState());
+        const startTime = performance.now();
+        const suggestion = await this.wasmAI.getBestMove();
+        const endTime = performance.now();
+        this.lastAIThinkingTime = (endTime - startTime) / 1000;
+
+        if (suggestion) {
+            this.suggestionPosition = suggestion;
+            this.redraw();
+            setTimeout(() => {
+                this.suggestionPosition = null;
+                this.redraw();
+            }, 3000); // Highlight for 3 seconds
+        }
+    } catch (error) {
+        console.error('Error getting AI suggestion:', error);
+        this.showMessage(`❌ Erreur suggestion: ${error}`);
     } finally {
-      this.isAIThinking = false;
-      this.updateUI();
+        await this.stopThinkingTimer(this.lastAIThinkingTime);
+        this.isAIThinking = false;
+        this.updateUI();
     }
   }
 
@@ -436,6 +491,10 @@ class GameController {
       this.wasmAI?.initAI(Player.WHITE); // Human is BLACK, AI is WHITE
     } else if (this.currentMode === GameMode.AI_VS_LLM) {
       this.wasmAI?.initAI(Player.BLACK); // C++ AI is BLACK, LLM is WHITE
+    } else {
+      // For PvP, we still init the AI so the suggestion feature works.
+      // Let's say the first suggestion is for WHITE.
+      this.wasmAI?.initAI(Player.WHITE);
     }
 
     if (!isNewGame) {
@@ -468,10 +527,15 @@ class GameController {
     document.getElementById('blackCaptures')!.textContent = `Captures: ${this.game.getBlackCaptures()} / 10`;
     document.getElementById('whiteCaptures')!.textContent = `Captures: ${this.game.getWhiteCaptures()} / 10`;
 
-    // Timer
+    // Timer Section Visibility
     const isAiGame = this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM || this.currentMode === GameMode.AI_VS_LLM;
-    document.getElementById('timer')!.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
+    
+    // Note: We do NOT force update the timer text here anymore if AI is thinking,
+    // because the interval handles it. We only update if NOT thinking.
+    if (!this.isAIThinking && this.timerDisplayEl) {
+        this.timerDisplayEl.textContent = `${this.lastAIThinkingTime.toFixed(4)}s`;
+    }
 
     // Suggest button visibility
     this.suggestBtnEl?.classList.toggle('hidden', this.currentMode !== GameMode.PLAYER_VS_PLAYER || isGameOver);
