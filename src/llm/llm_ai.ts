@@ -27,7 +27,7 @@ export class LlmAI {
     const prompt = this.generatePrompt(gameState);
 
     // --- DEBUG: Log the prompt sent to the LLM ---
-    // console.log("%c--- PROMPT ENVOYÉ AU LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
+    console.log("%c--- PROMPT SENT TO LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
 
     try {
       const response = await fetch(OPENROUTER_API_URL, {
@@ -86,45 +86,52 @@ export class LlmAI {
   private generatePrompt(gameState: GameState): string {
     const playerChar = gameState.currentPlayer === Player.BLACK ? 'X' : 'O';
     const opponentChar = gameState.currentPlayer === Player.BLACK ? 'O' : 'X';
-    const boardString = this.formatBoard(gameState.board, playerChar, opponentChar);
+    
+    const capturedByCurrentPlayer = gameState.currentPlayer === Player.BLACK ? gameState.blackCaptures : gameState.whiteCaptures;
+    const capturedByOpponent = gameState.currentPlayer === Player.BLACK ? gameState.whiteCaptures : gameState.blackCaptures;
+
+    const boardString = this.formatBoard(gameState.board, playerChar, opponentChar, gameState.lastMove);
 
     return `
-Tu es un stratège expert du jeu de Gomoku. Ton objectif est de gagner en suivant un processus de raisonnement rigoureux.
+You are an expert Gomoku strategist. Your goal is to find the best possible move by thinking like a human grandmaster: focusing on priorities and strategic intent.
 
-**Règles du Jeu (Rappel) :**
-- **Alignement :** Gagne en alignant 5 pierres.
-- **Capture :** Gagne en capturant 10 pierres adverses (5 paires). Une paire (XX) est capturée en l'encerclant (OXXO).
-- **Menaces :** Une ligne de 4 pierres non bloquée (un "quatre libre" comme \`_XXXX_\`) est une menace de victoire immédiate. Une ligne de 3 pierres non bloquée (un "trois libre" comme \`_XXX_\`) est une menace très puissante.
+**Game Context:**
+- **Your Identity:**
+  - YOU are playing as '${playerChar}'.
+  - The OPPONENT is playing as '${opponentChar}'.
+  - Always analyze the board from YOUR perspective as '${playerChar}'.
+- The OPPONENT just played at ${gameState.lastMove ? `(${gameState.lastMove.row}, ${gameState.lastMove.col})` : 'N/A'}. This is the move marked with [].
+- Moves played: ${gameState.moveHistory.length}
+- Your captures: ${capturedByCurrentPlayer / 2} pairs. Opponent's captures: ${capturedByOpponent / 2} pairs.
 
-**État Actuel du Plateau :**
+**Current Board State:**
 \`\`\`
 ${boardString}
 \`\`\`
 
-**Ton Tour :**
-Tu joues avec les pierres '${playerChar}'.
+**Your Task:**
+Find the best move. To do this, follow the hierarchy below and then explain your choice in the Chain of Thought.
 
-**Instructions de Réflexion (TRÈS IMPORTANT) :**
-Avant de donner ta réponse finale, tu DOIS suivre ces 3 étapes de raisonnement à l'intérieur d'une balise <thinking>:
+**Decision Hierarchy (Follow this strict order of priority):**
+1.  **Check for Immediate Win:** Can YOU win in this single move? (e.g., by making a 5-in-a-row). If yes, this is your move.
+2.  **Block Immediate Loss:** Can the OPPONENT win on their very next move? (e.g., they have an open four \`_XXXX_\`). If yes, you MUST block them. This is your move.
+3.  **Create a Major Threat:** Can you create an "open three" (\`_XXX_\`) or a serious capture threat? This is often the best offensive move.
+4.  **Block Opponent's Major Threat:** Does the opponent have an "open three" you need to neutralize? This is often the best defensive move.
+5.  **Strategic Development:** If none of the above apply, make the best move to improve your position (e.g., extend a line of two, restrict the opponent's space, prepare a future capture).
 
-1.  **<analyse>**
-    -   Décris la situation. Où sont les menaces de l'adversaire ? (Ex: "L'adversaire a un trois semi-ouvert en ligne 8.")
-    -   Où sont tes propres opportunités ? (Ex: "Je peux étendre ma ligne en colonne D pour former un trois.")
-    **</analyse>**
-
-2.  **<candidats>**
-    -   Liste 2 ou 3 coups possibles.
-    -   Pour chaque coup, explique brièvement la stratégie. (Ex: "Coup 1: (8, 10) - Bloque la menace adverse et prolonge ma propre ligne. Coup 2: (12, 5) - Crée une nouvelle menace loin du combat principal.")
-    **</candidats>**
-
-3.  **<decision>**
-    -   Choisis le meilleur coup parmi tes candidats et justifie ton choix final. (Ex: "Je choisis (8, 10) car la défense est prioritaire. Bloquer sa menace est plus important que de créer la mienne.")
-    **</decision>**
+**Chain of Thought:**
+1.  **<Identity Check>**
+    -   State your symbol and the opponent's symbol.
+2.  **<Strategic Analysis & Choice>**
+    -   **Priority:** Following the Decision Hierarchy, what is the highest priority action? (e.g., "Priority 2: Block Immediate Loss").
+    -   **Analysis:** Describe the specific threat or opportunity on the board that corresponds to this priority. (e.g., "Opponent has an open four at row 9, cols 5-8").
+    -   **Best Move:** State the coordinates of the one move that satisfies this priority.
+    -   **Justification:** Briefly explain why this move is the correct one based on the hierarchy.
 
 </thinking>
 
-**Format de Réponse Final :**
-Après ta réflexion dans la balise <thinking>, et SANS AUCUN AUTRE TEXTE APRÈS, fournis ton coup final dans le format JSON strict suivant :
+**Final Answer Format:**
+After your thinking process, provide your final move in the following strict JSON format:
 {"row": R, "col": C}
     `;
   }
@@ -134,9 +141,10 @@ Après ta réflexion dans la balise <thinking>, et SANS AUCUN AUTRE TEXTE APRÈS
    * @param board The game board state.
    * @param playerChar The character for the current player.
    * @param opponentChar The character for the opponent.
+   * @param lastMove The last move made on the board.
    * @returns A string representation of the board.
    */
-  private formatBoard(board: Player[][], playerChar: string, opponentChar: string): string {
+  private formatBoard(board: Player[][], playerChar: string, opponentChar: string, lastMove: Position | null): string {
     // Header for columns, perfectly aligned
     let header = '      ';
     for (let i = 0; i < 19; i++) {
@@ -149,16 +157,25 @@ Après ta réflexion dans la balise <thinking>, et SANS AUCUN AUTRE TEXTE APRÈS
     board.forEach((row, rowIndex) => {
       const r = String(rowIndex).padStart(2, '0');
       let line = `   ${r}  `; // Prefix for row numbers
-      row.forEach(cell => {
+      row.forEach((cell, colIndex) => {
         let symbol = '.';
-        if (cell === Player.BLACK) {
-          symbol = (playerChar === 'X' ? 'X' : 'O');
-        } else if (cell === Player.WHITE) {
-          symbol = (playerChar === 'O' ? 'X' : 'O');
+        // Determine which Player enum value corresponds to the LLM's symbol for this turn.
+        const currentPlayerNumber = (playerChar === 'X') ? Player.BLACK : Player.WHITE;
+
+        if (cell === currentPlayerNumber) {
+            symbol = playerChar; // It's one of our stones
+        } else if (cell !== Player.NONE) {
+            symbol = opponentChar; // It's an opponent's stone
         }
-        line += ` ${symbol} `; // Consistent spacing for all symbols
+        
+        // Mark the last move with []
+        if (lastMove && lastMove.row === rowIndex && lastMove.col === colIndex) {
+          line += `[${symbol}]`;
+        } else {
+          line += ` ${symbol} `;
+        }
       });
-      boardStr += line.trimEnd() + '\n';
+      boardStr += line + '\n';
     });
 
     return boardStr;

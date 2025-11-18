@@ -35,6 +35,7 @@ export interface GameState {
   lastMove: Position | null;
   winner: Player | null;
   gameMode: GameMode;
+  moveHistory: Move[];
 }
 
 export interface CaptureResult {

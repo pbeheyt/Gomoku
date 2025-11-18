@@ -363,6 +363,7 @@ export class GomokuGame {
       lastMove: this.lastMove,
       winner: this.winner,
       gameMode: GameMode.PLAYER_VS_PLAYER, // Default mode
+      moveHistory: this.moveHistory,
     };
   }
 
