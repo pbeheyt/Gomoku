@@ -13,12 +13,22 @@ import { UIManager, AppState } from './ui_manager.js';
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
+type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
+
 class GameController {
   private game: GomokuGame;
   private canvasRenderer: CanvasRenderer;
   private ui: UIManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
-  private lastGameConfig: any = {}; // Store config for replay
+  private lastGameConfig: any = {}; 
+  
+  // Actor configuration: Who controls which color?
+  private players: { [key in Player]: ActorType } = {
+    [Player.BLACK]: 'HUMAN',
+    [Player.WHITE]: 'HUMAN',
+    [Player.NONE]: 'HUMAN' // Fallback
+  };
+
   private hoverPosition: Position | null = null;
   private suggestionPosition: Position | null = null;
   private wasmAI: WasmAI | null = null;
@@ -178,31 +188,48 @@ class GameController {
     this.currentMode = mode;
     this.lastGameConfig = config;
 
-    // Save selected model to local storage for convenience
+    // 1. Configure Actors based on Mode and User Choice
+    const userColor = config.color as Player || Player.BLACK;
+    const opponentColor = userColor === Player.BLACK ? Player.WHITE : Player.BLACK;
+
+    // Default: Human vs Human
+    this.players[Player.BLACK] = 'HUMAN';
+    this.players[Player.WHITE] = 'HUMAN';
+
+    switch (mode) {
+        case GameMode.PLAYER_VS_AI:
+            this.players[userColor] = 'HUMAN';
+            this.players[opponentColor] = 'AI_WASM';
+            break;
+        
+        case GameMode.PLAYER_VS_LLM:
+            this.players[userColor] = 'HUMAN';
+            this.players[opponentColor] = 'AI_LLM';
+            break;
+
+        case GameMode.AI_VS_LLM:
+            // Arena: C++ (Black) vs LLM (White) for now
+            this.players[Player.BLACK] = 'AI_WASM';
+            this.players[Player.WHITE] = 'AI_LLM';
+            break;
+            
+        case GameMode.PLAYER_VS_PLAYER:
+        default:
+            // Already set to HUMAN vs HUMAN
+            break;
+    }
+
+    // Save selected model
     if (config.modelId) {
         localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId);
     }
 
+    // 2. Reset Game State
     this.resetGame(true, config);
     this.showView('IN_GAME');
 
-    // If AI starts (e.g., AI vs LLM, or Player vs AI where Player chose White)
-    if (mode === GameMode.AI_VS_LLM) {
-        // AI (C++) is Black, LLM is White (by default in this logic)
-        // Or we could make AI play the color assigned.
-        // In AI vs LLM, let's say AI C++ is Black for now.
-        this.triggerAIMove();
-    } else if (mode === GameMode.PLAYER_VS_AI) {
-        // If Player chose White (2), AI is Black (1) and starts
-        if (config.color === Player.WHITE) {
-            this.triggerAIMove();
-        }
-    } else if (mode === GameMode.PLAYER_VS_LLM) {
-        // If Player chose White (2), LLM is Black (1) and starts
-        if (config.color === Player.WHITE) {
-            this.triggerLlmMove();
-        }
-    }
+    // 3. Trigger First Turn Logic
+    this.handleTurnStart();
   }
 
   private canvasToBoard(x: number, y: number): Position | null {
@@ -211,24 +238,14 @@ class GameController {
 
   private handleClick(e: MouseEvent): void {
     if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking) return;
-    
-    // Prevent player from moving during AI's turn in PvA or PvLLM
+
+    // Use the Actor map to determine if human can play
     const currentPlayer = this.game.getCurrentPlayer();
-    
-    if (this.currentMode === GameMode.PLAYER_VS_AI) {
-        // If I am Black, I can only play if current is Black.
-        // If I am White, I can only play if current is White.
-        // The AI color is stored in wasmAI.
-        if (currentPlayer === this.wasmAI?.getAIPlayer()) return;
-    }
+    const currentActor = this.players[currentPlayer];
 
-    if (this.currentMode === GameMode.PLAYER_VS_LLM) {
-        // If I played Black, I am Black.
-        // config.color stores my color.
-        if (this.lastGameConfig && this.lastGameConfig.color !== currentPlayer) return;
+    if (currentActor !== 'HUMAN') {
+        return; // It's an AI's turn, ignore clicks
     }
-
-    if (this.currentMode === GameMode.AI_VS_LLM) return; // Spectator only
 
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) this.makeMove(pos.row, pos.col);
@@ -257,24 +274,24 @@ class GameController {
 
     if (this.game.isGameOver()) return;
 
-    switch (this.currentMode) {
-      case GameMode.PLAYER_VS_AI:
-        if (this.game.getCurrentPlayer() === this.wasmAI?.getAIPlayer()) {
-          this.triggerAIMove();
-        }
-        break;
-      case GameMode.PLAYER_VS_LLM:
-        if (this.game.getCurrentPlayer() === Player.WHITE) {
-          this.triggerLlmMove();
-        }
-        break;
-      case GameMode.AI_VS_LLM:
-        if (this.game.getCurrentPlayer() === this.wasmAI?.getAIPlayer()) {
-          this.triggerAIMove();
-        } else {
-          this.triggerLlmMove();
-        }
-        break;
+    // Hand over control to the next actor
+    this.handleTurnStart();
+  }
+
+  /**
+   * Central logic to dispatch turns based on Actor configuration.
+   */
+  private handleTurnStart(): void {
+    const currentPlayer = this.game.getCurrentPlayer();
+    const actor = this.players[currentPlayer];
+
+    if (actor === 'AI_WASM') {
+        // Add a small delay for better UX (so moves aren't instant/jarring)
+        setTimeout(() => this.triggerAIMove(), 50);
+    } else if (actor === 'AI_LLM') {
+        setTimeout(() => this.triggerLlmMove(), 50);
+    } else {
+        // HUMAN: Do nothing, wait for input events
     }
   }
 
@@ -358,6 +375,10 @@ class GameController {
 
   private async showAISuggestion(): Promise<void> {
     if (this.isAIThinking || !this.wasmAI) return;
+    
+    // Only allow suggestion if it's a human turn
+    if (this.players[this.game.getCurrentPlayer()] !== 'HUMAN') return;
+
     this.isAIThinking = true;
     this.ui.startThinkingTimer();
     this.updateUI();
@@ -394,19 +415,24 @@ class GameController {
     this.lastAIThinkingTime = 0;
     this.llmAI = null;
 
-    // Configure C++ AI based on mode and config
-    if (this.currentMode === GameMode.PLAYER_VS_AI) {
-        // If Player is Black (1), AI is White (2)
-        // If Player is White (2), AI is Black (1)
-        const aiColor = (config.color === Player.WHITE) ? Player.BLACK : Player.WHITE;
-        this.wasmAI?.initAI(aiColor);
-    } else if (this.currentMode === GameMode.AI_VS_LLM) {
-        // In Arena, C++ is Black (1) by default for now
-        this.wasmAI?.initAI(Player.BLACK);
-    } else {
-        // Default / PvP / Suggestion mode
-        this.wasmAI?.initAI(Player.WHITE);
+    // Configure WasmAI Identity
+    // Even if WasmAI isn't playing (e.g. PvLLM), we initialize it 
+    // so it can provide suggestions for the HUMAN player.
+    
+    let wasmIdentity = Player.WHITE; // Default
+
+    // 1. If WasmAI is actually playing, it must be that color
+    if (this.players[Player.BLACK] === 'AI_WASM') wasmIdentity = Player.BLACK;
+    else if (this.players[Player.WHITE] === 'AI_WASM') wasmIdentity = Player.WHITE;
+    
+    // 2. If WasmAI is NOT playing (PvP or PvLLM), initialize it to the User's color
+    // so suggestions are calculated from the User's perspective.
+    else {
+        const userColor = config.color as Player || Player.BLACK;
+        wasmIdentity = userColor;
     }
+
+    this.wasmAI?.initAI(wasmIdentity);
 
     if (!isNewGame) emitGameReset();
     
