@@ -13,6 +13,6 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/core/**/*", "src/ui/**/*", "src/renderer/renderer.ts"],
+  "include": ["src/core/**/*", "src/ui/**/*", "src/renderer/**/*"],
   "exclude": ["src/main/**/*", "node_modules"]
 }
