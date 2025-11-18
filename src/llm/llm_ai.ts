@@ -24,11 +24,10 @@ export class LlmAI {
    * @returns A promise that resolves to the position of the best move.
    */
   public async getBestMove(gameState: GameState): Promise<Position> {
-    console.log("getBestMove called");
     const prompt = this.generatePrompt(gameState);
 
     // --- DEBUG: Log the prompt sent to the LLM ---
-    console.log("%c--- PROMPT ENVOYÉ AU LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
+    // console.log("%c--- PROMPT ENVOYÉ AU LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
 
     try {
       const response = await fetch(OPENROUTER_API_URL, {
@@ -56,24 +55,21 @@ export class LlmAI {
       // --- DEBUG: Log the raw response from the LLM ---
       console.log("%c--- RÉPONSE BRUTE DU LLM ---", "color: yellow; font-weight: bold;", "\n", content);
       
-      // This regex finds the last occurrence of a JSON object in the string.
-      // This is crucial for the "Chain of Thought" process, ensuring we parse the final answer.
-      const jsonRegex = /{[^}]*}/g;
-      const matches = content.match(jsonRegex);
+      // More robust parsing using regex to find "row": [number] and "col": [number]
+      // This avoids strict JSON parsing errors (e.g., leading zeros like "09", trailing commas).
+      const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
+      const colMatch = content.match(/"col"\s*:\s*(\d+)/);
 
-      if (!matches || matches.length === 0) {
-        throw new Error("No valid JSON object found in the LLM response.");
+      if (rowMatch && colMatch && rowMatch[1] && colMatch[1]) {
+        const row = parseInt(rowMatch[1], 10);
+        const col = parseInt(colMatch[1], 10);
+
+        if (!isNaN(row) && !isNaN(col)) {
+          return { row, col };
+        }
       }
 
-      // Get the last JSON object found in the response
-      const jsonString = matches[matches.length - 1];
-      const move = JSON.parse(jsonString);
-
-      if (typeof move.row === 'number' && typeof move.col === 'number') {
-        return move;
-      }
-      
-      throw new Error("Invalid move format received from LLM.");
+      throw new Error("Could not parse valid row and col from LLM response.");
 
     } catch (error) {
       console.error("Error fetching or parsing LLM response:", error);
