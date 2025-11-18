@@ -47,7 +47,7 @@ export class LlmAI {
       }
 
       const data = await response.json();
-      const content = data.choices.message.content;
+      const content = data.choices[0].message.content;
       
       const move = JSON.parse(content);
       if (typeof move.row === 'number' && typeof move.col === 'number') {
