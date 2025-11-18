@@ -1,5 +1,5 @@
 // @src/llm/llm_ai.ts
-import { GameState, Player, Position } from '../core/types.js';
+import { GameState, Player, Position, ValidationResult } from '../core/types.js';
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -21,68 +21,134 @@ export class LlmAI {
   /**
    * Requests the best move from the LLM based on the current game state.
    * @param gameState The current state of the game.
+   * @param validator Optional callback to validate the move against game rules.
    * @returns A promise that resolves to the position and the reasoning.
    */
-  public async getBestMove(gameState: GameState): Promise<{ position: Position, reasoning: string }> {
+  public async getBestMove(
+    gameState: GameState, 
+    validator?: (row: number, col: number) => ValidationResult
+  ): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
+    const messages: any[] = [{ role: 'user', content: prompt }];
+    const MAX_RETRIES = 3;
 
     // --- DEBUG: Log the prompt sent to the LLM ---
     console.log("%c--- PROMPT SENT TO LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
 
-    try {
-      const response = await fetch(OPENROUTER_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://github.com/pbeheyt/Gomoku',
-          'X-Title': 'Gomoku AI Project'
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(OPENROUTER_API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://github.com/pbeheyt/Gomoku',
+            'X-Title': 'Gomoku AI Project'
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: messages
+          })
+        });
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-
-      // --- DEBUG: Log the raw response from the LLM ---
-      console.log("%c--- RÉPONSE BRUTE DU LLM ---", "color: yellow; font-weight: bold;", "\n", content);
-      
-      // Extract reasoning from <reasoning> tags
-      const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
-      const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Aucun raisonnement fourni.";
-
-      // More robust parsing using regex to find "row": [number] and "col": [number]
-      // This avoids strict JSON parsing errors (e.g., leading zeros like "09", trailing commas).
-      const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
-      const colMatch = content.match(/"col"\s*:\s*(\d+)/);
-
-      if (rowMatch && colMatch && rowMatch[1] && colMatch[1]) {
-        const row = parseInt(rowMatch[1], 10);
-        const col = parseInt(colMatch[1], 10);
-
-        if (!isNaN(row) && !isNaN(col)) {
-          return { 
-            position: { row, col },
-            reasoning: reasoning
-          };
+        if (!response.ok) {
+          const errorBody = await response.text();
+          throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
         }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+
+        // --- DEBUG: Log the raw response from the LLM ---
+        console.log(`%c--- RÉPONSE BRUTE DU LLM (Essai ${attempt}) ---`, "color: yellow; font-weight: bold;", "\n", content);
+        
+        // Add the assistant's response to history
+        messages.push({ role: 'assistant', content: content });
+
+        // Extract reasoning from <reasoning> tags
+        const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
+        const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Aucun raisonnement fourni.";
+
+        // Parse the response
+        const move = this.parseMove(content);
+        
+        if (move) {
+          // 1. Basic Local Validation (Bounds & Empty)
+          let validationError = this.validateMove(move, gameState.board);
+
+          // 2. Advanced Rule Validation (Suicide, Double-Three) via callback
+          if (!validationError && validator) {
+            const result = validator(move.row, move.col);
+            if (!result.isValid) {
+              validationError = result.reason || "Move violates game rules";
+            }
+          }
+          
+          if (!validationError) {
+            // Valid move found!
+            return { 
+              position: move,
+              reasoning: reasoning
+            };
+          }
+
+          // If invalid, add feedback to history and loop again
+          console.warn(`LLM suggested invalid move ${JSON.stringify(move)}: ${validationError}`);
+          messages.push({ 
+            role: 'user', 
+            content: `Your suggested move {"row": ${move.row}, "col": ${move.col}} is INVALID. Reason: ${validationError}. \nYou MUST choose a valid coordinate that is EMPTY and DOES NOT violate rules (like Suicide). Look at the board again.` 
+          });
+        } else {
+           // Could not parse JSON
+           console.warn("Could not parse JSON from LLM response.");
+           messages.push({ 
+            role: 'user', 
+            content: "I could not parse your response. Please ensure you provide the final move in strict JSON format: {\"row\": R, \"col\": C} at the end." 
+          });
+        }
+
+      } catch (error) {
+        console.error("Error inside LLM loop:", error);
+        // If it's a network error, we might want to stop or retry. 
+        // For now, we rethrow to be handled by the UI.
+        throw error;
       }
-
-      throw new Error("Could not parse valid row and col from LLM response.");
-
-    } catch (error) {
-      console.error("Error fetching or parsing LLM response:", error);
-      // Fallback or re-throw error to be handled by the UI
-      throw error;
     }
+
+    throw new Error(`Failed to get a valid move from LLM after ${MAX_RETRIES} attempts.`);
+  }
+
+  /**
+   * Parses the LLM response to extract row and col.
+   */
+  private parseMove(content: string): Position | null {
+    // More robust parsing using regex to find "row": [number] and "col": [number]
+    const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
+    const colMatch = content.match(/"col"\s*:\s*(\d+)/);
+
+    if (rowMatch && colMatch && rowMatch[1] && colMatch[1]) {
+      const row = parseInt(rowMatch[1], 10);
+      const col = parseInt(colMatch[1], 10);
+
+      if (!isNaN(row) && !isNaN(col)) {
+        return { row, col };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Validates if a move is within bounds and on an empty cell.
+   */
+  private validateMove(pos: Position, board: Player[][]): string | null {
+    const size = board.length;
+    if (pos.row < 0 || pos.row >= size || pos.col < 0 || pos.col >= size) {
+      return "Coordinates out of board bounds (0-18).";
+    }
+    if (board[pos.row][pos.col] !== Player.NONE) {
+      return "The square is already OCCUPIED by a stone.";
+    }
+    return null;
   }
 
   /**
@@ -100,14 +166,13 @@ export class LlmAI {
     const boardString = this.formatBoard(gameState.board, playerChar, opponentChar, gameState.lastMove);
 
     return `
-You are an expert Gomoku strategist. Your goal is to find the best possible move by thinking like a human grandmaster: focusing on priorities and strategic intent.
+You are an expert Gomoku strategist. Your goal is to find the best possible move by thinking like a human grandmaster.
 
 **Game Context:**
 - **Your Identity:**
   - YOU are playing as '${playerChar}'.
   - The OPPONENT is playing as '${opponentChar}'.
-  - Always analyze the board from YOUR perspective as '${playerChar}'.
-- The OPPONENT just played at ${gameState.lastMove ? `(${gameState.lastMove.row}, ${gameState.lastMove.col})` : 'N/A'}. This is the move marked with [].
+- The OPPONENT just played at ${gameState.lastMove ? `(${gameState.lastMove.row}, ${gameState.lastMove.col})` : 'N/A'}.
 - Moves played: ${gameState.moveHistory.length}
 - Your captures: ${capturedByCurrentPlayer / 2} pairs. Opponent's captures: ${capturedByOpponent / 2} pairs.
 
@@ -116,22 +181,23 @@ You are an expert Gomoku strategist. Your goal is to find the best possible move
 ${boardString}
 \`\`\`
 
-**Your Task:**
-Find the best move. Your reasoning process MUST follow the \`Decision Hierarchy\` below. Provide your final analysis in the specified \`<reasoning>\` block. Be extremely concise.
+**Strategic Guidelines:**
+1.  **DIAGONALS ARE CRITICAL:** ASCII boards make diagonals hard to see. CHECK THEM CAREFULLY (Top-Left to Bottom-Right, and Top-Right to Bottom-Left).
+2.  **Captures:** Remember you can win by capturing 10 stones. Don't ignore capture opportunities.
+3.  **Don't be Suicidal:** Do not place a stone where it will be immediately captured (Suicide Rule).
 
-**Decision Hierarchy (Strict Priority Order):**
-1.  **Immediate Win:** Can YOU make a 5-in-a-row and win?
-2.  **Block Opponent's Win:** Can the OPPONENT make a 5-in-a-row or an open four on their next turn? If yes, you MUST block it.
-3.  **Create Forking Attack (Win in 2 moves):** Can you create an attack that generates two simultaneous threats (like a double three, or a four and a capture threat) that the opponent cannot block at the same time?
-4.  **Create Major Threat:** Can you create an "open three" (\`_XXX_\`) or a capture threat that forces an immediate response?
-5.  **Block Opponent's Major Threat:** Does the opponent have an "open three" that you must neutralize?
-6.  **Strategic Development:** If none of the above apply, make the best move to improve your position (e.g., extend a line of two, prepare a future threat).
+**Decision Hierarchy:**
+1.  **Win Now:** 5-in-a-row or Capture Win (10 stones).
+2.  **Must Block:** Opponent has 4-in-a-row or Open-3.
+3.  **Attack:** Create Double-3, Open-4, or Capture Threat.
+4.  **Develop:** Connect your stones.
 
-**Final Reasoning Format (inside a single <reasoning> tag):**
+**Final Reasoning Format (Strict):**
 <reasoning>
-Priority: [State the number and name of the highest priority from the hierarchy that applies]
-Analysis: [ONE sentence explaining the threat or opportunity]
-Move: [The coordinates of your chosen move]
+Priority: [Which hierarchy level?]
+Check: I have checked diagonals and valid moves.
+Analysis: [Brief analysis]
+Move: [Coordinates]
 </reasoning>
 
 **Final Answer Format:**
@@ -179,6 +245,8 @@ After the \`<reasoning>\` block, provide your final move in the following strict
           line += ` ${symbol} `;
         }
       });
+      // Add row number at the end for better visual alignment
+      line += ` ${r}`;
       boardStr += line + '\n';
     });
 

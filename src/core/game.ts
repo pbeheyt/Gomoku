@@ -95,6 +95,31 @@ export class GomokuGame {
   }
 
   /**
+   * Check if a move is valid without applying it (for AI or UI previews)
+   */
+  validateMove(row: number, col: number): ValidationResult {
+    // 1. Valid position and empty
+    if (!this.board.isValidMove(row, col)) {
+      return { isValid: false, reason: 'Position invalide ou occupée' };
+    }
+
+    // 2. Suicide rule
+    if (this.isSuicideMove(row, col, this.currentPlayer)) {
+      return { isValid: false, reason: 'Coup suicidaire interdit (capture immédiate)' };
+    }
+
+    // 3. Double-Three rule
+    const preCaptures = this.checkCaptures(row, col);
+    const isDoubleThree = this.checkDoubleThree(row, col, this.currentPlayer);
+
+    if (isDoubleThree && preCaptures.length === 0) {
+      return { isValid: false, reason: 'Double-trois interdit' };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
    * Check for captures around the newly placed stone
    */
   private checkCaptures(row: number, col: number): CaptureResult[] {
