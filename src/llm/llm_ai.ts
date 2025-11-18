@@ -26,6 +26,9 @@ export class LlmAI {
   public async getBestMove(gameState: GameState): Promise<Position> {
     const prompt = this.generatePrompt(gameState);
 
+    // --- DEBUG: Log the prompt sent to the LLM ---
+    console.log("%c--- PROMPT ENVOYÉ AU LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
+
     try {
       const response = await fetch(OPENROUTER_API_URL, {
         method: 'POST',
@@ -48,6 +51,9 @@ export class LlmAI {
 
       const data = await response.json();
       const content = data.choices[0].message.content;
+
+      // --- DEBUG: Log the raw response from the LLM ---
+      console.log("%c--- RÉPONSE BRUTE DU LLM ---", "color: yellow; font-weight: bold;", "\n", content);
       
       const move = JSON.parse(content);
       if (typeof move.row === 'number' && typeof move.col === 'number') {
@@ -109,17 +115,30 @@ Ne fournis AUCUNE autre explication, salutation ou texte. Ta réponse doit être
    * @returns A string representation of the board.
    */
   private formatBoard(board: Player[][], playerChar: string, opponentChar: string): string {
-    let boardStr = "      00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18\n";
+    // Header for columns, perfectly aligned
+    let header = '      ';
+    for (let i = 0; i < 19; i++) {
+      header += String(i).padStart(2, '0') + ' ';
+    }
+
+    let boardStr = header + '\n';
+
+    // Board rows
     board.forEach((row, rowIndex) => {
       const r = String(rowIndex).padStart(2, '0');
-      boardStr += `   ${r} `;
+      let line = `   ${r}  `; // Prefix for row numbers
       row.forEach(cell => {
-        if (cell === Player.BLACK) boardStr += (playerChar === 'X' ? ' X ' : ' O ');
-        else if (cell === Player.WHITE) boardStr += (playerChar === 'O' ? ' X ' : ' O ');
-        else boardStr += ' . ';
+        let symbol = '.';
+        if (cell === Player.BLACK) {
+          symbol = (playerChar === 'X' ? 'X' : 'O');
+        } else if (cell === Player.WHITE) {
+          symbol = (playerChar === 'O' ? 'X' : 'O');
+        }
+        line += ` ${symbol} `; // Consistent spacing for all symbols
       });
-      boardStr += '\n';
+      boardStr += line.trimEnd() + '\n';
     });
-    return boardStr.trim();
+
+    return boardStr;
   }
 }
