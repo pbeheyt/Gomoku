@@ -109,9 +109,13 @@ body {
     box-shadow: 0 10px 30px rgba(0, 170, 255, 0.2);
 }
 
-.card-icon {
-    font-size: 3rem;
+.card-sigle {
+    font-size: 2.5rem;
+    font-weight: 800;
     margin-bottom: 15px;
+    color: var(--accent-color);
+    font-family: 'Segoe UI', sans-serif;
+    letter-spacing: 1px;
 }
 
 .mode-card h3 {
@@ -262,25 +266,32 @@ body {
     gap: 10px;
 }
 
-.btn-icon {
+.btn-text, .btn-text-small {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid var(--glass-border);
     color: var(--text-primary);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 1.2rem;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 1px;
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
     transition: all 0.2s ease;
+    text-transform: uppercase;
 }
 
-.btn-icon:hover {
+.btn-text:hover, .btn-text-small:hover {
     background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
     border-color: var(--accent-color);
+    color: #fff;
+}
+
+.btn-text-small {
+    padding: 6px 12px;
+    font-size: 0.75rem;
 }
 
 /* 4. The "Glass" Main Content Area */
@@ -373,7 +384,7 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 }
 .leaderboard-table tr:last-child td { border-bottom: none; }
 .rank-col { font-size: 1.2rem; }
-.score-col { font-weight: bold; color: var(--active-glow); }
+.score-col { font-weight: bold; color: var(--active-glow); white-space: nowrap; }
 
 /* Controls */
 .controls-section { display: flex; flex-direction: column; gap: 10px; }
@@ -409,6 +420,10 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     justify-content: center;
     align-items: center;
     transition: all 0.2s ease;
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding-bottom: 2px;
 }
 
 .btn-icon-small:hover:not(:disabled) {
@@ -474,7 +489,7 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     padding: 25px 35px;
     text-align: center;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    max-width: 500px;
+    max-width: 600px;
 }
 .modal-box h2 {
     font-size: 1.8rem;
@@ -740,8 +755,8 @@ input:checked + .slider:before {
     padding: 15px 50px 15px 25px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-bottom: 3px solid var(--accent-color); /* Accent on bottom */
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 170, 255, 0.15);
+    border-bottom: 3px solid var(--accent-color); /* Default accent */
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 0, 0, 0.2);
     z-index: 2000;
     font-weight: 500;
     font-size: 1.05rem;
@@ -775,6 +790,12 @@ input:checked + .slider:before {
     color: #fff;
     background: rgba(255, 255, 255, 0.1);
 }
+
+/* Toast Colors */
+#gameMessage.toast-info { border-bottom-color: var(--accent-color); }
+#gameMessage.toast-success { border-bottom-color: #00ff89; } /* Green */
+#gameMessage.toast-warning { border-bottom-color: #ffaa00; } /* Orange */
+#gameMessage.toast-error { border-bottom-color: #ff4444; }   /* Red */
 
 @keyframes toastSlideUp {
     from {

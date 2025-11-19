@@ -91,11 +91,7 @@ export class LeaderboardManager {
     `;
 
     entries.forEach((entry, index) => {
-      let rankEmoji = '';
-      if (index === 0) rankEmoji = '🥇';
-      else if (index === 1) rankEmoji = '🥈';
-      else if (index === 2) rankEmoji = '🥉';
-      else rankEmoji = `#${index + 1}`;
+      const rankDisplay = `#${index + 1}`;
 
       // Color Dot
       const color = (entry as any).playerColor ?? Player.BLACK;
@@ -110,7 +106,7 @@ export class LeaderboardManager {
 
       html += `
         <tr>
-          <td class="rank-col">${rankEmoji}</td>
+          <td class="rank-col">${rankDisplay}</td>
           <td style="font-size: 1.2rem;">${colorDot}</td>
           <td>${entry.date}</td>
           <td>${entry.moves}</td>

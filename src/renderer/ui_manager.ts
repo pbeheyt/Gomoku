@@ -168,12 +168,12 @@ export class UIManager {
 
   public showLeaderboardModal(): void {
     const html = LeaderboardManager.generateHTML();
-    this.showModal('🏆 Hall of Fame (Vs IA)', html, [{ text: 'Fermer', callback: () => {} }]);
+    this.showModal('Hall of Fame (Vs IA)', html, [{ text: 'Fermer', callback: () => {} }]);
   }
 
   public setWinnerMessage(winner: Player): void {
     if (this.winnerMessageEl) {
-      this.winnerMessageEl.textContent = `🎉 ${winner === Player.BLACK ? 'Noir' : 'Blanc'} a gagné !`;
+      this.winnerMessageEl.textContent = `${winner === Player.BLACK ? 'Noir' : 'Blanc'} a gagné !`;
     }
   }
 
@@ -387,13 +387,17 @@ export class UIManager {
     this.setupModalEl.classList.remove('hidden');
   }
 
-  public showMessage(message: string): void {
+  public showMessage(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
     // Lazy creation
     if (!this.messageEl) {
       this.messageEl = document.createElement('div');
       this.messageEl.id = 'gameMessage';
       document.body.appendChild(this.messageEl);
     }
+
+    // Reset classes
+    this.messageEl.className = '';
+    this.messageEl.classList.add(`toast-${type}`);
 
     // Clear existing timeout to prevent early closing
     if (this.messageTimeout) {

@@ -160,7 +160,7 @@ class GameController {
     this.soundManager.setMuted(!soundEnabled);
     
     this.ui.hideSettingsModal();
-    this.ui.showMessage('✅ Paramètres sauvegardés !');
+    this.ui.showMessage('Paramètres sauvegardés', 'success');
   }
 
   private setupGameEvents(): void {
@@ -193,9 +193,9 @@ class GameController {
                   const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
                   
                   const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor);
-                  this.ui.showMessage(`🏆 Nouveau Score: ${entry.score} pts !`);
+                  this.ui.showMessage(`Nouveau Score: ${entry.score} pts`, 'success');
               } else {
-                  this.ui.showMessage(`⚠️ Victoire en mode Sandbox (Non classé)`);
+                  this.ui.showMessage(`Victoire en mode Sandbox (Non classé)`, 'warning');
               }
           }
       }
@@ -371,7 +371,7 @@ class GameController {
     const result = this.game.makeMove(row, col, currentBlackTime, currentWhiteTime);
     
     if (!result.isValid) {
-      this.ui.showMessage(`❌ Mouvement invalide: ${result.reason}`);
+      this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
       return;
     }
     
@@ -462,10 +462,10 @@ class GameController {
         if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
             this.makeMove(aiMove.row, aiMove.col);
         } else {
-            this.ui.showMessage("❌ L'IA a retourné un coup invalide.");
+            this.ui.showMessage("L'IA a retourné un coup invalide.", 'error');
         }
     } catch (error) {
-        this.ui.showMessage(`❌ Erreur IA C++: ${error}`);
+        this.ui.showMessage(`Erreur IA C++: ${error}`, 'error');
     } finally {
         await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
         this.isAIThinking = false;
@@ -506,7 +506,7 @@ class GameController {
       }
 
     } catch (error) {
-      this.ui.showMessage(`❌ Erreur IA LLM: ${error}`);
+      this.ui.showMessage(`Erreur IA LLM: ${error}`, 'error');
     } finally {
       await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
       this.isAIThinking = false;
@@ -540,7 +540,7 @@ class GameController {
             }, 3000);
         }
     } catch (error) {
-        this.ui.showMessage(`❌ Erreur suggestion: ${error}`);
+        this.ui.showMessage(`Erreur suggestion: ${error}`, 'error');
     } finally {
         await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
         this.isAIThinking = false;
@@ -629,7 +629,7 @@ class GameController {
         if (this.isRanked) {
             this.isRanked = false;
             this.ui.setRankedStatus(false);
-            this.ui.showMessage("⚠️ Mode Replay : Classement désactivé pour cette partie.");
+            this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
         }
     }
 
