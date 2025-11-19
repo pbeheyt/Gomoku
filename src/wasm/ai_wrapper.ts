@@ -11,13 +11,16 @@ export class WasmAI {
     private worker: Worker | null = null;
     private isReadyPromise: Promise<void>;
     private resolveIsReady: () => void = () => {};
+    private rejectIsReady: (reason?: any) => void = () => {};
     private bestMovePromise: Promise<Position> | null = null;
     private resolveBestMove: BestMoveResolve | null = null;
+    private rejectBestMove: ((reason?: any) => void) | null = null;
     private aiPlayer: Player = Player.WHITE;
 
     constructor() {
-        this.isReadyPromise = new Promise(resolve => {
+        this.isReadyPromise = new Promise((resolve, reject) => {
             this.resolveIsReady = resolve;
+            this.rejectIsReady = reject;
         });
         this.initializeWorker();
     }
@@ -41,8 +44,19 @@ export class WasmAI {
                         }
                         break;
                     case 'worker_error':
+                        // Critical initialization error
+                        console.error('Critical AI Worker Error:', payload);
+                        this.rejectIsReady(new Error(payload));
+                        break;
                     case 'error':
-                        console.error('Error from AI Worker:', payload);
+                        console.error('Runtime AI Worker Error:', payload);
+                        // If we are waiting for a move, reject it
+                        if (this.rejectBestMove) {
+                            this.rejectBestMove(new Error(payload));
+                            this.bestMovePromise = null;
+                            this.resolveBestMove = null;
+                            this.rejectBestMove = null;
+                        }
                         break;
                 }
             };
@@ -71,10 +85,15 @@ export class WasmAI {
 
     public getBestMove(): Promise<Position> {
         if (!this.bestMovePromise) {
-            this.bestMovePromise = new Promise(async (resolve) => {
-                await this.isReadyPromise;
-                this.resolveBestMove = resolve;
-                this.worker?.postMessage({ type: 'getBestMove' });
+            this.bestMovePromise = new Promise(async (resolve, reject) => {
+                try {
+                    await this.isReadyPromise;
+                    this.resolveBestMove = resolve;
+                    this.rejectBestMove = reject;
+                    this.worker?.postMessage({ type: 'getBestMove' });
+                } catch (e) {
+                    reject(e);
+                }
             });
         }
         return this.bestMovePromise;

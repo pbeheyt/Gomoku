@@ -443,6 +443,12 @@ class GameController {
       console.log('WebAssembly AI initialized successfully');
     } catch (error) {
       console.error('Failed to initialize WebAssembly AI:', error);
+      this.ui.showMessage(
+        "Erreur critique: Impossible de charger l'IA Native (WASM). Le mode 'Solo vs C++' sera indisponible.", 
+        'error'
+      );
+      // Optionally disable the button in the UI via ui_manager if you want to be thorough, 
+      // but the message is a good start.
     }
   }
 
