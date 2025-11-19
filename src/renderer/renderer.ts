@@ -399,10 +399,16 @@ class GameController {
     const actor = this.players[currentPlayer];
 
     if (actor === 'AI_WASM') {
-        // Add a small delay for better UX (so moves aren't instant/jarring)
-        setTimeout(() => this.triggerAIMove(), 50);
+        // Use requestAnimationFrame to ensure the board is fully rendered/painted 
+        // BEFORE we start the heavy AI operations.
+        requestAnimationFrame(() => {
+            // Keep a tiny delay for UX (so moves aren't robotically instant)
+            setTimeout(() => this.triggerAIMove(), 50);
+        });
     } else if (actor === 'AI_LLM') {
-        setTimeout(() => this.triggerLlmMove(), 50);
+        requestAnimationFrame(() => {
+            setTimeout(() => this.triggerLlmMove(), 50);
+        });
     } else {
         // HUMAN: Do nothing, wait for input events
     }
