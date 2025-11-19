@@ -19,8 +19,15 @@ export class ThreeRenderer {
   private lastMoveMarker!: THREE.Mesh;
   private suggestionMarker!: THREE.Mesh;
   
+  // PBR Materials
+  private matBlack!: THREE.MeshPhysicalMaterial;
+  private matWhite!: THREE.MeshPhysicalMaterial;
+
   private readonly BOARD_SIZE = 19;
   private readonly CELL_SIZE = 2.0; // Units in 3D space
+  private readonly DROP_HEIGHT = 8.0;
+  private readonly GRAVITY = 0.8;
+  private readonly TARGET_Y = 0.2;
 
   constructor(containerId: string, board: GameBoard) {
     this.board = board;
@@ -46,27 +53,80 @@ export class ThreeRenderer {
     this.canvas = this.renderer.domElement;
     this.container.appendChild(this.canvas);
 
-    // 4. Setup Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // 4. Setup Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     this.scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    dirLight.position.set(10, 20, 10);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    this.scene.add(dirLight);
+    // Main Light (Warm / Sun)
+    const mainLight = new THREE.DirectionalLight(0xfff4e5, 1.5);
+    mainLight.position.set(15, 30, 15);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.bias = -0.0001;
+    this.scene.add(mainLight);
+
+    // Fill Light (Cool / Sky) - Softens shadows
+    const fillLight = new THREE.DirectionalLight(0xddeeff, 0.8);
+    fillLight.position.set(-15, 10, -15);
+    this.scene.add(fillLight);
 
     // 5. Initialize Objects
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.stones = Array(this.BOARD_SIZE).fill(null).map(() => Array(this.BOARD_SIZE).fill(null));
     
+    this.initMaterials();
     this.createBoard();
     this.createStonesPool();
     this.createMarkers();
 
-    // Initial render
+    // Start Animation Loop
+    this.animate();
+  }
+
+  private initMaterials(): void {
+    // Black Stone: Matte Slate look
+    this.matBlack = new THREE.MeshPhysicalMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.7,
+        metalness: 0.0,
+        clearcoat: 0.0
+    });
+
+    // White Stone: Glossy Porcelain/Shell look
+    this.matWhite = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.2,
+        metalness: 0.1,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    });
+  }
+
+  private animate(): void {
+    requestAnimationFrame(this.animate.bind(this));
+
+    // Animation Logic: Drop Stones
+    let needsRender = true; // Optimize if needed, but for now render always for smooth orbit/hover
+
+    for (let row = 0; row < this.BOARD_SIZE; row++) {
+        for (let col = 0; col < this.BOARD_SIZE; col++) {
+            const mesh = this.stones[row][col];
+            if (mesh && mesh.visible) {
+                // If stone is above board, make it fall
+                if (mesh.position.y > this.TARGET_Y) {
+                    mesh.position.y -= this.GRAVITY;
+                    // Bounce or clamp? Just clamp for "heavy" feel
+                    if (mesh.position.y < this.TARGET_Y) {
+                        mesh.position.y = this.TARGET_Y;
+                        // TODO: Add "Clack" sound here
+                    }
+                }
+            }
+        }
+    }
+
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -105,28 +165,24 @@ export class ThreeRenderer {
   }
 
   private createStonesPool(): void {
-    const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.45, 32, 32); // Slightly larger stones
-    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.3 });
-    const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.3 });
-    // Center offset calculation for Intersections
-    // The grid goes from -(size/2) to +(size/2)
-    // Col 0 is at -size/2, Col 18 is at +size/2
+    const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.45, 32, 32);
+    
     const halfSize = ((this.BOARD_SIZE - 1) * this.CELL_SIZE) / 2;
 
     for (let row = 0; row < this.BOARD_SIZE; row++) {
       for (let col = 0; col < this.BOARD_SIZE; col++) {
-        const mesh = new THREE.Mesh(geometry, blackMat); // Default mat
+        const mesh = new THREE.Mesh(geometry, this.matBlack); // Default mat
         
         // Position: Map row/col to 3D coordinates
         // 3D X = Column, 3D Z = Row
   const x = (col * this.CELL_SIZE) - halfSize;
   const z = (row * this.CELL_SIZE) - halfSize;
         
-  mesh.position.set(x, 0.2, z); // Sit on intersections
-        mesh.scale.y = 0.6; // Flatten to make it a Go stone
+        mesh.position.set(x, this.TARGET_Y, z);
+        mesh.scale.y = 0.6;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        mesh.visible = false; // Hidden by default
+        mesh.visible = false;
         
         this.scene.add(mesh);
         this.stones[row][col] = mesh;
@@ -160,16 +216,7 @@ export class ThreeRenderer {
   }
 
   draw(currentPlayer: Player, hoverPos: Position | null, lastMove: Position | null, suggestionPos: Position | null): void {
-    // 1. Update Stones Visibility & Material
-    const blackMat = (this.stones[0][0]!.material as THREE.Material); // Re-use reference if needed, but simple switch is easier
-    // Actually we created separate materials in loop, but let's grab standard ones
-    // Optimization: Define materials once in class property. For now, we swap materials on meshes.
-    
-    // We need reference to the materials created in createStonesPool or create new ones?
-    // Let's just create static instances of materials to share.
-    const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.3 });
-    const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.3 });
-
+    // 1. Update Stones
     for (let row = 0; row < this.BOARD_SIZE; row++) {
       for (let col = 0; col < this.BOARD_SIZE; col++) {
         const piece = this.board.getPiece(row, col);
@@ -178,8 +225,13 @@ export class ThreeRenderer {
         if (piece === Player.NONE) {
           mesh.visible = false;
         } else {
-          mesh.visible = true;
-          mesh.material = (piece === Player.BLACK) ? matBlack : matWhite;
+          // If stone was not visible before, trigger drop animation
+          if (!mesh.visible) {
+            mesh.visible = true;
+            mesh.position.y = this.DROP_HEIGHT; // Start falling
+          }
+          // Set correct material
+          mesh.material = (piece === Player.BLACK) ? this.matBlack : this.matWhite;
         }
       }
     }
@@ -223,8 +275,7 @@ export class ThreeRenderer {
       this.suggestionMarker.visible = false;
     }
 
-    // 5. Render
-    this.renderer.render(this.scene, this.camera);
+    // Render is handled by animate loop
   }
 
   canvasToBoard(x: number, y: number): Position | null {
@@ -266,7 +317,7 @@ export class ThreeRenderer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
-    this.draw(Player.NONE, null, null, null); // Force re-render
+    // No need to force render, animation loop handles it
   }
 
   cleanup(): void {
