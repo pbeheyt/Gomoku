@@ -35,6 +35,7 @@ export class UIManager {
   private modelSelectEl: HTMLSelectElement | null;
   private soundToggleEl: HTMLInputElement | null = null;
   private messageEl: HTMLElement | null = null;
+  private rankedBadgeEl: HTMLElement | null = null;
   
   // Setup Modal Elements
   private setupModalEl: HTMLElement | null;
@@ -85,6 +86,26 @@ export class UIManager {
     this.setupCancelBtn = document.getElementById('cancelSetupBtn');
     this.setupModelSection = document.getElementById('modelSelectionSection');
     this.setupColorSection = document.getElementById('colorSelection');
+    
+    // Create Ranked Badge dynamically
+    this.rankedBadgeEl = document.createElement('div');
+    this.rankedBadgeEl.className = 'ranked-badge hidden';
+    this.rankedBadgeEl.textContent = '🚫 NON CLASSÉ';
+    // Insert into header
+    const header = document.querySelector('.game-header');
+    if (header) {
+        header.appendChild(this.rankedBadgeEl);
+    }
+  }
+
+  public setRankedStatus(isRanked: boolean): void {
+    if (this.rankedBadgeEl) {
+        if (isRanked) {
+            this.rankedBadgeEl.classList.add('hidden');
+        } else {
+            this.rankedBadgeEl.classList.remove('hidden');
+        }
+    }
   }
 
   public showView(view: AppState): void {

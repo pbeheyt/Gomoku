@@ -46,6 +46,7 @@ class GameController {
   private whiteTimeTotal: number = 0;
   private turnStartTime: number = 0;
   private timerInterval: any = null;
+  private isRanked: boolean = true; // True by default, becomes false if replay is used
 
   constructor(containerId: string) {
     this.game = new GomokuGame();
@@ -185,14 +186,17 @@ class GameController {
           isVictory = (winner === humanColor);
 
           // === LEADERBOARD LOGIC ===
-          // Only save score if Human won against C++ AI (or LLM, but mostly C++)
+          // Only save score if Human won against C++ AI AND game is Ranked
           if (isVictory && this.currentMode === GameMode.PLAYER_VS_AI) {
-              const moves = this.game.getMoveHistory().length;
-              const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
-              
-              // Pass humanColor to addEntry for bonus calculation
-              const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor);
-              this.ui.showMessage(`🏆 Nouveau Score: ${entry.score} pts !`);
+              if (this.isRanked) {
+                  const moves = this.game.getMoveHistory().length;
+                  const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
+                  
+                  const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor);
+                  this.ui.showMessage(`🏆 Nouveau Score: ${entry.score} pts !`);
+              } else {
+                  this.ui.showMessage(`⚠️ Victoire en mode Sandbox (Non classé)`);
+              }
           }
       }
       
@@ -343,11 +347,34 @@ class GameController {
   }
 
   private makeMove(row: number, col: number): void {
-    const result = this.game.makeMove(row, col);
+    // Update time for the current move before sending it
+    const now = performance.now();
+    const deltaSeconds = (now - this.turnStartTime) / 1000;
+    
+    // Temporarily add delta to pass correct snapshot
+    let currentBlackTime = this.blackTimeTotal;
+    let currentWhiteTime = this.whiteTimeTotal;
+    
+    if (this.game.getCurrentPlayer() === Player.BLACK) {
+        currentBlackTime += deltaSeconds;
+    } else {
+        currentWhiteTime += deltaSeconds;
+    }
+
+    const result = this.game.makeMove(row, col, currentBlackTime, currentWhiteTime);
+    
     if (!result.isValid) {
       this.ui.showMessage(`❌ Mouvement invalide: ${result.reason}`);
       return;
     }
+    
+    // If we made a move while NOT at the end of history (branching), disable ranking
+    // Note: makeMove inside game.ts handles the slicing, but we check if we *were* in the past
+    // However, since game.ts slices immediately, we can infer branching if we used history controls previously.
+    // A simpler check: If isRanked is already false, stay false. 
+    // If we just branched (history was cut), game.ts handles logic.
+    // We need to ensure isRanked is set to false if we play a move after rewinding.
+    // We will handle the "Set to False" logic in handleHistoryAction when the user clicks "Prev".
     this.hoverPosition = null;
     this.suggestionPosition = null;
 
@@ -521,6 +548,9 @@ class GameController {
     this.isAIThinking = false;
     this.lastAIThinkingTime = 0;
     this.llmAI = null;
+    
+    this.isRanked = true;
+    this.ui.setRankedStatus(true);
 
     // Configure WasmAI Identity
     // Even if WasmAI isn't playing (e.g. PvLLM), we initialize it 
@@ -587,6 +617,15 @@ class GameController {
     const current = this.game.getCurrentMoveIndex();
     const total = this.game.getTotalMoves();
     
+    // If we move backwards, we disable ranking for this game (Sandbox Mode)
+    if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
+        if (this.isRanked) {
+            this.isRanked = false;
+            this.ui.setRankedStatus(false);
+            this.ui.showMessage("⚠️ Mode Replay : Classement désactivé pour cette partie.");
+        }
+    }
+
     switch (action) {
         case 'START':
             this.game.jumpTo(0);
@@ -602,6 +641,24 @@ class GameController {
             break;
     }
     
+    // RESTORE TIMERS
+    const newCurrent = this.game.getCurrentMoveIndex();
+    if (newCurrent === 0) {
+        this.blackTimeTotal = 0;
+        this.whiteTimeTotal = 0;
+    } else {
+        const history = this.game.getMoveHistory();
+        // The move at index N-1 resulted in state N.
+        const lastMove = history[newCurrent - 1];
+        if (lastMove) {
+            this.blackTimeTotal = lastMove.blackTime;
+            this.whiteTimeTotal = lastMove.whiteTime;
+        }
+    }
+    
+    // Reset Turn Timer for UX consistency
+    this.turnStartTime = performance.now();
+
     // If we jumped to a state where the game is over, show it, otherwise hide it
     if (!this.game.isGameOver()) {
         this.showView('IN_GAME'); // Hide game over modal if we go back

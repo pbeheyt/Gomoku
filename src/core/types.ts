@@ -25,6 +25,8 @@ export interface Move {
   position: Position;
   player: Player;
   timestamp: number;
+  blackTime: number; // Accumulated time for Black at this move
+  whiteTime: number; // Accumulated time for White at this move
 }
 
 export interface GameState {

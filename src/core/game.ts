@@ -29,8 +29,10 @@ export class GomokuGame {
 
   /**
    * Make a move and apply all game rules
+   * @param blackTime Current accumulated time for Black (seconds)
+   * @param whiteTime Current accumulated time for White (seconds)
    */
-  makeMove(row: number, col: number): ValidationResult {
+  makeMove(row: number, col: number, blackTime: number = 0, whiteTime: number = 0): ValidationResult {
     // 0. History Branching: If we are in the past, cut the future.
     if (this.currentMoveIndex < this.moveHistory.length) {
       this.moveHistory = this.moveHistory.slice(0, this.currentMoveIndex);
@@ -66,6 +68,8 @@ export class GomokuGame {
       position: { row, col },
       player: this.currentPlayer,
       timestamp: Date.now(),
+      blackTime: blackTime,
+      whiteTime: whiteTime
     };
     this.moveHistory.push(move);
     this.currentMoveIndex++;
