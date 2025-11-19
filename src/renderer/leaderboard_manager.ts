@@ -71,11 +71,15 @@ export class LeaderboardManager {
   public static generateHTML(): string {
     const entries = this.getEntries();
     
+    let html = `<p style="text-align:center; margin-bottom:15px; color:#aaa; font-size:0.9rem;">
+        Ce classement enregistre uniquement les victoires contre l'IA native (C++).
+    </p>`;
+
     if (entries.length === 0) {
-      return '<p style="text-align:center; color:#aaa;">Aucune partie enregistrée pour le moment.</p>';
+      return html + '<p style="text-align:center; color:#aaa; margin-top: 20px;">Aucune partie enregistrée pour le moment.</p>';
     }
 
-    let html = `
+    html += `
       <table class="leaderboard-table">
         <thead>
           <tr>

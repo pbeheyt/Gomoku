@@ -179,7 +179,7 @@ export class UIManager {
 
   public showLeaderboardModal(): void {
     const html = LeaderboardManager.generateHTML();
-    this.showModal('Hall of Fame (Vs IA)', html, [{ text: 'Fermer', callback: () => {} }]);
+    this.showModal('Hall of Fame (Vs IA C++)', html, [{ text: 'Fermer', callback: () => {} }]);
   }
 
   public setWinnerMessage(winner: Player): void {

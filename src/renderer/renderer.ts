@@ -627,10 +627,11 @@ class GameController {
     const total = this.game.getTotalMoves();
     
     // If we move backwards, we disable ranking for this game (Sandbox Mode)
+    // BUT only if we are in the competitive mode (Player vs AI)
     if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
-        if (this.isRanked) {
+        if (this.isRanked && this.currentMode === GameMode.PLAYER_VS_AI) {
             this.isRanked = false;
-            this.ui.setRankedStatus(false);
+            this.ui.setRankedStatus(false); // Shows "NON CLASSÉ" badge
             this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
         }
     }
