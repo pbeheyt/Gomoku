@@ -23,6 +23,7 @@ export class UIManager {
   private settingsModalEl: HTMLElement | null;
   private apiKeyInputEl: HTMLInputElement | null;
   private modelSelectEl: HTMLSelectElement | null;
+  private soundToggleEl: HTMLInputElement | null = null;
   private messageEl: HTMLElement | null = null;
   
   // Setup Modal Elements
@@ -56,6 +57,7 @@ export class UIManager {
     this.settingsModalEl = document.getElementById('settingsModal');
     this.apiKeyInputEl = document.getElementById('apiKeyInput') as HTMLInputElement;
     this.modelSelectEl = document.getElementById('modelSelect') as HTMLSelectElement;
+    this.soundToggleEl = document.getElementById('soundToggle') as HTMLInputElement;
 
     // Setup Modal
     this.setupModalEl = document.getElementById('setupModal');
@@ -152,6 +154,12 @@ export class UIManager {
   public showSettingsModal(apiKey: string, modelId: string): void {
     if (this.apiKeyInputEl) this.apiKeyInputEl.value = apiKey;
     if (this.modelSelectEl) this.modelSelectEl.value = modelId;
+    
+    if (this.soundToggleEl) {
+        const isMuted = localStorage.getItem('gomoku-muted') === 'true';
+        this.soundToggleEl.checked = !isMuted;
+    }
+    
     this.settingsModalEl?.classList.remove('hidden');
   }
 
@@ -159,10 +167,11 @@ export class UIManager {
     this.settingsModalEl?.classList.add('hidden');
   }
 
-  public getSettingsValues(): { apiKey: string, model: string } {
+  public getSettingsValues(): { apiKey: string, model: string, soundEnabled: boolean } {
     return {
       apiKey: this.apiKeyInputEl?.value || '',
-      model: this.modelSelectEl?.value || ''
+      model: this.modelSelectEl?.value || '',
+      soundEnabled: this.soundToggleEl ? this.soundToggleEl.checked : true
     };
   }
 

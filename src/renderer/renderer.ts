@@ -9,6 +9,7 @@ import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 import { LlmAI } from '../llm/llm_ai.js';
 import { UIManager, AppState } from './ui_manager.js';
+import { SoundManager } from './sound_manager.js';
 
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
@@ -20,6 +21,7 @@ class GameController {
   private game: GomokuGame;
   private renderer!: ThreeRenderer;
   private ui: UIManager;
+  private soundManager!: SoundManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
   private lastGameConfig: any = {}; 
   
@@ -41,6 +43,7 @@ class GameController {
   constructor(containerId: string) {
     this.game = new GomokuGame();
     this.ui = new UIManager();
+    this.soundManager = new SoundManager();
     
   // Renderer initialized in startGame to ensure DOM is visible
     this.setupBindings();
@@ -141,21 +144,41 @@ class GameController {
   }
 
   private saveSettings(): void {
-    const { apiKey, model } = this.ui.getSettingsValues();
+    const { apiKey, model, soundEnabled } = this.ui.getSettingsValues();
     if (apiKey) localStorage.setItem(LOCAL_STORAGE_API_KEY, apiKey);
     if (model) localStorage.setItem(LOCAL_STORAGE_MODEL, model);
+    
+    this.soundManager.setMuted(!soundEnabled);
     
     this.ui.hideSettingsModal();
     this.ui.showMessage('✅ Paramètres sauvegardés !');
   }
 
   private setupGameEvents(): void {
-    gameEvents.on('move:made', () => this.redraw());
-    gameEvents.on('capture:made', () => this.ui.updateGameInfo(this.game.getCurrentPlayer(), this.game.getBlackCaptures(), this.game.getWhiteCaptures(), this.currentMode));
+    gameEvents.on('move:made', (move) => {
+        this.redraw();
+        this.soundManager.playStoneDrop(move.player);
+    });
+    gameEvents.on('capture:made', () => {
+        this.ui.updateGameInfo(this.game.getCurrentPlayer(), this.game.getBlackCaptures(), this.game.getWhiteCaptures(), this.currentMode);
+        this.soundManager.playCapture();
+    });
     gameEvents.on('game:won', (winner) => {
       this.ui.setWinnerMessage(winner);
       this.showView('GAME_OVER');
       this.updateUI(); // Final update
+      
+      // Determine if "We" won (Human or current perspective)
+      // In PvP, everyone is a winner? Let's just play victory for now.
+      // In PvAI, we should check if winner == Human color.
+      let isVictory = true;
+      
+      if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
+          const humanColor = this.lastGameConfig.color || Player.BLACK;
+          isVictory = (winner === humanColor);
+      }
+      
+      this.soundManager.playWin(isVictory);
     });
     gameEvents.on('player:changed', () => this.updateUI());
   }
