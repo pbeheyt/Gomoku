@@ -24,8 +24,10 @@ export class UIManager {
   private timerLabelEl: HTMLElement | null;
   private timerDisplayEl: HTMLElement | null;
   private miniSpinnerEl: HTMLElement | null;
-  private aiReasoningSectionEl: HTMLElement | null;
-  private aiReasoningDisplayEl: HTMLElement | null;
+  private aiReasoningControlsEl: HTMLElement | null;
+  private aiReasoningHudEl: HTMLElement | null;
+  private hudTextEl: HTMLElement | null;
+  private showReasoningBtn: HTMLElement | null;
   private genericModalEl: HTMLElement | null;
   private modalTitleEl: HTMLElement | null;
   private modalBodyEl: HTMLElement | null;
@@ -49,6 +51,7 @@ export class UIManager {
   private timerInterval: any = null;
   private thinkingStartTime: number = 0;
   private messageTimeout: any = null;
+  private hudTimeout: any = null;
 
   constructor() {
     this.mainMenuEl = document.getElementById('mainMenu');
@@ -68,8 +71,18 @@ export class UIManager {
     this.timerLabelEl = document.getElementById('timerLabel');
     this.timerDisplayEl = document.getElementById('timer');
     this.miniSpinnerEl = document.getElementById('miniSpinner');
-    this.aiReasoningSectionEl = document.getElementById('aiReasoningSection');
-    this.aiReasoningDisplayEl = document.getElementById('aiReasoningDisplay');
+    this.aiReasoningControlsEl = document.getElementById('aiReasoningControls');
+    this.aiReasoningHudEl = document.getElementById('aiReasoningHud');
+    this.hudTextEl = document.getElementById('hudText');
+    this.showReasoningBtn = document.getElementById('showReasoningBtn');
+
+    // Bind HUD interactions
+    if (this.aiReasoningHudEl) {
+        this.aiReasoningHudEl.onclick = () => this.hideReasoning();
+    }
+    if (this.showReasoningBtn) {
+        this.showReasoningBtn.onclick = () => this.toggleReasoning();
+    }
     this.genericModalEl = document.getElementById('genericModal');
     this.modalTitleEl = document.getElementById('modalTitle');
     this.modalBodyEl = document.getElementById('modalBody');
@@ -137,7 +150,12 @@ export class UIManager {
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
 
     const isLlmMode = mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
-    this.aiReasoningSectionEl?.classList.toggle('hidden', !isLlmMode);
+    this.aiReasoningControlsEl?.classList.toggle('hidden', !isLlmMode);
+    
+    // Hide HUD if we switch modes or players, unless it's the AI turn
+    if (!isLlmMode) {
+        this.hideReasoning();
+    }
     
     this.suggestBtnEl?.classList.toggle('hidden', mode !== GameMode.PLAYER_VS_PLAYER);
   }
@@ -189,7 +207,49 @@ export class UIManager {
   }
 
   public setReasoning(text: string): void {
-    if (this.aiReasoningDisplayEl) this.aiReasoningDisplayEl.textContent = text;
+    if (this.hudTextEl) {
+        this.hudTextEl.textContent = text;
+        
+        // Only mark as unread if it's actual content, not a reset state
+        if (this.showReasoningBtn) {
+            if (text.includes("En attente")) {
+                this.showReasoningBtn.classList.remove('unread');
+            } else {
+                this.showReasoningBtn.classList.add('unread');
+            }
+        }
+    }
+  }
+
+  public toggleReasoning(): void {
+    if (!this.aiReasoningHudEl) return;
+    
+    if (this.aiReasoningHudEl.classList.contains('hidden')) {
+        this.showReasoning();
+    } else {
+        this.hideReasoning();
+    }
+  }
+
+  public showReasoning(): void {
+    if (!this.aiReasoningHudEl) return;
+
+    // Clear notification state on open
+    if (this.showReasoningBtn) {
+        this.showReasoningBtn.classList.remove('unread');
+    }
+
+    this.aiReasoningHudEl.classList.remove('hidden');
+  }
+
+  public hideReasoning(): void {
+    if (this.aiReasoningHudEl) {
+        this.aiReasoningHudEl.classList.add('hidden');
+    }
+    if (this.hudTimeout) {
+        clearTimeout(this.hudTimeout);
+        this.hudTimeout = null;
+    }
   }
 
   public showModal(title: string, contentHTML: string, buttons: ModalButton[]): void {

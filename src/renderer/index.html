@@ -150,6 +150,10 @@
 
         <main class="main-content">
             <div class="board-container" id="boardContainer">
+                <div id="aiReasoningHud" class="hud-reasoning hidden">
+                    <p id="hudText">En attente du raisonnement...</p>
+                    <span class="hud-hint">(Cliquez pour fermer)</span>
+                </div>
                 <!-- Renderer will inject Canvas here -->
             </div>
 
@@ -162,11 +166,9 @@
                     <div id="timer" class="timer-display">0.0000s</div>
                 </div>
 
-                <div class="info-section hidden" id="aiReasoningSection">
-                    <h3>Raisonnement IA</h3>
-                    <div id="aiReasoningDisplay" class="reasoning-display">
-                        En attente...
-                    </div>
+                <div class="info-section hidden" id="aiReasoningControls">
+                    <h3>IA</h3>
+                    <button id="showReasoningBtn" class="btn-control small">🧠 Voir Raisonnement</button>
                 </div>
 
                 <div class="info-section">
