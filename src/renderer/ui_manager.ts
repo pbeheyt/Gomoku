@@ -11,6 +11,13 @@ export class UIManager {
   private gameContainerEl: HTMLElement | null;
   private winnerMessageEl: HTMLElement | null;
   private suggestBtnEl: HTMLElement | null;
+  
+  // History Controls
+  private histStartBtn: HTMLButtonElement | null;
+  private histPrevBtn: HTMLButtonElement | null;
+  private histNextBtn: HTMLButtonElement | null;
+  private histEndBtn: HTMLButtonElement | null;
+  private histLabel: HTMLElement | null;
   private blackTimerEl: HTMLElement | null;
   private whiteTimerEl: HTMLElement | null;
   private aiTimerSectionEl: HTMLElement | null;
@@ -47,6 +54,12 @@ export class UIManager {
     this.gameContainerEl = document.getElementById('gameContainer');
   this.winnerMessageEl = document.getElementById('winnerMessage');
   this.suggestBtnEl = document.getElementById('suggestBtn');
+  
+  this.histStartBtn = document.getElementById('histStartBtn') as HTMLButtonElement;
+  this.histPrevBtn = document.getElementById('histPrevBtn') as HTMLButtonElement;
+  this.histNextBtn = document.getElementById('histNextBtn') as HTMLButtonElement;
+  this.histEndBtn = document.getElementById('histEndBtn') as HTMLButtonElement;
+  this.histLabel = document.getElementById('histLabel');
   this.blackTimerEl = document.getElementById('blackTimer');
   this.whiteTimerEl = document.getElementById('whiteTimer');
   this.aiTimerSectionEl = document.getElementById('aiTimerSection');
@@ -329,9 +342,26 @@ export class UIManager {
   public bindGameControls(actions: {
     onReset: () => void,
     onSuggest: () => void,
+    onHistory?: (action: 'START' | 'PREV' | 'NEXT' | 'END') => void
   }): void {
     document.getElementById('resetBtn')?.addEventListener('click', actions.onReset);
     this.suggestBtnEl?.addEventListener('click', actions.onSuggest);
+    
+    if (actions.onHistory) {
+        this.histStartBtn?.addEventListener('click', () => actions.onHistory!('START'));
+        this.histPrevBtn?.addEventListener('click', () => actions.onHistory!('PREV'));
+        this.histNextBtn?.addEventListener('click', () => actions.onHistory!('NEXT'));
+        this.histEndBtn?.addEventListener('click', () => actions.onHistory!('END'));
+    }
+  }
+
+  public updateHistoryControls(current: number, total: number): void {
+    if (this.histLabel) this.histLabel.textContent = `${current} / ${total}`;
+    
+    if (this.histStartBtn) this.histStartBtn.disabled = (current === 0);
+    if (this.histPrevBtn) this.histPrevBtn.disabled = (current === 0);
+    if (this.histNextBtn) this.histNextBtn.disabled = (current === total);
+    if (this.histEndBtn) this.histEndBtn.disabled = (current === total);
   }
 
   public bindHeaderControls(actions: {

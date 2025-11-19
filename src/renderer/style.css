@@ -351,6 +351,49 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 
 /* Controls */
 .controls-section { display: flex; flex-direction: column; gap: 10px; }
+
+.history-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+}
+
+#histLabel {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    min-width: 60px;
+    text-align: center;
+}
+
+.btn-icon-small {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.btn-icon-small:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--accent-color);
+}
+
+.btn-icon-small:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
 .btn-control {
     width: 100%;
     padding: 12px;

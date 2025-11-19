@@ -103,6 +103,7 @@ class GameController {
     this.ui.bindGameControls({
       onReset: () => this.confirmReset(),
       onSuggest: () => this.showAISuggestion(),
+      onHistory: (action) => this.handleHistoryAction(action)
     });
 
   // Header Controls
@@ -574,6 +575,39 @@ class GameController {
         this.blackTimeTotal,
         this.whiteTimeTotal
     );
+    
+    // Update History Controls
+    this.ui.updateHistoryControls(
+        this.game.getCurrentMoveIndex(),
+        this.game.getTotalMoves()
+    );
+  }
+
+  private handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): void {
+    const current = this.game.getCurrentMoveIndex();
+    const total = this.game.getTotalMoves();
+    
+    switch (action) {
+        case 'START':
+            this.game.jumpTo(0);
+            break;
+        case 'PREV':
+            if (current > 0) this.game.jumpTo(current - 1);
+            break;
+        case 'NEXT':
+            if (current < total) this.game.jumpTo(current + 1);
+            break;
+        case 'END':
+            this.game.jumpTo(total);
+            break;
+    }
+    
+    // If we jumped to a state where the game is over, show it, otherwise hide it
+    if (!this.game.isGameOver()) {
+        this.showView('IN_GAME'); // Hide game over modal if we go back
+    }
+    
+    this.redraw();
   }
 }
 

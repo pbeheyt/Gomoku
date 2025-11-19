@@ -14,6 +14,7 @@ export class GomokuGame {
   private lastMove: Position | null;
   private winner: Player | null;
   private moveHistory: Move[];
+  private currentMoveIndex: number; // Points to the current state in history (0 = start)
 
   constructor() {
     this.board = new GameBoard();
@@ -23,12 +24,20 @@ export class GomokuGame {
     this.lastMove = null;
     this.winner = null;
     this.moveHistory = [];
+    this.currentMoveIndex = 0;
   }
 
   /**
    * Make a move and apply all game rules
    */
   makeMove(row: number, col: number): ValidationResult {
+    // 0. History Branching: If we are in the past, cut the future.
+    if (this.currentMoveIndex < this.moveHistory.length) {
+      this.moveHistory = this.moveHistory.slice(0, this.currentMoveIndex);
+      // If we branched, the game cannot be in a "Won" state anymore (unless this specific move wins it)
+      this.winner = null; 
+    }
+
     // Garde-fou 1: Position valide et vide
     if (!this.board.isValidMove(row, col)) {
       return { isValid: false, reason: 'Position invalide ou occupée' };
@@ -59,6 +68,7 @@ export class GomokuGame {
       timestamp: Date.now(),
     };
     this.moveHistory.push(move);
+    this.currentMoveIndex++;
     
     // Emit move made event
     emitMoveMade(move);
@@ -403,7 +413,64 @@ export class GomokuGame {
     this.lastMove = null;
     this.winner = null;
     this.moveHistory = [];
+    this.currentMoveIndex = 0;
     emitPlayerChanged(this.currentPlayer);
+  }
+
+  /**
+   * Time Travel: Jump to a specific point in history
+   * Reconstructs the board state from the beginning.
+   */
+  jumpTo(index: number): void {
+    if (index < 0 || index > this.moveHistory.length) return;
+
+    // 1. Reset State completely
+    this.board.reset();
+    this.blackCaptures = 0;
+    this.whiteCaptures = 0;
+    this.currentPlayer = Player.BLACK;
+    this.winner = null;
+    this.lastMove = null;
+
+    // 2. Replay moves up to index
+    for (let i = 0; i < index; i++) {
+      const move = this.moveHistory[i];
+      const { row, col } = move.position;
+      const player = move.player;
+
+      // Place stone
+      this.board.setPiece(row, col, player);
+      this.lastMove = { row, col };
+
+      // Apply captures (Silent logic)
+      const captures = this.checkCaptures(row, col);
+      this.applyCaptures(captures);
+
+      // Switch player (unless it's the last move of the loop)
+      // Actually, we just toggle every time to match standard flow
+      this.currentPlayer = (player === Player.BLACK) ? Player.WHITE : Player.BLACK;
+      
+      // Check win condition on the very last move played to restore winner state
+      if (i === index - 1) {
+         if (this.checkWin(row, col) || (player === Player.BLACK ? this.blackCaptures : this.whiteCaptures) >= 10) {
+             this.winner = player;
+         }
+      }
+    }
+
+    this.currentMoveIndex = index;
+    
+    // Emit update to sync UI/Renderer
+    // We use player changed to force UI refresh, but we might need a specific event
+    // For now, the renderer will call getGameState() after jumping
+  }
+
+  getCurrentMoveIndex(): number {
+    return this.currentMoveIndex;
+  }
+
+  getTotalMoves(): number {
+    return this.moveHistory.length;
   }
 
   /**
