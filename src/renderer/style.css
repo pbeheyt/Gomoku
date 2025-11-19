@@ -219,6 +219,15 @@ body {
     font-weight: 700;
     text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
     margin: 0;
+    line-height: 1;
+}
+
+.header-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
 }
 
 .header-left, .header-right {
@@ -232,36 +241,21 @@ body {
 }
 
 .ranked-badge {
-    position: absolute;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 50, 50, 0.2);
-    border: 1px solid rgba(255, 50, 50, 0.5);
-    color: #ff6b6b;
-    padding: 5px 10px;
+    /* Integrated flow position */
+    background: rgba(255, 50, 50, 0.15);
+    border: 1px solid rgba(255, 50, 50, 0.4);
+    color: #ff8888;
+    padding: 2px 12px;
     border-radius: 12px;
-    font-size: 0.8rem;
-    font-weight: bold;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
     pointer-events: none;
-    z-index: 50;
+    animation: fadeIn 0.5s ease;
 }
 
-.ranked-badge {
-    position: absolute;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 50, 50, 0.2);
-    border: 1px solid rgba(255, 50, 50, 0.5);
-    color: #ff6b6b;
-    padding: 5px 10px;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    pointer-events: none;
-    z-index: 50;
-}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
 .header-right-group {
     display: flex;
@@ -652,6 +646,66 @@ input:checked + .slider:before {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* 11. Enhanced Toast Notifications (HUD Style) */
+#gameMessage {
+    position: fixed;
+    bottom: 40px; /* Moved to bottom */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--text-primary);
+    padding: 15px 50px 15px 25px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 3px solid var(--accent-color); /* Accent on bottom */
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 170, 255, 0.15);
+    z-index: 2000;
+    font-weight: 500;
+    font-size: 1.05rem;
+    display: none;
+    animation: toastSlideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    min-width: 320px;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.toast-close {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes toastSlideUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 30px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }
 
 /* END OF FILE */

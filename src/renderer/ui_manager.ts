@@ -48,6 +48,7 @@ export class UIManager {
 
   private timerInterval: any = null;
   private thinkingStartTime: number = 0;
+  private messageTimeout: any = null;
 
   constructor() {
     this.mainMenuEl = document.getElementById('mainMenu');
@@ -91,10 +92,11 @@ export class UIManager {
     this.rankedBadgeEl = document.createElement('div');
     this.rankedBadgeEl.className = 'ranked-badge hidden';
     this.rankedBadgeEl.textContent = '🚫 NON CLASSÉ';
-    // Insert into header
-    const header = document.querySelector('.game-header');
-    if (header) {
-        header.appendChild(this.rankedBadgeEl);
+    
+    // Insert into header center group
+    const headerCenter = document.getElementById('headerCenter');
+    if (headerCenter) {
+        headerCenter.appendChild(this.rankedBadgeEl);
     }
   }
 
@@ -318,15 +320,38 @@ export class UIManager {
   }
 
   public showMessage(message: string): void {
+    // Lazy creation
     if (!this.messageEl) {
       this.messageEl = document.createElement('div');
       this.messageEl.id = 'gameMessage';
-      this.messageEl.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
       document.body.appendChild(this.messageEl);
     }
-    this.messageEl.textContent = message;
+
+    // Clear existing timeout to prevent early closing
+    if (this.messageTimeout) {
+        clearTimeout(this.messageTimeout);
+        this.messageTimeout = null;
+    }
+
+    // Set content with Close Button
+    this.messageEl.innerHTML = `
+        <span>${message}</span>
+        <button class="toast-close">&times;</button>
+    `;
+    
+    // Bind click event to the new button
+    const closeBtn = this.messageEl.querySelector('.toast-close') as HTMLElement;
+    if (closeBtn) {
+        closeBtn.onclick = () => this.clearMessage();
+    }
+
+    // Show the toast
     this.messageEl.style.display = 'block';
-    setTimeout(() => { if (this.messageEl) this.messageEl.style.display = 'none'; }, 3000);
+    
+    // Auto-hide after 8 seconds (Longer duration)
+    this.messageTimeout = setTimeout(() => { 
+        this.clearMessage();
+    }, 8000);
   }
 
   public clearMessage(): void {
