@@ -235,7 +235,14 @@ class GameController {
   }
 
   private initiateGameStart(mode: GameMode): void {
-    // Check requirements for LLM
+    // 1. Fast Track for Local PvP (Instant Start)
+    if (mode === GameMode.PLAYER_VS_PLAYER) {
+      // Default config: Player starts as Black (standard rule)
+      this.startGame(mode, { color: Player.BLACK });
+      return;
+    }
+
+    // 2. Check requirements for LLM
     if (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM) {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       if (!apiKey || apiKey.trim() === '') {
@@ -248,7 +255,7 @@ class GameController {
       }
     }
 
-    // Show Setup Modal
+    // 3. Show Setup Modal for AI modes
     this.ui.showSetupModal(mode, (config) => {
         this.startGame(mode, config);
     }, () => {
