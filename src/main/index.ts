@@ -6,6 +6,7 @@ function createWindow() {
     show: false,
     minWidth: 1280,
     minHeight: 800,
+    icon: path.join(__dirname, '../renderer/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
       contextIsolation: true,

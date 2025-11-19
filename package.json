@@ -8,7 +8,7 @@
     "build": "electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --outfile=dist/renderer/renderer.js --format=esm --sourcemap --platform=browser",
-    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json} src/renderer/sounds/*.mp3 dist/renderer && npm run copy-worker",
+    "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json,png} src/renderer/sounds/*.mp3 dist/renderer && npm run copy-worker",
     "copy-worker": "copyfiles -u 2 dist/wasm/ai_worker.js dist/renderer"
   },
   "build": {
