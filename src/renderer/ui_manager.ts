@@ -1,5 +1,6 @@
 // @src/renderer/ui_manager.ts
 import { Player, GameMode } from '../core/types.js';
+import { LeaderboardManager } from './leaderboard_manager.js';
 
 export type AppState = 'MENU' | 'IN_GAME' | 'GAME_OVER';
 export type ModalButton = { text: string; callback: () => void; className?: string; };
@@ -10,6 +11,8 @@ export class UIManager {
   private gameContainerEl: HTMLElement | null;
   private winnerMessageEl: HTMLElement | null;
   private suggestBtnEl: HTMLElement | null;
+  private blackTimerEl: HTMLElement | null;
+  private whiteTimerEl: HTMLElement | null;
   private aiTimerSectionEl: HTMLElement | null;
   private timerLabelEl: HTMLElement | null;
   private timerDisplayEl: HTMLElement | null;
@@ -42,9 +45,11 @@ export class UIManager {
     this.mainMenuEl = document.getElementById('mainMenu');
     this.gameOverMenuEl = document.getElementById('gameOverMenu');
     this.gameContainerEl = document.getElementById('gameContainer');
-    this.winnerMessageEl = document.getElementById('winnerMessage');
-    this.suggestBtnEl = document.getElementById('suggestBtn');
-    this.aiTimerSectionEl = document.getElementById('aiTimerSection');
+  this.winnerMessageEl = document.getElementById('winnerMessage');
+  this.suggestBtnEl = document.getElementById('suggestBtn');
+  this.blackTimerEl = document.getElementById('blackTimer');
+  this.whiteTimerEl = document.getElementById('whiteTimer');
+  this.aiTimerSectionEl = document.getElementById('aiTimerSection');
     this.timerLabelEl = document.getElementById('timerLabel');
     this.timerDisplayEl = document.getElementById('timer');
     this.miniSpinnerEl = document.getElementById('miniSpinner');
@@ -75,20 +80,41 @@ export class UIManager {
     this.gameOverMenuEl?.classList.toggle('hidden', view !== 'GAME_OVER');
   }
 
-  public updateGameInfo(player: Player, blackCaptures: number, whiteCaptures: number, mode: GameMode): void {
+  public updateGameInfo(
+    player: Player, 
+    blackCaptures: number, 
+    whiteCaptures: number, 
+    mode: GameMode,
+    blackTime: number,
+    whiteTime: number
+  ): void {
     document.getElementById('playerInfoBlack')?.classList.toggle('active-player', player === Player.BLACK);
     document.getElementById('playerInfoWhite')?.classList.toggle('active-player', player === Player.WHITE);
     
     if (document.getElementById('blackCaptures')) document.getElementById('blackCaptures')!.textContent = `Captures: ${blackCaptures} / 10`;
     if (document.getElementById('whiteCaptures')) document.getElementById('whiteCaptures')!.textContent = `Captures: ${whiteCaptures} / 10`;
 
-    const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
+  if (this.blackTimerEl) this.blackTimerEl.textContent = this.formatTime(blackTime);
+  if (this.whiteTimerEl) this.whiteTimerEl.textContent = this.formatTime(whiteTime);
+
+  const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
 
     const isLlmMode = mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
     this.aiReasoningSectionEl?.classList.toggle('hidden', !isLlmMode);
     
     this.suggestBtnEl?.classList.toggle('hidden', mode !== GameMode.PLAYER_VS_PLAYER);
+  }
+
+  private formatTime(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  public showLeaderboardModal(): void {
+    const html = LeaderboardManager.generateHTML();
+    this.showModal('🏆 Hall of Fame (Vs IA)', html, [{ text: 'Fermer', callback: () => {} }]);
   }
 
   public setWinnerMessage(winner: Player): void {
@@ -290,7 +316,10 @@ export class UIManager {
     document.getElementById('cardArena')?.addEventListener('click', actions.onAiVsLlm);
     
     // Main Menu Settings
-    document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
+  document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
+  document.getElementById('leaderboardBtn')?.addEventListener('click', () => {
+    this.showLeaderboardModal();
+  });
 
     // Game Over Buttons
     document.getElementById('replayBtn')?.addEventListener('click', actions.onReplay);

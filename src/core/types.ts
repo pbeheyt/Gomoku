@@ -54,6 +54,15 @@ export interface AIInterface {
   getDifficulty(): number;
 }
 
+export interface LeaderboardEntry {
+  date: string;
+  moves: number;
+  timeSeconds: number;
+  score: number;
+  aiLevel: string; // "WASM" or "LLM" or custom like "AI C++"
+  playerColor: Player; // Store which color the human played
+}
+
 export interface GameEvents {
   'move:made': (move: Move) => void;
   'capture:made': (capture: CaptureResult) => void;

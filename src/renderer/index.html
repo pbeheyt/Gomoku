@@ -12,7 +12,10 @@
         <div class="launcher-box">
             <div class="launcher-header">
                 <h1>Gomoku</h1>
-                <button id="mainSettingsBtn" class="btn-icon" title="Paramètres">⚙️</button>
+                <div class="header-right-group">
+                    <button id="leaderboardBtn" class="btn-icon" title="Leaderboard">🏆</button>
+                    <button id="mainSettingsBtn" class="btn-icon" title="Paramètres">⚙️</button>
+                </div>
             </div>
             <p class="launcher-subtitle">Sélectionnez un mode de jeu</p>
             
@@ -165,13 +168,19 @@
                 </div>
 
                 <div class="info-section">
-                    <h3>Scores</h3>
+                    <h3>Scores & Temps</h3>
                     <div class="player-info" id="playerInfoBlack">
-                        <span class="player-name">Noir</span>
+                        <div class="player-details">
+                            <span class="player-name">Noir</span>
+                            <span class="player-timer" id="blackTimer">00:00</span>
+                        </div>
                         <span class="player-captures" id="blackCaptures">Captures: 0 / 10</span>
                     </div>
                     <div class="player-info" id="playerInfoWhite">
-                        <span class="player-name">Blanc</span>
+                         <div class="player-details">
+                            <span class="player-name">Blanc</span>
+                            <span class="player-timer" id="whiteTimer">00:00</span>
+                        </div>
                         <span class="player-captures" id="whiteCaptures">Captures: 0 / 10</span>
                     </div>
                 </div>

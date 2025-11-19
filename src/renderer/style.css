@@ -231,6 +231,11 @@ body {
     justify-content: flex-end;
 }
 
+.header-right-group {
+    display: flex;
+    gap: 10px;
+}
+
 .btn-icon {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid var(--glass-border);
@@ -297,25 +302,52 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 /* Player Info & Active Player Indicator */
 .player-info {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     padding: 12px 15px;
     border-radius: 8px;
     margin-bottom: 8px;
     border: 2px solid transparent;
     background: rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
+    gap: 5px;
 }
 .player-info.active-player {
     background: rgba(0, 255, 137, 0.1);
     border-color: var(--active-glow);
     box-shadow: 0 0 15px rgba(0, 255, 137, 0.3);
 }
+.player-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
 .player-name { font-size: 1.1rem; font-weight: 600; }
-.player-captures { font-size: 1rem; color: var(--text-secondary); }
-.player-info.active-player .player-name, .player-info.active-player .player-captures {
+.player-timer { font-family: 'Courier New', monospace; font-weight: bold; color: var(--accent-color); }
+.player-captures { font-size: 0.9rem; color: var(--text-secondary); align-self: flex-start; }
+.player-info.active-player .player-name { color: var(--text-primary); }
+
+/* Leaderboard Table */
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.leaderboard-table th {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--accent-color);
+    font-weight: 600;
+}
+.leaderboard-table td {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
     color: var(--text-primary);
 }
+.leaderboard-table tr:last-child td { border-bottom: none; }
+.rank-col { font-size: 1.2rem; }
+.score-col { font-weight: bold; color: var(--active-glow); }
 
 /* Controls */
 .controls-section { display: flex; flex-direction: column; gap: 10px; }

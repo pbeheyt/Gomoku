@@ -10,6 +10,7 @@ import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 import { LlmAI } from '../llm/llm_ai.js';
 import { UIManager, AppState } from './ui_manager.js';
 import { SoundManager } from './sound_manager.js';
+import { LeaderboardManager } from './leaderboard_manager.js';
 
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
@@ -39,6 +40,12 @@ class GameController {
   private isAIThinking: boolean = false;
   private lastAIThinkingTime: number = 0;
   private appState: AppState = 'MENU';
+
+  // Cumulative timers (in seconds)
+  private blackTimeTotal: number = 0;
+  private whiteTimeTotal: number = 0;
+  private turnStartTime: number = 0;
+  private timerInterval: any = null;
 
   constructor(containerId: string) {
     this.game = new GomokuGame();
@@ -159,28 +166,42 @@ class GameController {
         this.redraw();
         this.soundManager.playStoneDrop(move.player);
     });
-    gameEvents.on('capture:made', () => {
-        this.ui.updateGameInfo(this.game.getCurrentPlayer(), this.game.getBlackCaptures(), this.game.getWhiteCaptures(), this.currentMode);
-        this.soundManager.playCapture();
-    });
+  gameEvents.on('capture:made', () => {
+    this.updateUI();
+    this.soundManager.playCapture();
+  });
     gameEvents.on('game:won', (winner) => {
+      this.stopGlobalTimer(); // Stop counting time
       this.ui.setWinnerMessage(winner);
       this.showView('GAME_OVER');
       this.updateUI(); // Final update
       
       // Determine if "We" won (Human or current perspective)
-      // In PvP, everyone is a winner? Let's just play victory for now.
-      // In PvAI, we should check if winner == Human color.
       let isVictory = true;
+      const humanColor = this.lastGameConfig.color || Player.BLACK;
       
       if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
-          const humanColor = this.lastGameConfig.color || Player.BLACK;
           isVictory = (winner === humanColor);
+
+          // === LEADERBOARD LOGIC ===
+          // Only save score if Human won against C++ AI (or LLM, but mostly C++)
+          if (isVictory && this.currentMode === GameMode.PLAYER_VS_AI) {
+              const moves = this.game.getMoveHistory().length;
+              const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
+              
+              // Pass humanColor to addEntry for bonus calculation
+              const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor);
+              this.ui.showMessage(`🏆 Nouveau Score: ${entry.score} pts !`);
+          }
       }
       
       this.soundManager.playWin(isVictory);
     });
-    gameEvents.on('player:changed', () => this.updateUI());
+  gameEvents.on('player:changed', () => {
+    // Player changed, so we restart the turn timer for the NEW player
+    this.startGlobalTimer();
+    this.updateUI();
+  });
   }
 
   private showRulesModal(): void {
@@ -283,7 +304,8 @@ class GameController {
   // 4. Reset Game State
   this.resetGame(true, config);
 
-  // 5. Trigger First Turn Logic
+  // 5. Start Timers and Turn
+    this.startGlobalTimer();
     this.handleTurnStart();
   }
 
@@ -348,6 +370,34 @@ class GameController {
         setTimeout(() => this.triggerLlmMove(), 50);
     } else {
         // HUMAN: Do nothing, wait for input events
+    }
+  }
+
+  private startGlobalTimer(): void {
+    this.stopGlobalTimer();
+    this.turnStartTime = performance.now();
+    
+    this.timerInterval = setInterval(() => {
+        const now = performance.now();
+        const deltaSeconds = (now - this.turnStartTime) / 1000;
+        this.turnStartTime = now; // reset for next tick
+
+        // Add delta to current player
+        if (this.game.getCurrentPlayer() === Player.BLACK) {
+            this.blackTimeTotal += deltaSeconds;
+        } else {
+            this.whiteTimeTotal += deltaSeconds;
+        }
+        
+        // Update UI without full redraw
+        this.updateUI();
+    }, 1000);
+  }
+
+  private stopGlobalTimer(): void {
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
     }
   }
 
@@ -492,6 +542,11 @@ class GameController {
 
     if (!isNewGame) emitGameReset();
     
+  // Reset Timers
+  this.blackTimeTotal = 0;
+  this.whiteTimeTotal = 0;
+  this.stopGlobalTimer();
+    
     this.ui.setReasoning("En attente...");
     this.redraw();
     this.updateUI();
@@ -515,7 +570,9 @@ class GameController {
         this.game.getCurrentPlayer(), 
         this.game.getBlackCaptures(), 
         this.game.getWhiteCaptures(), 
-        this.currentMode
+        this.currentMode,
+        this.blackTimeTotal,
+        this.whiteTimeTotal
     );
   }
 }
