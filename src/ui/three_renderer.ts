@@ -72,7 +72,13 @@ export class ThreeRenderer implements IGameRenderer {
   }
 
   private createBoard(): void {
-    const boardWidth = this.BOARD_SIZE * this.CELL_SIZE + 2;
+    // Gomoku Logic: 19 lines means 18 squares.
+    // Grid Size = (19-1) * CELL_SIZE
+    const gridSize = (this.BOARD_SIZE - 1) * this.CELL_SIZE;
+    
+    // Board mesh needs to be slightly larger than the grid (margin)
+    const boardWidth = gridSize + (this.CELL_SIZE * 2); 
+
     const geometry = new THREE.BoxGeometry(boardWidth, 1, boardWidth);
     const material = new THREE.MeshStandardMaterial({ 
       color: 0xdcb35c,
@@ -85,24 +91,28 @@ export class ThreeRenderer implements IGameRenderer {
     this.scene.add(boardMesh);
 
     // Grid Lines
+    // Grid Lines
+    // Divisions = BOARD_SIZE - 1 (18 squares = 19 lines)
     const gridHelper = new THREE.GridHelper(
-      this.BOARD_SIZE * this.CELL_SIZE, 
-      this.BOARD_SIZE, 
+      gridSize, 
+      this.BOARD_SIZE - 1, 
       0x000000, 
       0x000000
     );
     gridHelper.position.y = 0.01; // Slightly above board
-    gridHelper.material.opacity = 0.3;
-    gridHelper.material.transparent = true;
+    (gridHelper.material as THREE.Material).opacity = 0.5;
+    (gridHelper.material as THREE.Material).transparent = true;
     this.scene.add(gridHelper);
   }
 
   private createStonesPool(): void {
-    const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.4, 32, 32);
+    const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.45, 32, 32); // Slightly larger stones
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.3 });
     const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.3 });
-
-    const offset = (this.BOARD_SIZE * this.CELL_SIZE) / 2 - (this.CELL_SIZE / 2);
+    // Center offset calculation for Intersections
+    // The grid goes from -(size/2) to +(size/2)
+    // Col 0 is at -size/2, Col 18 is at +size/2
+    const halfSize = ((this.BOARD_SIZE - 1) * this.CELL_SIZE) / 2;
 
     for (let row = 0; row < this.BOARD_SIZE; row++) {
       for (let col = 0; col < this.BOARD_SIZE; col++) {
@@ -110,10 +120,10 @@ export class ThreeRenderer implements IGameRenderer {
         
         // Position: Map row/col to 3D coordinates
         // 3D X = Column, 3D Z = Row
-        const x = (col * this.CELL_SIZE) - offset;
-        const z = (row * this.CELL_SIZE) - offset;
+  const x = (col * this.CELL_SIZE) - halfSize;
+  const z = (row * this.CELL_SIZE) - halfSize;
         
-        mesh.position.set(x, 0.3, z); // Slightly flattened or just on top
+  mesh.position.set(x, 0.2, z); // Sit on intersections
         mesh.scale.y = 0.6; // Flatten to make it a Go stone
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -231,15 +241,15 @@ export class ThreeRenderer implements IGameRenderer {
     const target = new THREE.Vector3();
     this.raycaster.ray.intersectPlane(plane, target);
 
-    if (target) {
-        // Convert 3D world coords back to Row/Col
-        const offset = (this.BOARD_SIZE * this.CELL_SIZE) / 2 - (this.CELL_SIZE / 2);
+  if (target) {
+    // Convert 3D world coords back to Row/Col
+    // Formula: coord = (index * CELL_SIZE) - halfSize
+    // Reverse: index = (coord + halfSize) / CELL_SIZE
         
-        // x = col * size - offset  =>  col = (x + offset) / size
-        // z = row * size - offset  =>  row = (z + offset) / size
+    const halfSize = ((this.BOARD_SIZE - 1) * this.CELL_SIZE) / 2;
         
-        const col = Math.round((target.x + offset) / this.CELL_SIZE);
-        const row = Math.round((target.z + offset) / this.CELL_SIZE);
+    const col = Math.round((target.x + halfSize) / this.CELL_SIZE);
+    const row = Math.round((target.z + halfSize) / this.CELL_SIZE);
 
         if (row >= 0 && row < this.BOARD_SIZE && col >= 0 && col < this.BOARD_SIZE) {
             return { row, col };
