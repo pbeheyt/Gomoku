@@ -94,9 +94,24 @@ export class LlmAI {
 
           // If invalid, add feedback to history and loop again
           console.warn(`LLM suggested invalid move ${JSON.stringify(move)}: ${validationError}`);
+          
+          // Generate list of occupied spots to help the LLM
+          const occupiedList = this.getOccupiedPositions(gameState.board);
+          
           messages.push({ 
             role: 'user', 
-            content: `Your suggested move {"row": ${move.row}, "col": ${move.col}} is INVALID. Reason: ${validationError}. \nYou MUST choose a valid coordinate that is EMPTY and DOES NOT violate rules (like Suicide). Look at the board again.` 
+            content: `⛔ INVALID MOVE DETECTED.
+You tried to play at {"row": ${move.row}, "col": ${move.col}}, but this move is INVALID.
+Reason: ${validationError}
+
+Here is the JSON list of ALL OCCUPIED coordinates (Forbidden):
+${JSON.stringify(occupiedList)}
+
+INSTRUCTION:
+1. Look at the list above.
+2. Choose a coordinate pair (row, col) that is NOT in that list.
+3. Ensure it does not violate game rules (Suicide, Double-Three).
+4. Reply with the corrected move in JSON.` 
           });
         } else {
            // Could not parse JSON
@@ -204,6 +219,21 @@ Move: [Coordinates]
 After the \`<reasoning>\` block, provide your final move in the following strict JSON format:
 {"row": R, "col": C}
     `;
+  }
+
+  /**
+   * Generates a compact JSON list of occupied positions [[r,c], [r,c]...]
+   */
+  private getOccupiedPositions(board: Player[][]): number[][] {
+    const occupied: number[][] = [];
+    for (let r = 0; r < board.length; r++) {
+      for (let c = 0; c < board[r].length; c++) {
+        if (board[r][c] !== Player.NONE) {
+          occupied.push([r, c]);
+        }
+      }
+    }
+    return occupied;
   }
 
   /**
