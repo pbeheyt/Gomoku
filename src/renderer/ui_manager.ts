@@ -125,7 +125,11 @@ export class UIManager {
 
   public showView(view: AppState): void {
     this.mainMenuEl?.classList.toggle('hidden', view !== 'MENU');
-    this.gameContainerEl?.classList.toggle('hidden', view !== 'IN_GAME');
+    
+    // Keep Game Container visible during GAME_OVER so we can see the board behind the blur
+    const isGameVisible = (view === 'IN_GAME' || view === 'GAME_OVER');
+    this.gameContainerEl?.classList.toggle('hidden', !isGameVisible);
+    
     this.gameOverMenuEl?.classList.toggle('hidden', view !== 'GAME_OVER');
   }
 
@@ -455,6 +459,11 @@ export class UIManager {
     // Game Over Buttons
     document.getElementById('replayBtn')?.addEventListener('click', actions.onReplay);
     document.getElementById('gameOverMenuBtn')?.addEventListener('click', actions.onMenu);
+    
+    // Close (X) button just hides the modal to reveal the board
+    document.getElementById('gameOverCloseBtn')?.addEventListener('click', () => {
+        this.gameOverMenuEl?.classList.add('hidden');
+    });
   }
 
   public bindGameControls(actions: {

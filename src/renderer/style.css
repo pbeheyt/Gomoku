@@ -482,6 +482,23 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     text-align: center;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     max-width: 600px;
+    position: relative; /* For absolute positioning of close button */
+}
+.modal-close-icon {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.8rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0 5px;
+}
+.modal-close-icon:hover {
+    color: var(--text-primary);
 }
 .modal-box h2 {
     font-size: 1.8rem;
