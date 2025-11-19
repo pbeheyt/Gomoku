@@ -109,24 +109,43 @@ export class GomokuGame {
   }
 
   /**
-   * Check if a move is valid without applying it (for AI or UI previews)
+   * Check if a move is valid without applying it (for AI or UI previews).
+   * @param playerOverride Optional player to validate for (defaults to current player)
    */
-  validateMove(row: number, col: number): ValidationResult {
+  validateMove(row: number, col: number, playerOverride?: Player): ValidationResult {
+    const playerToCheck = playerOverride || this.currentPlayer;
+
     // 1. Valid position and empty
     if (!this.board.isValidMove(row, col)) {
       return { isValid: false, reason: 'Position invalide ou occupée' };
     }
 
     // 2. Suicide rule
-    if (this.isSuicideMove(row, col, this.currentPlayer)) {
+    if (this.isSuicideMove(row, col, playerToCheck)) {
       return { isValid: false, reason: 'Coup suicidaire interdit (capture immédiate)' };
     }
 
     // 3. Double-Three rule
-    const preCaptures = this.checkCaptures(row, col);
-    const isDoubleThree = this.checkDoubleThree(row, col, this.currentPlayer);
+    // Note: checkCaptures and checkDoubleThree usually rely on board state.
+    // We must ensure they use the correct 'player' context.
+    // In this class, checkCaptures derives player from the board (which is empty at row,col),
+    // so we need to be careful.
+    
+    // Actually, checkCaptures inside this class assumes the stone is already placed OR 
+    // we need to simulate it.
+    // Let's look at checkCaptures implementation... it uses this.board.getPiece(row, col).
+    // Since validateMove is called BEFORE placement, checkCaptures will see EMPTY.
+    // We need to temporarily simulate the placement for validation.
+    
+    this.board.setPiece(row, col, playerToCheck);
+    
+    const captures = this.checkCaptures(row, col); // Now it sees the piece
+    const isDoubleThree = this.checkDoubleThree(row, col, playerToCheck);
+    
+    // Revert simulation
+    this.board.setPiece(row, col, Player.NONE);
 
-    if (isDoubleThree && preCaptures.length === 0) {
+    if (isDoubleThree && captures.length === 0) {
       return { isValid: false, reason: 'Double-trois interdit' };
     }
 
@@ -134,7 +153,8 @@ export class GomokuGame {
   }
 
   /**
-   * Check for captures around the newly placed stone
+   * Check for captures around the newly placed stone.
+   * Assumes the stone is currently on the board at (row, col).
    */
   private checkCaptures(row: number, col: number): CaptureResult[] {
     const captures: CaptureResult[] = [];
@@ -146,6 +166,9 @@ export class GomokuGame {
     ];
 
     const capturingPlayer = this.board.getPiece(row, col);
+    // Safety check: if called on empty square without simulation, return empty
+    if (capturingPlayer === Player.NONE) return [];
+
     const opponentPlayer = capturingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
 
     for (const dir of directions) {
@@ -257,12 +280,22 @@ export class GomokuGame {
       const flankAfterPiece = this.board.getPiece(flankAfterPos.row, flankAfterPos.col);
 
       // Check for a capture scenario: one side is opponent, the other is empty
-      if (
-        (flankBeforePiece === opponent && flankAfterPiece === Player.NONE) ||
-        (flankBeforePiece === Player.NONE && flankAfterPiece === opponent)
-      ) {
-        // This pair can be captured, so the line is breakable.
-        return true;
+      // AND the empty spot is a valid move for the opponent (e.g. not a double-three for them)
+      
+      let captureMove: Position | null = null;
+
+      if (flankBeforePiece === opponent && flankAfterPiece === Player.NONE) {
+        captureMove = flankAfterPos;
+      } else if (flankBeforePiece === Player.NONE && flankAfterPiece === opponent) {
+        captureMove = flankBeforePos;
+      }
+
+      if (captureMove) {
+        // Check if the opponent is legally allowed to play here to capture
+        const validation = this.validateMove(captureMove.row, captureMove.col, opponent);
+        if (validation.isValid) {
+            return true; // Valid capture possible
+        }
       }
     }
 
@@ -362,7 +395,16 @@ export class GomokuGame {
     // Extract a line of characters centered on the move. 'P' for player, '_' for empty, 'O' for opponent.
     // A window of 11 (-5 to +5) is safe to detect patterns of up to 6 characters.
     for (let i = -5; i <= 5; i++) {
-        const piece = this.board.getPiece(row + i * direction.r, col + i * direction.c);
+        const r = row + i * direction.r;
+        const c = col + i * direction.c;
+        
+        // CRITICAL FIX: Treat out-of-bounds as Opponent (Blocker), not Empty.
+        if (!this.board.isValidPosition(r, c)) {
+             line += 'O'; // Wall acts like an opponent
+             continue;
+        }
+
+        const piece = this.board.getPiece(r, c);
         if (piece === player) {
             line += 'P';
         } else if (piece === Player.NONE) {
