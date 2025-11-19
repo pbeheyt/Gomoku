@@ -4,8 +4,6 @@
  */
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
-import { IGameRenderer } from '../ui/renderer_interface.js';
-import { CanvasRenderer } from '../ui/canvas.js';
 import { ThreeRenderer } from '../ui/three_renderer.js';
 import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
@@ -16,14 +14,13 @@ const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
 type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
-type RenderMode = '2D' | '3D';
+// No longer supporting 2D canvas renderer; always use ThreeRenderer
 
 class GameController {
   private game: GomokuGame;
-  private renderer!: IGameRenderer; // Polymorphic renderer
+  private renderer!: ThreeRenderer;
   private ui: UIManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
-  private renderMode: RenderMode = '3D'; // Default to 3D because it's cool
   private lastGameConfig: any = {}; 
   
   // Actor configuration: Who controls which color?
@@ -45,7 +42,7 @@ class GameController {
     this.game = new GomokuGame();
     this.ui = new UIManager();
     
-    this.initRenderer(containerId);
+  // Renderer initialized in startGame to ensure DOM is visible
     this.setupBindings();
     this.setupGameEvents();
     this.initializeAI();
@@ -55,39 +52,30 @@ class GameController {
   }
 
   private initRenderer(containerId: string): void {
-    // Cleanup existing if any
-    if (this.renderer) {
-        this.renderer.cleanup();
-    }
+  if (this.renderer) return; // Already initialized
 
-    if (this.renderMode === '2D') {
-        this.renderer = new CanvasRenderer(containerId, this.game.getBoard());
-    } else {
-        this.renderer = new ThreeRenderer(containerId, this.game.getBoard());
-    }
+  this.renderer = new ThreeRenderer(containerId, this.game.getBoard());
 
-    // Re-bind events to the new canvas element
-    this.bindCanvasEvents();
+  // Bind events to the canvas
+  const canvas = this.renderer.getCanvas();
+  canvas.addEventListener('click', (e: MouseEvent) => this.handleClick(e));
+  canvas.addEventListener('mousemove', (e: MouseEvent) => this.handleMouseMove(e));
+  canvas.addEventListener('mouseleave', (e: MouseEvent) => this.handleMouseLeave());
     
-    // Initial Draw
-    this.redraw();
+  // Handle Window Resize
+  window.addEventListener('resize', () => {
+    if (this.renderer && this.appState === 'IN_GAME') {
+      const container = document.getElementById(containerId);
+      if (container) {
+        this.renderer.resize(container.clientWidth, container.clientHeight);
+      }
+    }
+  });
   }
 
-  private bindCanvasEvents(): void {
-    const canvas = this.renderer.getCanvas();
-    // Remove old listeners? (Not easily possible with anonymous functions without tracking)
-    // Since we destroy the canvas element in cleanup(), we don't need to remove listeners manually.
-    // The new canvas is fresh.
-    
-    canvas.addEventListener('click', (e) => this.handleClick(e));
-    canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
-  }
+  // Canvas event binding is handled inside initRenderer
 
-  private toggleViewMode(): void {
-    this.renderMode = this.renderMode === '2D' ? '3D' : '2D';
-    this.initRenderer('boardContainer');
-  }
+  // toggleViewMode removed; 2D view no longer supported
 
   private setupBindings(): void {
     // Menu Actions (Launcher)
@@ -107,13 +95,12 @@ class GameController {
       onSuggest: () => this.showAISuggestion(),
     });
 
-    // Header Controls
-    this.ui.bindHeaderControls({
-        onHome: () => this.confirmGoToMenu(),
-        onRules: () => this.showRulesModal(),
-        onSettings: () => this.openSettingsModal(),
-        onViewToggle: () => this.toggleViewMode()
-    });
+  // Header Controls
+  this.ui.bindHeaderControls({
+    onHome: () => this.confirmGoToMenu(),
+    onRules: () => this.showRulesModal(),
+    onSettings: () => this.openSettingsModal()
+  });
 
     // Settings Actions
     this.ui.bindSettingsActions({
@@ -121,15 +108,7 @@ class GameController {
       onCancel: () => this.ui.hideSettingsModal()
     });
 
-    // Canvas Events are now bound in bindCanvasEvents() called by initRenderer
-    window.addEventListener('resize', () => {
-        if (this.renderer && this.appState === 'IN_GAME') {
-            const container = document.getElementById('boardContainer');
-            if (container) {
-                this.renderer.resize(container.clientWidth, container.clientHeight);
-            }
-        }
-    });
+  // Resize handling is performed by the renderer's init
   }
 
   private showView(view: AppState): void {
@@ -232,7 +211,17 @@ class GameController {
     this.currentMode = mode;
     this.lastGameConfig = config;
 
-    // 1. Configure Actors based on Mode and User Choice
+  // 1. Show view and initialize renderer to ensure DOM dimensions are valid
+  this.showView('IN_GAME');
+
+  this.initRenderer('boardContainer');
+  // Force a resize to fit container
+  const container = document.getElementById('boardContainer');
+  if (container && this.renderer) {
+    this.renderer.resize(container.clientWidth, container.clientHeight);
+  }
+
+  // 2. Configure Actors based on Mode and User Choice
     const userColor = config.color as Player || Player.BLACK;
     const opponentColor = userColor === Player.BLACK ? Player.WHITE : Player.BLACK;
 
@@ -268,15 +257,15 @@ class GameController {
         localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId);
     }
 
-    // 2. Reset Game State
-    this.resetGame(true, config);
-    this.showView('IN_GAME');
+  // 4. Reset Game State
+  this.resetGame(true, config);
 
-    // 3. Trigger First Turn Logic
+  // 5. Trigger First Turn Logic
     this.handleTurnStart();
   }
 
   private canvasToBoard(x: number, y: number): Position | null {
+    if (!this.renderer) return null;
     return this.renderer.canvasToBoard(x, y);
   }
 
@@ -487,12 +476,14 @@ class GameController {
   }
 
   private redraw(): void {
-    this.renderer.draw(
-      this.game.getCurrentPlayer(),
-      this.hoverPosition,
-      this.game.getLastMove(),
-      this.suggestionPosition
-    );
+    if (this.renderer) {
+        this.renderer.draw(
+        this.game.getCurrentPlayer(),
+        this.hoverPosition,
+        this.game.getLastMove(),
+        this.suggestionPosition
+        );
+    }
     this.updateUI();
   }
 

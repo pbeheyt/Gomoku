@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { Player, Position } from '../core/types.js';
 import { GameBoard } from '../core/board.js';
-import { IGameRenderer } from './renderer_interface.js';
 
-export class ThreeRenderer implements IGameRenderer {
+export class ThreeRenderer {
   private container: HTMLElement;
   private canvas: HTMLCanvasElement;
   private board: GameBoard;
