@@ -280,6 +280,14 @@ export class UIManager {
     if (this.setupModelSection) this.setupModelSection.classList.toggle('hidden', !needsModel);
     if (this.setupColorSection) this.setupColorSection.classList.toggle('hidden', !needsColor);
 
+    // Pre-select Default Model from Settings
+    if (needsModel && this.setupModelSelectEl) {
+        const savedModel = localStorage.getItem('gomoku-llm-model');
+        if (savedModel) {
+            this.setupModelSelectEl.value = savedModel;
+        }
+    }
+
     // Bind Color Buttons
     this.setupColorBtns.forEach(btn => {
         (btn as HTMLElement).onclick = () => {
