@@ -412,6 +412,7 @@ class GameController {
     this.stopGlobalTimer();
     this.turnStartTime = performance.now();
     
+    // Refresh every 100ms for 0.1s precision
     this.timerInterval = setInterval(() => {
         const now = performance.now();
         const deltaSeconds = (now - this.turnStartTime) / 1000;
@@ -426,7 +427,7 @@ class GameController {
         
         // Update UI without full redraw
         this.updateUI();
-    }, 1000);
+    }, 100);
   }
 
   private stopGlobalTimer(): void {
@@ -581,10 +582,11 @@ class GameController {
     if (!isNewGame) emitGameReset();
     
   // Reset Timers
-  this.blackTimeTotal = 0;
-  this.whiteTimeTotal = 0;
-  this.stopGlobalTimer();
+    this.blackTimeTotal = 0;
+    this.whiteTimeTotal = 0;
+    this.stopGlobalTimer();
     
+    this.ui.resetAiTimer();
     this.ui.setReasoning("En attente...");
     this.redraw();
     this.updateUI();

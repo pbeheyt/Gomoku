@@ -167,7 +167,14 @@ export class UIManager {
   private formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    const d = Math.floor((seconds % 1) * 10); // Tenths
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${d}`;
+  }
+
+  public resetAiTimer(): void {
+    if (this.timerDisplayEl) this.timerDisplayEl.textContent = "0.0000s";
+    if (this.timerLabelEl) this.timerLabelEl.textContent = "Dernier coup";
+    if (this.miniSpinnerEl) this.miniSpinnerEl.classList.add('hidden');
   }
 
   public showLeaderboardModal(): void {
