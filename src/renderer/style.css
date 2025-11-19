@@ -706,7 +706,7 @@ input:checked + .slider:before {
     transition: opacity 0.3s ease;
     display: flex;
     flex-direction: column;
-    justify-content: center; /* Center text vertically if short */
+    justify-content: safe center; /* Center text vertically if short, allow scroll if long */
     align-items: center;
 }
 
