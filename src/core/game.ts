@@ -15,6 +15,7 @@ export class GomokuGame {
   private winner: Player | null;
   private moveHistory: Move[];
   private currentMoveIndex: number; // Points to the current state in history (0 = start)
+  private gameId: number = 0; // Concurrency token
 
   constructor() {
     this.board = new GameBoard();
@@ -25,6 +26,14 @@ export class GomokuGame {
     this.winner = null;
     this.moveHistory = [];
     this.currentMoveIndex = 0;
+    this.gameId = 0;
+  }
+
+  /**
+   * Get the current Game ID (used for concurrency checks)
+   */
+  getGameId(): number {
+    return this.gameId;
   }
 
   /**
@@ -460,6 +469,7 @@ export class GomokuGame {
     this.winner = null;
     this.moveHistory = [];
     this.currentMoveIndex = 0;
+    this.gameId++; // Invalidate previous async operations
     emitPlayerChanged(this.currentPlayer);
   }
 
@@ -469,6 +479,8 @@ export class GomokuGame {
    */
   jumpTo(index: number): void {
     if (index < 0 || index > this.moveHistory.length) return;
+
+    this.gameId++; // Invalidate previous async operations (e.g. thinking during replay)
 
     // 1. Reset State completely
     this.board.reset();

@@ -172,6 +172,12 @@ export class UIManager {
   }
 
   public resetAiTimer(): void {
+    // Critical: Stop the interval so it doesn't overwrite the reset 0.0000s
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+    
     if (this.timerDisplayEl) this.timerDisplayEl.textContent = "0.0000s";
     if (this.timerLabelEl) this.timerLabelEl.textContent = "Dernier coup";
     if (this.miniSpinnerEl) this.miniSpinnerEl.classList.add('hidden');

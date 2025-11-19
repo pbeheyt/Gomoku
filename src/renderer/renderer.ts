@@ -460,6 +460,9 @@ class GameController {
 
   private async triggerAIMove(): Promise<void> {
     if (this.isAIThinking || !this.wasmAI) return;
+
+    const turnGameId = this.game.getGameId(); // Capture ID
+
     this.isAIThinking = true;
     this.ui.startThinkingTimer();
     this.updateUI();
@@ -467,10 +470,16 @@ class GameController {
     try {
         await this.wasmAI.updateGameState(this.game.getGameState());
         
+        // Check ID before expensive calc
+        if (this.game.getGameId() !== turnGameId) return;
+
         const startTime = performance.now();
         const aiMove = await this.wasmAI.getBestMove();
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
+
+        // Check ID after calc (CRITICAL)
+        if (this.game.getGameId() !== turnGameId) return;
 
         if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
             this.makeMove(aiMove.row, aiMove.col);
@@ -478,16 +487,24 @@ class GameController {
             this.ui.showMessage("L'IA a retourné un coup invalide.", 'error');
         }
     } catch (error) {
-        this.ui.showMessage(`Erreur IA C++: ${error}`, 'error');
+        if (this.game.getGameId() === turnGameId) {
+            this.ui.showMessage(`Erreur IA C++: ${error}`, 'error');
+        }
     } finally {
-        await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
-        this.isAIThinking = false;
-        this.updateUI();
+        // Only update UI if the game context hasn't changed
+        if (this.game.getGameId() === turnGameId) {
+            await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
+            this.isAIThinking = false;
+            this.updateUI();
+        }
     }
   }
 
   private async triggerLlmMove(): Promise<void> {
     if (this.isAIThinking) return;
+
+    const turnGameId = this.game.getGameId(); // Capture ID
+
     this.isAIThinking = true;
     this.ui.startThinkingTimer();
     this.updateUI();
@@ -505,6 +522,9 @@ class GameController {
         (row, col) => this.game.validateMove(row, col)
       );
 
+      // Check ID after network request (CRITICAL)
+      if (this.game.getGameId() !== turnGameId) return;
+
       const endTime = performance.now();
       this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
@@ -513,17 +533,24 @@ class GameController {
 
       if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
         await new Promise(resolve => setTimeout(resolve, 300));
-        this.makeMove(llmMove.row, llmMove.col);
+        // Final ID check before move
+        if (this.game.getGameId() === turnGameId) {
+             this.makeMove(llmMove.row, llmMove.col);
+        }
       } else {
         throw new Error("L'IA a renvoyé un coup invalide.");
       }
 
     } catch (error) {
-      this.ui.showMessage(`Erreur IA LLM: ${error}`, 'error');
+      if (this.game.getGameId() === turnGameId) {
+          this.ui.showMessage(`Erreur IA LLM: ${error}`, 'error');
+      }
     } finally {
-      await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
-      this.isAIThinking = false;
-      this.updateUI();
+      if (this.game.getGameId() === turnGameId) {
+          await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
+          this.isAIThinking = false;
+          this.updateUI();
+      }
     }
   }
 
@@ -533,31 +560,45 @@ class GameController {
     // Only allow suggestion if it's a human turn
     if (this.players[this.game.getCurrentPlayer()] !== 'HUMAN') return;
 
+    const turnGameId = this.game.getGameId(); // Capture ID
+
     this.isAIThinking = true;
     this.ui.startThinkingTimer();
     this.updateUI();
 
     try {
         await this.wasmAI.updateGameState(this.game.getGameState());
+        
+        if (this.game.getGameId() !== turnGameId) return;
+
         const startTime = performance.now();
         const suggestion = await this.wasmAI.getBestMove();
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
+        if (this.game.getGameId() !== turnGameId) return;
+
         if (suggestion) {
             this.suggestionPosition = suggestion;
             this.redraw();
             setTimeout(() => {
-                this.suggestionPosition = null;
-                this.redraw();
+                // Only clear if we are still in the same game and the suggestion is still valid
+                if (this.game.getGameId() === turnGameId) {
+                    this.suggestionPosition = null;
+                    this.redraw();
+                }
             }, 3000);
         }
     } catch (error) {
-        this.ui.showMessage(`Erreur suggestion: ${error}`, 'error');
+        if (this.game.getGameId() === turnGameId) {
+            this.ui.showMessage(`Erreur suggestion: ${error}`, 'error');
+        }
     } finally {
-        await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
-        this.isAIThinking = false;
-        this.updateUI();
+        if (this.game.getGameId() === turnGameId) {
+            await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
+            this.isAIThinking = false;
+            this.updateUI();
+        }
     }
   }
 
