@@ -60,9 +60,19 @@ self.onmessage = async (event) => {
 
             case 'updateGameState':
                 const flatBoard = payload.flatBoard;
-                const boardPtr = wasmModule.allocate(flatBoard, 'i32', wasmModule.ALLOC_NORMAL);
-                wasmModule._setBoard(boardPtr);
-                wasmModule._free(boardPtr);
+                // Modern replacement for deprecated allocate/ALLOC_NORMAL
+                // 1. Calculate size (int32 = 4 bytes)
+                const bytesPerElement = 4;
+                const ptr = wasmModule._malloc(flatBoard.length * bytesPerElement);
+                
+                // 2. Copy data to Wasm Heap (divide pointer by 4 because HEAP32 is an Int32Array view)
+                wasmModule.HEAP32.set(flatBoard, ptr >> 2);
+                
+                // 3. Call C++ function
+                wasmModule._setBoard(ptr);
+                
+                // 4. Free memory
+                wasmModule._free(ptr);
                 break;
 
             case 'getBestMove':

@@ -26,15 +26,16 @@ install:
 # Compile C++ core to WebAssembly.
 wasm:
 	@echo "Compiling C++ core to WebAssembly..."
-	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp -o src/renderer/ia_core.js -O3 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME="GomokuAI" -s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_malloc", "_free"]' -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "allocate", "intArrayFromString", "writeArrayToMemory"]' -s ALLOW_MEMORY_GROWTH=1
+	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp -o src/renderer/ia_core.js -O3 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME="GomokuAI" -s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_malloc", "_free"]' -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "intArrayFromString", "writeArrayToMemory"]' -s ALLOW_MEMORY_GROWTH=1
 
 # Compile all TypeScript projects.
 tsc:
-	@echo "Compiling TypeScript..."
+	@echo "Compiling TypeScript (Type Check)..."
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.json
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.preload.json
-	@$(DOCKER_EXEC) npx tsc --project tsconfig.renderer.json
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.worker.json
+	@echo "Bundling Renderer with Esbuild..."
+	@$(DOCKER_EXEC) npm run build:renderer
 
 # Copy static files to the distribution folder.
 copy-static:

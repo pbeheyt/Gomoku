@@ -4,7 +4,9 @@
  */
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
+import { IGameRenderer } from '../ui/renderer_interface.js';
 import { CanvasRenderer } from '../ui/canvas.js';
+import { ThreeRenderer } from '../ui/three_renderer.js';
 import { gameEvents, emitGameReset } from '../core/events.js';
 import { createWasmAI, WasmAI } from '../wasm/ai_wrapper.js';
 import { LlmAI } from '../llm/llm_ai.js';
@@ -14,12 +16,14 @@ const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
 type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
+type RenderMode = '2D' | '3D';
 
 class GameController {
   private game: GomokuGame;
-  private canvasRenderer: CanvasRenderer;
+  private renderer!: IGameRenderer; // Polymorphic renderer
   private ui: UIManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
+  private renderMode: RenderMode = '3D'; // Default to 3D because it's cool
   private lastGameConfig: any = {}; 
   
   // Actor configuration: Who controls which color?
@@ -37,17 +41,52 @@ class GameController {
   private lastAIThinkingTime: number = 0;
   private appState: AppState = 'MENU';
 
-  constructor(canvasId: string) {
+  constructor(containerId: string) {
     this.game = new GomokuGame();
-    this.canvasRenderer = new CanvasRenderer(canvasId, this.game.getBoard());
     this.ui = new UIManager();
-
+    
+    this.initRenderer(containerId);
     this.setupBindings();
     this.setupGameEvents();
     this.initializeAI();
     this.loadAndPopulateModels();
 
     this.showView('MENU');
+  }
+
+  private initRenderer(containerId: string): void {
+    // Cleanup existing if any
+    if (this.renderer) {
+        this.renderer.cleanup();
+    }
+
+    if (this.renderMode === '2D') {
+        this.renderer = new CanvasRenderer(containerId, this.game.getBoard());
+    } else {
+        this.renderer = new ThreeRenderer(containerId, this.game.getBoard());
+    }
+
+    // Re-bind events to the new canvas element
+    this.bindCanvasEvents();
+    
+    // Initial Draw
+    this.redraw();
+  }
+
+  private bindCanvasEvents(): void {
+    const canvas = this.renderer.getCanvas();
+    // Remove old listeners? (Not easily possible with anonymous functions without tracking)
+    // Since we destroy the canvas element in cleanup(), we don't need to remove listeners manually.
+    // The new canvas is fresh.
+    
+    canvas.addEventListener('click', (e) => this.handleClick(e));
+    canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+  }
+
+  private toggleViewMode(): void {
+    this.renderMode = this.renderMode === '2D' ? '3D' : '2D';
+    this.initRenderer('boardContainer');
   }
 
   private setupBindings(): void {
@@ -72,7 +111,8 @@ class GameController {
     this.ui.bindHeaderControls({
         onHome: () => this.confirmGoToMenu(),
         onRules: () => this.showRulesModal(),
-        onSettings: () => this.openSettingsModal()
+        onSettings: () => this.openSettingsModal(),
+        onViewToggle: () => this.toggleViewMode()
     });
 
     // Settings Actions
@@ -81,11 +121,15 @@ class GameController {
       onCancel: () => this.ui.hideSettingsModal()
     });
 
-    // Canvas Events
-    const canvas = this.canvasRenderer.getCanvas();
-    canvas.addEventListener('click', (e) => this.handleClick(e));
-    canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+    // Canvas Events are now bound in bindCanvasEvents() called by initRenderer
+    window.addEventListener('resize', () => {
+        if (this.renderer && this.appState === 'IN_GAME') {
+            const container = document.getElementById('boardContainer');
+            if (container) {
+                this.renderer.resize(container.clientWidth, container.clientHeight);
+            }
+        }
+    });
   }
 
   private showView(view: AppState): void {
@@ -233,7 +277,7 @@ class GameController {
   }
 
   private canvasToBoard(x: number, y: number): Position | null {
-    return this.canvasRenderer.canvasToBoard(x, y);
+    return this.renderer.canvasToBoard(x, y);
   }
 
   private handleClick(e: MouseEvent): void {
@@ -443,7 +487,7 @@ class GameController {
   }
 
   private redraw(): void {
-    this.canvasRenderer.draw(
+    this.renderer.draw(
       this.game.getCurrentPlayer(),
       this.hoverPosition,
       this.game.getLastMove(),
@@ -464,7 +508,7 @@ class GameController {
 
 document.addEventListener('DOMContentLoaded', () => {
   try {
-    const gameController = new GameController('gameBoard');
+    const gameController = new GameController('boardContainer');
     (window as any).gameController = gameController;
   } catch (error) {
     console.error('Failed to initialize game:', error);

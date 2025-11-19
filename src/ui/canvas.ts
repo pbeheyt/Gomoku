@@ -4,52 +4,56 @@
 
 import { Player, Position } from '../core/types.js';
 import { GameBoard } from '../core/board.js';
+import { IGameRenderer } from './renderer_interface.js';
 
 // Constants
 const CELL_SIZE = 35;
 const BOARD_MARGIN = 40;
 const STONE_RADIUS = 15;
 
-export class CanvasRenderer {
+export class CanvasRenderer implements IGameRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private board: GameBoard;
-  private hoverPosition: Position | null;
+  private container: HTMLElement;
 
-  constructor(canvasId: string, board: GameBoard) {
+  constructor(containerId: string, board: GameBoard) {
     this.board = board;
-    this.hoverPosition = null;
 
-    this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!this.canvas) {
-      throw new Error(`Canvas with id "${canvasId}" not found`);
+    this.container = document.getElementById(containerId) as HTMLElement;
+    if (!this.container) {
+      throw new Error(`Container with id "${containerId}" not found`);
     }
+
+    // Create canvas
+    this.canvas = document.createElement('canvas');
+    this.container.appendChild(this.canvas);
 
     const context = this.canvas.getContext('2d');
     if (!context) {
       throw new Error('Failed to get 2D context');
     }
     this.ctx = context;
-
-    // Ensure canvas is visible and properly styled
-    this.canvas.style.display = 'block';
-    this.canvas.style.visibility = 'visible';
     
-    this.setupCanvas();
+    this.resize(this.container.clientWidth, this.container.clientHeight);
   }
 
-  /**
-   * Setup canvas dimensions
-   */
-  private setupCanvas(): void {
+  resize(width: number, height: number): void {
+    // 2D Canvas has fixed size based on board content, 
+    // but we center it in the container via CSS or just set dimensions.
     const size = this.board.getSize() * CELL_SIZE + BOARD_MARGIN * 2;
     this.canvas.width = size;
     this.canvas.height = size;
     
-    // Forcer les dimensions CSS pour qu'elles soient visibles
     this.canvas.style.width = size + 'px';
     this.canvas.style.height = size + 'px';
     this.canvas.style.display = 'block';
+  }
+
+  cleanup(): void {
+    if (this.canvas && this.canvas.parentNode) {
+      this.canvas.parentNode.removeChild(this.canvas);
+    }
   }
 
   /**
@@ -237,12 +241,7 @@ export class CanvasRenderer {
     this.ctx.stroke();
   }
 
-  /**
-   * Set hover position
-   */
-  setHoverPosition(pos: Position | null): void {
-    this.hoverPosition = pos;
-  }
+  // Removed setHoverPosition as it is passed in draw()
 
   /**
    * Get canvas element
