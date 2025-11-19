@@ -20,7 +20,8 @@
     ],
     "linux": {
       "target": "dir",
-      "artifactName": "${productName}"
+      "artifactName": "${productName}",
+      "executableName": "Gomoku"
     }
   },
   "author": "",

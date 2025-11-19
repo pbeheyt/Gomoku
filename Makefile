@@ -10,9 +10,11 @@ all: build
 build: up install wasm tsc copy-static
 	@echo "Packaging application for production..."
 	@$(DOCKER_EXEC) npm run build
+	@echo "Creating symlink for $(NAME)..."
+	@ln -sf dist/linux-unpacked/Gomoku $(NAME)
 	@echo "\n\033[1;32mBuild finished successfully!\033[0m"
 	@echo "\n\033[1;33mTo run the application, execute this command in a NEW LOCAL terminal:\033[0m"
-	@echo "\033[1;36m   ./dist/linux-unpacked/gomoku\033[0m\n"
+	@echo "\033[1;36m   ./$(NAME)\033[0m\n"
 
 re: fclean all
 
@@ -69,6 +71,7 @@ fclean: clean
 	@echo "Cleaning all generated files..."
 	@$(DOCKER_EXEC) rm -rf node_modules
 	@$(DOCKER_EXEC) rm -f src/renderer/ia_core.wasm src/renderer/ia_core.js
+	@rm -f $(NAME)
 
 # Prune unused Docker data.
 prune: down
