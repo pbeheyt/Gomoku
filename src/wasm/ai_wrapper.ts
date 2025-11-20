@@ -9,18 +9,18 @@ type BestMoveResolve = (value: Position) => void;
 
 export class WasmAI {
     private worker: Worker | null = null;
-    private isReadyPromise: Promise<void>;
-    private resolveIsReady: () => void = () => {};
-    private rejectIsReady: (reason?: any) => void = () => {};
+    private workerReadyPromise: Promise<void>;
+    private resolveWorkerReady: () => void = () => {};
+    private rejectWorkerReady: (reason?: any) => void = () => {};
     private bestMovePromise: Promise<Position> | null = null;
     private resolveBestMove: BestMoveResolve | null = null;
     private rejectBestMove: ((reason?: any) => void) | null = null;
     private aiPlayer: Player = Player.WHITE;
 
     constructor() {
-        this.isReadyPromise = new Promise((resolve, reject) => {
-            this.resolveIsReady = resolve;
-            this.rejectIsReady = reject;
+        this.workerReadyPromise = new Promise((resolve, reject) => {
+            this.resolveWorkerReady = resolve;
+            this.rejectWorkerReady = reject;
         });
         this.initializeWorker();
     }
@@ -34,7 +34,7 @@ export class WasmAI {
                 switch (type) {
                     case 'worker_ready':
                         console.log('AI Worker is ready.');
-                        this.resolveIsReady();
+                        this.resolveWorkerReady();
                         break;
                     case 'bestMoveResult':
                         if (this.resolveBestMove) {
@@ -46,7 +46,7 @@ export class WasmAI {
                     case 'worker_error':
                         // Critical initialization error
                         console.error('Critical AI Worker Error:', payload);
-                        this.rejectIsReady(new Error(payload));
+                        this.rejectWorkerReady(new Error(payload));
                         break;
                     case 'error':
                         console.error('Runtime AI Worker Error:', payload);
@@ -89,7 +89,7 @@ export class WasmAI {
     }
 
     public async isReady(): Promise<boolean> {
-        await this.isReadyPromise;
+        await this.workerReadyPromise;
         return this.worker !== null;
     }
 
