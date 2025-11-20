@@ -58,30 +58,38 @@ self.onmessage = async (event) => {
                 wasmModule._initAI(payload.aiPlayer);
                 break;
 
-            case 'updateGameState':
-                const flatBoard = payload.flatBoard;
+            case 'getBestMove':
+                // Expect flatBoard as payload in this request
+                const flatBoard = payload?.flatBoard;
+
+                if (!flatBoard || !Array.isArray(flatBoard)) {
+                    self.postMessage({ type: 'error', payload: 'Invalid or missing flatBoard in getBestMove payload' });
+                    break;
+                }
+
                 // Modern replacement for deprecated allocate/ALLOC_NORMAL
                 // 1. Calculate size (int32 = 4 bytes)
                 const bytesPerElement = 4;
                 const ptr = wasmModule._malloc(flatBoard.length * bytesPerElement);
-                
-                // 2. Copy data to Wasm Heap (divide pointer by 4 because HEAP32 is an Int32Array view)
-                wasmModule.HEAP32.set(flatBoard, ptr >> 2);
-                
-                // 3. Call C++ function
-                wasmModule._setBoard(ptr);
-                
-                // 4. Free memory
-                wasmModule._free(ptr);
-                break;
 
-            case 'getBestMove':
-                const result = wasmModule._getBestMove();
-                const row = Math.floor(result / 100);
-                const col = result % 100;
-                
-                // Send the result back to the main thread.
-                self.postMessage({ type: 'bestMoveResult', payload: { row, col } });
+                try {
+                    // 2. Copy data to Wasm Heap (divide pointer by 4 because HEAP32 is an Int32Array view)
+                    wasmModule.HEAP32.set(flatBoard, ptr >> 2);
+
+                    // 3. Call C++ function to set board in Wasm memory
+                    wasmModule._setBoard(ptr);
+
+                    // 4. Compute best move
+                    const result = wasmModule._getBestMove();
+                    const row = Math.floor(result / 100);
+                    const col = result % 100;
+
+                    // Send the result back to the main thread.
+                    self.postMessage({ type: 'bestMoveResult', payload: { row, col } });
+                } finally {
+                    // 5. Free memory as soon as possible
+                    wasmModule._free(ptr);
+                }
                 break;
 
             case 'cleanup':

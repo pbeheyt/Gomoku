@@ -1,6 +1,6 @@
 // @src/renderer/renderer.ts
 /**
- * Gomoku Game Renderer - V4 with Decoupled UI Manager
+ * Gomoku Game Renderer
  */
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
@@ -16,7 +16,6 @@ const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
 type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
-// No longer supporting 2D canvas renderer; always use ThreeRenderer
 
 class GameController {
   private game: GomokuGame;
@@ -84,10 +83,6 @@ class GameController {
   });
   }
 
-  // Canvas event binding is handled inside initRenderer
-
-  // toggleViewMode removed; 2D view no longer supported
-
   private setupBindings(): void {
     // Menu Actions (Launcher)
     this.ui.bindMenuButtons({
@@ -119,8 +114,6 @@ class GameController {
       onSave: () => this.saveSettings(),
       onCancel: () => this.ui.hideSettingsModal()
     });
-
-  // Resize handling is performed by the renderer's init
   }
 
   private showView(view: AppState): void {
@@ -453,8 +446,6 @@ class GameController {
         "Erreur critique: Impossible de charger l'IA Native (WASM). Le mode 'Solo vs C++' sera indisponible.", 
         'error'
       );
-      // Optionally disable the button in the UI via ui_manager if you want to be thorough, 
-      // but the message is a good start.
     }
   }
 
@@ -467,14 +458,13 @@ class GameController {
     this.ui.startThinkingTimer();
     this.updateUI();
 
-    try {
-        await this.wasmAI.updateGameState(this.game.getGameState());
-        
-        // Check ID before expensive calc
-        if (this.game.getGameId() !== turnGameId) return;
+  try {
+  // Stateless AI: send the game state directly to getBestMove
+  // Check ID before expensive calc
+  if (this.game.getGameId() !== turnGameId) return;
 
-        const startTime = performance.now();
-        const aiMove = await this.wasmAI.getBestMove();
+  const startTime = performance.now();
+  const aiMove = await this.wasmAI.getBestMove(this.game.getGameState());
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
@@ -566,13 +556,12 @@ class GameController {
     this.ui.startThinkingTimer();
     this.updateUI();
 
-    try {
-        await this.wasmAI.updateGameState(this.game.getGameState());
-        
-        if (this.game.getGameId() !== turnGameId) return;
+  try {
+  // Stateless AI: send the current game state to get a suggestion
+  if (this.game.getGameId() !== turnGameId) return;
 
-        const startTime = performance.now();
-        const suggestion = await this.wasmAI.getBestMove();
+  const startTime = performance.now();
+  const suggestion = await this.wasmAI.getBestMove(this.game.getGameState());
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 

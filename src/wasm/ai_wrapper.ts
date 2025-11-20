@@ -71,42 +71,21 @@ export class WasmAI {
     }
 
     public async initAI(aiPlayer: Player): Promise<void> {
-        await this.isReadyPromise;
         this.aiPlayer = aiPlayer;
         this.worker?.postMessage({ type: 'initAI', payload: { aiPlayer } });
         console.log(`AI initialized for player ${aiPlayer === Player.BLACK ? 'BLACK' : 'WHITE'}`);
     }
 
-    public async updateGameState(gameState: GameState): Promise<void> {
-        await this.isReadyPromise;
-        const flatBoard = this.flattenBoard(gameState.board);
-        this.worker?.postMessage({ type: 'updateGameState', payload: { flatBoard } });
-    }
-
-    public getBestMove(): Promise<Position> {
+    public getBestMove(gameState: GameState): Promise<Position> {
         if (!this.bestMovePromise) {
-            this.bestMovePromise = new Promise(async (resolve, reject) => {
-                try {
-                    await this.isReadyPromise;
-                    this.resolveBestMove = resolve;
-                    this.rejectBestMove = reject;
-                    this.worker?.postMessage({ type: 'getBestMove' });
-                } catch (e) {
-                    reject(e);
-                }
+            this.bestMovePromise = new Promise((resolve, reject) => {
+                this.resolveBestMove = resolve;
+                this.rejectBestMove = reject;
+                const flatBoard = gameState.board.flat();
+                this.worker?.postMessage({ type: 'getBestMove', payload: { flatBoard } });
             });
         }
         return this.bestMovePromise;
-    }
-
-    private flattenBoard(board: Player[][]): number[] {
-        const flatBoard: number[] = new Array(19 * 19);
-        for (let row = 0; row < 19; row++) {
-            for (let col = 0; col < 19; col++) {
-                flatBoard[row * 19 + col] = board[row][col];
-            }
-        }
-        return flatBoard;
     }
 
     public async isReady(): Promise<boolean> {
