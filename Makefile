@@ -34,7 +34,6 @@ wasm:
 tsc:
 	@echo "Compiling TypeScript (Type Check)..."
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.json
-	@$(DOCKER_EXEC) npx tsc --project tsconfig.preload.json
 	@$(DOCKER_EXEC) npx tsc --project tsconfig.worker.json
 	@echo "Bundling Renderer with Esbuild..."
 	@$(DOCKER_EXEC) npm run build:renderer
