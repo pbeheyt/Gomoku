@@ -6,6 +6,7 @@
 /.electron
 /ia_core.wasm
 /src/renderer/ia_core.wasm
+src/renderer/ia_core.js
 
 # Log files
 npm-debug.log*
@@ -29,3 +30,5 @@ git-diff.md
 .clinerules/gomoku-subject.md
 
 Gomoku
+
+
