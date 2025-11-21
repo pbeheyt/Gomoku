@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron . --no-sandbox",
     "build": "electron-builder",
+    "lint": "eslint src/ --ext .ts,.tsx",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:renderer": "esbuild src/renderer/game_controller.ts --bundle --outfile=dist/renderer/game_controller.js --format=esm --sourcemap --platform=browser",
     "copy-static": "copyfiles -u 2 src/renderer/*.{html,css,wasm,js,json,png} src/renderer/sounds/*.mp3 dist/renderer && npm run copy-worker",
@@ -36,6 +37,9 @@
     "electron-builder": "^24.9.1",
     "typescript": "^5.3.3",
     "@types/three": "^0.160.0",
-    "esbuild": "^0.20.0"
+    "esbuild": "^0.20.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0"
   }
 }

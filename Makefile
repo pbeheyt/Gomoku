@@ -20,6 +20,11 @@ re: fclean all
 
 # --- Sub-Tasks  ---
 
+# Run Linter (ESLint)
+lint:
+	@echo "Running ESLint..."
+	@$(DOCKER_EXEC) npm run lint
+
 # Install/check Node.js dependencies inside the container.
 install:
 	@echo "Installing/checking Node.js dependencies..."
@@ -78,4 +83,4 @@ prune: down
 	@docker system prune -a --volumes
 
 # Declare targets that are not files.
-.PHONY: all build re install wasm tsc copy-static up down shell clean fclean
+.PHONY: all build re lint install wasm tsc copy-static up down shell clean fclean

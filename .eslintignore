@@ -1,0 +1,5 @@
+node_modules
+dist
+src/renderer/ia_core.js
+src/renderer/ia_core.wasm
+*.min.js
