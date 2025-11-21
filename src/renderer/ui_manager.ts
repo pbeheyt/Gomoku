@@ -48,10 +48,10 @@ export class UIManager {
   private setupModelSection: HTMLElement | null;
   private setupColorSection: HTMLElement | null;
 
-  private timerInterval: any = null;
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
   private thinkingStartTime: number = 0;
-  private messageTimeout: any = null;
-  private hudTimeout: any = null;
+  private messageTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hudTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.mainMenuEl = document.getElementById('mainMenu');
@@ -383,7 +383,7 @@ export class UIManager {
                 }
             });
 
-            const config: any = { color: selectedColor };
+            const config: { color: Player; modelId?: string } = { color: selectedColor };
             if (needsModel && this.setupModelSelectEl) {
                 config.modelId = this.setupModelSelectEl.value;
             }

@@ -4,7 +4,7 @@
  * It loads the WebAssembly module and communicates with the main thread.
  */
 
-let wasmModule: any = null;
+let wasmModule: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**
  * Load and initialize the WebAssembly module.
@@ -14,7 +14,7 @@ async function loadWasmModule() {
     // in the final build output.
     self.importScripts('ia_core.js');
 
-    // @ts-ignore - GomokuAI is loaded globally by importScripts
+    // @ts-expect-error - GomokuAI is loaded globally by importScripts
     const GomokuAIModule = self.GomokuAI;
 
     if (!GomokuAIModule) {
@@ -58,7 +58,7 @@ self.onmessage = async (event) => {
                 wasmModule._initAI(payload.aiPlayer);
                 break;
 
-            case 'getBestMove':
+            case 'getBestMove': {
                 // Expect flatBoard as payload in this request
                 const flatBoard = payload?.flatBoard;
 
@@ -91,6 +91,7 @@ self.onmessage = async (event) => {
                     wasmModule._free(ptr);
                 }
                 break;
+            }
 
             case 'cleanup':
                 if (wasmModule._cleanupAI) {

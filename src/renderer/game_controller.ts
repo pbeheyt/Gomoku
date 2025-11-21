@@ -23,7 +23,7 @@ class GameController {
   private ui: UIManager;
   private soundManager!: SoundManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
-  private lastGameConfig: any = {}; 
+  private lastGameConfig: Record<string, unknown> = {}; 
   
   // Actor configuration: Who controls which color?
   private players: { [key in Player]: ActorType } = {
@@ -44,10 +44,10 @@ class GameController {
   private blackTimeTotal: number = 0;
   private whiteTimeTotal: number = 0;
   private turnStartTime: number = 0;
-  private timerInterval: any = null;
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
   private isRanked: boolean = true; // True by default, becomes false if replay is used
 
-  constructor(containerId: string) {
+  constructor(_containerId: string) {
     this.game = new GomokuGame();
     this.ui = new UIManager();
     this.soundManager = new SoundManager();
@@ -70,7 +70,7 @@ class GameController {
   const canvas = this.renderer.getCanvas();
   canvas.addEventListener('click', (e: MouseEvent) => this.handleClick(e));
   canvas.addEventListener('mousemove', (e: MouseEvent) => this.handleMouseMove(e));
-  canvas.addEventListener('mouseleave', (e: MouseEvent) => this.handleMouseLeave());
+  canvas.addEventListener('mouseleave', (_e: MouseEvent) => this.handleMouseLeave());
     
   // Handle Window Resize
   window.addEventListener('resize', () => {
@@ -256,7 +256,7 @@ class GameController {
     });
   }
 
-  private startGame(mode: GameMode, config: any): void {
+  private startGame(mode: GameMode, config: Record<string, unknown>): void {
     this.currentMode = mode;
     this.lastGameConfig = config;
 
@@ -303,7 +303,7 @@ class GameController {
 
     // Save selected model
     if (config.modelId) {
-        localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId);
+        localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId as string);
     }
 
   // 4. Reset Game State
@@ -591,7 +591,7 @@ class GameController {
     }
   }
 
-  private resetGame(isNewGame: boolean, config: any = {}): void {
+  private resetGame(isNewGame: boolean, config: Record<string, unknown> = {}): void {
     this.game.reset();
     this.hoverPosition = null;
     this.suggestionPosition = null;
@@ -615,7 +615,7 @@ class GameController {
     // 2. If WasmAI is NOT playing (PvP or PvLLM), initialize it to the User's color
     // so suggestions are calculated from the User's perspective.
     else {
-        const userColor = config.color as Player || Player.BLACK;
+        const userColor = (config.color as Player) || Player.BLACK;
         wasmIdentity = userColor;
     }
 
@@ -723,6 +723,7 @@ class GameController {
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const gameController = new GameController('boardContainer');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).gameController = gameController;
   } catch (error) {
     console.error('Failed to initialize game:', error);

@@ -51,7 +51,7 @@ export class SoundManager {
     });
   }
 
-  public playStoneDrop(player: Player): void {
+  public playStoneDrop(_player: Player): void {
     this.play('move');
   }
 

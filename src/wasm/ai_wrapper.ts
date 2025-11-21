@@ -11,10 +11,10 @@ export class WasmAI {
     private worker: Worker | null = null;
     private workerReadyPromise: Promise<void>;
     private resolveWorkerReady: () => void = () => {};
-    private rejectWorkerReady: (reason?: any) => void = () => {};
+    private rejectWorkerReady: (reason?: unknown) => void = () => {};
     private bestMovePromise: Promise<Position> | null = null;
     private resolveBestMove: BestMoveResolve | null = null;
-    private rejectBestMove: ((reason?: any) => void) | null = null;
+    private rejectBestMove: ((reason?: unknown) => void) | null = null;
     private aiPlayer: Player = Player.WHITE;
 
     constructor() {

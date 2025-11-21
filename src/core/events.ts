@@ -35,6 +35,7 @@ export class EventEmitter {
   emit<K extends keyof GameEvents>(event: K, ...args: Parameters<GameEvents[K]>): void {
     if (this.listeners[event]) {
       this.listeners[event]!.forEach(callback => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (callback as any)(...args);
       });
     }

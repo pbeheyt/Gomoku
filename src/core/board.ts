@@ -2,7 +2,7 @@
  * Board management and position validation
  */
 
-import { Player, Position } from './types.js';
+import { Player } from './types.js';
 
 export const BOARD_SIZE = 19;
 

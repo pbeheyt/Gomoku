@@ -28,7 +28,7 @@ export class LeaderboardManager {
     try {
       const raw = localStorage.getItem(LEADERBOARD_KEY);
       if (!raw) return [];
-      const parsed: any[] = JSON.parse(raw);
+      const parsed: LeaderboardEntry[] = JSON.parse(raw);
       // Normalize entries missing playerColor for backward compatibility
       return parsed.map((e) => ({
         ...e,
@@ -98,7 +98,7 @@ export class LeaderboardManager {
       const rankDisplay = `#${index + 1}`;
 
       // Color Dot
-      const color = (entry as any).playerColor ?? Player.BLACK;
+      const color = entry.playerColor ?? Player.BLACK;
       const colorDot = color === Player.BLACK 
         ? '<span style="color:#000; text-shadow: 0 0 2px #fff;">⚫</span>' 
         : '<span style="color:#fff; text-shadow: 0 0 2px #000;">⚪</span>';

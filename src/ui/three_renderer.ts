@@ -108,7 +108,6 @@ export class ThreeRenderer {
     requestAnimationFrame(this.animate.bind(this));
 
     // Animation Logic: Drop Stones
-    let needsRender = true; // Optimize if needed, but for now render always for smooth orbit/hover
 
     for (let row = 0; row < this.BOARD_SIZE; row++) {
         for (let col = 0; col < this.BOARD_SIZE; col++) {

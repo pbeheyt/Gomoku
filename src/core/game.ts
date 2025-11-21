@@ -3,7 +3,7 @@
  */
 
 import { Player, Position, Move, GameState, CaptureResult, ValidationResult, GameMode } from './types.js';
-import { GameBoard, BOARD_SIZE } from './board.js';
+import { GameBoard } from './board.js';
 import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged } from './events.js';
 
 export class GomokuGame {
@@ -110,7 +110,6 @@ export class GomokuGame {
     }
 
     // Switch player
-    const previousPlayer = this.currentPlayer;
     this.currentPlayer = this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
     emitPlayerChanged(this.currentPlayer);
 

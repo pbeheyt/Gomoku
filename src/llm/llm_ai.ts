@@ -29,7 +29,7 @@ export class LlmAI {
     validator?: (row: number, col: number) => ValidationResult
   ): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
-    const messages: any[] = [{ role: 'user', content: prompt }];
+    const messages: { role: string; content: string }[] = [{ role: 'user', content: prompt }];
     const MAX_RETRIES = 3;
 
     // --- DEBUG: Log the prompt sent to the LLM ---
