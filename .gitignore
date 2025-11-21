@@ -6,7 +6,7 @@
 /.electron
 /ia_core.wasm
 /src/renderer/ia_core.wasm
-src/renderer/ia_core.js
+/src/renderer/ia_core.js
 
 # Log files
 npm-debug.log*
