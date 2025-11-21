@@ -6,6 +6,13 @@ import { Player, Position, Move, GameState, CaptureResult, ValidationResult, Gam
 import { GameBoard } from './board.js';
 import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged } from './events.js';
 
+const DIRECTIONS = [
+  { r: 0, c: 1 },  // Horizontal
+  { r: 1, c: 0 },  // Vertical
+  { r: 1, c: 1 },  // Diagonal \
+  { r: 1, c: -1 }  // Diagonal /
+];
+
 export class GomokuGame {
   private board: GameBoard;
   private currentPlayer: Player;
@@ -14,8 +21,8 @@ export class GomokuGame {
   private lastMove: Position | null;
   private winner: Player | null;
   private moveHistory: Move[];
-  private currentMoveIndex: number; // Points to the current state in history (0 = start)
-  private gameId: number = 0; // Concurrency token
+  private currentMoveIndex: number;
+  private gameId: number = 0;
 
   constructor() {
     this.board = new GameBoard();
@@ -29,48 +36,25 @@ export class GomokuGame {
     this.gameId = 0;
   }
 
-  /**
-   * Get the current Game ID (used for concurrency checks)
-   */
   getGameId(): number {
     return this.gameId;
   }
 
   /**
    * Make a move and apply all game rules
-   * @param blackTime Current accumulated time for Black (seconds)
-   * @param whiteTime Current accumulated time for White (seconds)
    */
   makeMove(row: number, col: number, blackTime: number = 0, whiteTime: number = 0): ValidationResult {
-    // 0. History Branching: If we are in the past, cut the future.
+    // History Branching
     if (this.currentMoveIndex < this.moveHistory.length) {
       this.moveHistory = this.moveHistory.slice(0, this.currentMoveIndex);
-      // If we branched, the game cannot be in a "Won" state anymore (unless this specific move wins it)
       this.winner = null; 
     }
 
-    // Garde-fou 1: Position valide et vide
-    if (!this.board.isValidMove(row, col)) {
-      return { isValid: false, reason: 'Position invalide ou occupée' };
+    // Unified Validation & Simulation
+    const analysis = this.analyzeMove(row, col, this.currentPlayer);
+    if (!analysis.isValid) {
+      return analysis;
     }
-
-    // Garde-fou 2: Règle du coup suicidaire interdit
-    if (this.isSuicideMove(row, col, this.currentPlayer)) {
-      return { isValid: false, reason: 'Coup suicidaire interdit' };
-    }
-
-    // Garde-fou 3: Règle du Double-Trois
-    // Un double-trois est interdit, SAUF si le même coup effectue une capture.
-    const preCaptures = this.checkCaptures(row, col);
-    const isDoubleThree = this.checkDoubleThree(row, col, this.currentPlayer);
-
-    if (isDoubleThree && preCaptures.length === 0) {
-      return { isValid: false, reason: 'Double-trois interdit' };
-    }
-
-    // Place the stone
-    this.board.setPiece(row, col, this.currentPlayer);
-    this.lastMove = { row, col };
 
     // Record move
     const move: Move = {
@@ -83,27 +67,15 @@ export class GomokuGame {
     this.moveHistory.push(move);
     this.currentMoveIndex++;
     
-    // Emit move made event
+    // Apply mechanics (Place stone & Remove captures)
+    this.applyMoveMechanics(row, col, this.currentPlayer, analysis.captures!);
+
+    // Emit events
     emitMoveMade(move);
+    analysis.captures!.forEach(capture => emitCaptureMade(capture));
 
-    // Check for captures
-    const captures = this.checkCaptures(row, col);
-    if (captures.length > 0) {
-      this.applyCaptures(captures);
-      // Emit capture events
-      captures.forEach(capture => emitCaptureMade(capture));
-    }
-
-    // Check for win conditions
-    if (this.checkWin(row, col)) {
-      this.winner = this.currentPlayer;
-      emitGameWon(this.currentPlayer);
-      return { isValid: true };
-    }
-
-    // Check for win by captures (10 stones)
-    const currentCaptures = this.currentPlayer === Player.BLACK ? this.blackCaptures : this.whiteCaptures;
-    if (currentCaptures >= 10) {
+    // Check Win Conditions
+    if (this.checkWin(row, col) || this.getCaptures(this.currentPlayer) >= 10) {
       this.winner = this.currentPlayer;
       emitGameWon(this.currentPlayer);
       return { isValid: true };
@@ -117,69 +89,81 @@ export class GomokuGame {
   }
 
   /**
-   * Check if a move is valid without applying it (for AI or UI previews).
-   * @param playerOverride Optional player to validate for (defaults to current player)
+   * Check if a move is valid without applying it
    */
   validateMove(row: number, col: number, playerOverride?: Player): ValidationResult {
-    const playerToCheck = playerOverride || this.currentPlayer;
+    return this.analyzeMove(row, col, playerOverride || this.currentPlayer);
+  }
 
-    // 1. Valid position and empty
+  /**
+   * Central validation logic.
+   * Simulates the move to check for Suicide, Double-Three, and Captures.
+   * Returns validity and potential captures.
+   */
+  private analyzeMove(row: number, col: number, player: Player): ValidationResult & { captures?: CaptureResult[] } {
     if (!this.board.isValidMove(row, col)) {
       return { isValid: false, reason: 'Position invalide ou occupée' };
     }
 
-    // 2. Suicide rule
-    if (this.isSuicideMove(row, col, playerToCheck)) {
-      return { isValid: false, reason: 'Coup suicidaire interdit (capture immédiate)' };
-    }
-
-    // 3. Double-Three rule
-    // Note: checkCaptures and checkDoubleThree usually rely on board state.
-    // We must ensure they use the correct 'player' context.
-    // In this class, checkCaptures derives player from the board (which is empty at row,col),
-    // so we need to be careful.
+    // Simulate placement
+    this.board.setPiece(row, col, player);
     
-    // Actually, checkCaptures inside this class assumes the stone is already placed OR 
-    // we need to simulate it.
-    // Let's look at checkCaptures implementation... it uses this.board.getPiece(row, col).
-    // Since validateMove is called BEFORE placement, checkCaptures will see EMPTY.
-    // We need to temporarily simulate the placement for validation.
-    
-    this.board.setPiece(row, col, playerToCheck);
-    
-    const captures = this.checkCaptures(row, col); // Now it sees the piece
-    const isDoubleThree = this.checkDoubleThree(row, col, playerToCheck);
+    const captures = this.checkCaptures(row, col);
+    const suicide = this.isSuicideMove(row, col, player);
+    // Double-Three check assumes stone is placed
+    const doubleThree = this.checkDoubleThree(row, col, player);
     
     // Revert simulation
     this.board.setPiece(row, col, Player.NONE);
 
-    if (isDoubleThree && captures.length === 0) {
+    if (suicide) {
+      return { isValid: false, reason: 'Coup suicidaire interdit' };
+    }
+
+    // Double-Three exception: Allowed if it causes a capture
+    if (doubleThree && captures.length === 0) {
       return { isValid: false, reason: 'Double-trois interdit' };
     }
 
-    return { isValid: true };
+    return { isValid: true, captures };
   }
 
   /**
-   * Check for captures around the newly placed stone.
-   * Assumes the stone is currently on the board at (row, col).
+   * Applies the move to the board and updates scores.
+   * Shared logic for makeMove and jumpTo.
    */
+  private applyMoveMechanics(row: number, col: number, player: Player, knownCaptures?: CaptureResult[]): void {
+    this.board.setPiece(row, col, player);
+    this.lastMove = { row, col };
+
+    // If captures not provided (e.g. jumpTo), calculate them (stone is now placed)
+    const captures = knownCaptures || this.checkCaptures(row, col);
+    
+    for (const capture of captures) {
+      for (const pos of capture.capturedPositions) {
+        this.board.setPiece(pos.row, pos.col, Player.NONE);
+      }
+      if (player === Player.BLACK) this.blackCaptures += 2;
+      else this.whiteCaptures += 2;
+    }
+  }
+
   private checkCaptures(row: number, col: number): CaptureResult[] {
     const captures: CaptureResult[] = [];
-    const directions = [
-      { r: 0, c: 1 }, { r: 0, c: -1 }, // Horizontal
-      { r: 1, c: 0 }, { r: -1, c: 0 }, // Vertical
-      { r: 1, c: 1 }, { r: -1, c: -1 }, // Diagonal /
-      { r: 1, c: -1 }, { r: -1, c: 1 }  // Diagonal \
+    // 8 Directions for capture check
+    const extendedDirs = [
+        { r: 0, c: 1 }, { r: 0, c: -1 },
+        { r: 1, c: 0 }, { r: -1, c: 0 },
+        { r: 1, c: 1 }, { r: -1, c: -1 },
+        { r: 1, c: -1 }, { r: -1, c: 1 }
     ];
 
     const capturingPlayer = this.board.getPiece(row, col);
-    // Safety check: if called on empty square without simulation, return empty
     if (capturingPlayer === Player.NONE) return [];
 
     const opponentPlayer = capturingPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
 
-    for (const dir of directions) {
+    for (const dir of extendedDirs) {
       const r1 = row + dir.r;
       const c1 = col + dir.c;
       const r2 = row + 2 * dir.r;
@@ -192,103 +176,51 @@ export class GomokuGame {
         this.board.getPiece(r2, c2) === opponentPlayer &&
         this.board.getPiece(r3, c3) === capturingPlayer
       ) {
-        // Capture found
         captures.push({
-          capturedPositions: [
-            { row: r1, col: c1 },
-            { row: r2, col: c2 }
-          ],
+          capturedPositions: [{ row: r1, col: c1 }, { row: r2, col: c2 }],
           newCaptureCount: capturingPlayer === Player.BLACK ? this.blackCaptures + 2 : this.whiteCaptures + 2
         });
       }
     }
-
     return captures;
   }
 
-  /**
-   * Apply captures to the board
-   */
-  private applyCaptures(captures: CaptureResult[]): void {
-    for (const capture of captures) {
-      for (const pos of capture.capturedPositions) {
-        this.board.setPiece(pos.row, pos.col, Player.NONE);
-      }
-      
-      // Update capture count
-      if (this.currentPlayer === Player.BLACK) {
-        this.blackCaptures += 2;
-      } else {
-        this.whiteCaptures += 2;
-      }
-    }
-  }
-
-  /**
-   * Check if a move is a "suicide move", which is forbidden.
-   * A suicide move is placing a stone in a position where it immediately
-   * forms a pair that gets captured by the opponent.
-   */
   private isSuicideMove(row: number, col: number, player: Player): boolean {
     const opponent = player === Player.BLACK ? Player.WHITE : Player.WHITE;
-    const directions = [
-      { r: 0, c: 1 },  // Horizontal
-      { r: 1, c: 0 },  // Vertical
-      { r: 1, c: 1 },  // Diagonal \
-      { r: 1, c: -1 }  // Diagonal /
-    ];
-
-    for (const dir of directions) {
-      // Check pattern O P X O (where X is the current move)
+    
+    for (const dir of DIRECTIONS) {
+      // Check pattern O P X O (X is current)
       const p1 = this.board.getPiece(row - 2 * dir.r, col - 2 * dir.c);
       const p2 = this.board.getPiece(row - 1 * dir.r, col - 1 * dir.c);
       const p3 = this.board.getPiece(row + 1 * dir.r, col + 1 * dir.c);
-      if (p1 === opponent && p2 === player && p3 === opponent) {
-        return true;
-      }
+      if (p1 === opponent && p2 === player && p3 === opponent) return true;
 
-      // Check pattern O X P O (where X is the current move)
+      // Check pattern O X P O (X is current)
       const p4 = this.board.getPiece(row - 1 * dir.r, col - 1 * dir.c);
       const p5 = this.board.getPiece(row + 1 * dir.r, col + 1 * dir.c);
       const p6 = this.board.getPiece(row + 2 * dir.r, col + 2 * dir.c);
-      if (p4 === opponent && p5 === player && p6 === opponent) {
-        return true;
-      }
+      if (p4 === opponent && p5 === player && p6 === opponent) return true;
     }
-
     return false;
   }
 
-  /**
-   * Checks if a potential winning line of 5+ stones can be broken by an opponent's capture.
-   * A win is only valid if the opponent cannot immediately capture a pair within the line.
-   * @param winningLine An array of positions forming the winning line.
-   * @param opponent The opponent player.
-   * @returns {boolean} True if the line is breakable, false otherwise.
-   */
   private isLineBreakableByCapture(winningLine: Position[], opponent: Player): boolean {
     if (winningLine.length < 2) return false;
 
-    // Determine the direction of the line from the first two stones
     const dir = {
       r: winningLine[1].row - winningLine[0].row,
       c: winningLine[1].col - winningLine[0].col,
     };
 
-    // Check every pair of adjacent stones in the winning line
     for (let i = 0; i < winningLine.length - 1; i++) {
       const stone1 = winningLine[i];
       const stone2 = winningLine[i + 1];
 
-      // Get the two positions that flank the pair
       const flankBeforePos = { row: stone1.row - dir.r, col: stone1.col - dir.c };
       const flankAfterPos = { row: stone2.row + dir.r, col: stone2.col + dir.c };
 
       const flankBeforePiece = this.board.getPiece(flankBeforePos.row, flankBeforePos.col);
       const flankAfterPiece = this.board.getPiece(flankAfterPos.row, flankAfterPos.col);
-
-      // Check for a capture scenario: one side is opponent, the other is empty
-      // AND the empty spot is a valid move for the opponent (e.g. not a double-three for them)
       
       let captureMove: Position | null = null;
 
@@ -299,37 +231,23 @@ export class GomokuGame {
       }
 
       if (captureMove) {
-        // Check if the opponent is legally allowed to play here to capture
+        // Recursively validate if opponent can play there
         const validation = this.validateMove(captureMove.row, captureMove.col, opponent);
-        if (validation.isValid) {
-            return true; // Valid capture possible
-        }
+        if (validation.isValid) return true;
       }
     }
-
-    // No capturable pairs were found in the line.
     return false;
   }
 
-  /**
-   * Check for win by alignment (5 in a row)
-   */
   private checkWin(row: number, col: number): boolean {
-    const directions = [
-      { r: 0, c: 1 },  // Horizontal
-      { r: 1, c: 0 },  // Vertical
-      { r: 1, c: 1 },  // Diagonal \
-      { r: 1, c: -1 }  // Diagonal /
-    ];
-
     const player = this.board.getPiece(row, col);
     const opponent = player === Player.BLACK ? Player.WHITE : Player.BLACK;
 
-    for (const dir of directions) {
+    for (const dir of DIRECTIONS) {
       const currentLine: Position[] = [{ row, col }];
       let count = 1;
 
-      // Count in positive direction, storing positions
+      // Positive direction
       let r = row + dir.r;
       let c = col + dir.c;
       while (this.board.getPiece(r, c) === player) {
@@ -339,110 +257,68 @@ export class GomokuGame {
         c += dir.c;
       }
 
-      // Count in negative direction, storing positions
+      // Negative direction
       r = row - dir.r;
       c = col - dir.c;
       while (this.board.getPiece(r, c) === player) {
-        currentLine.unshift({ row: r, col: c }); // Add to the beginning to keep order
+        currentLine.unshift({ row: r, col: c });
         count++;
         r -= dir.r;
         c -= dir.c;
       }
 
       if (count >= 5) {
-        // A 5-in-a-row is found. Now, check if it's breakable by an opponent's capture.
         if (!this.isLineBreakableByCapture(currentLine, opponent)) {
-          // The line is not breakable, this is a valid win.
           return true;
         }
-        // If the line is breakable, we don't return true and continue checking other directions.
       }
     }
-
     return false;
   }
 
   /**
-   * Check for double-three rule. This is a forbidden move unless it
-   * also results in a capture.
-   * @returns {boolean} True if the move creates two or more free-threes.
+   * Check for double-three. Assumes stone is placed.
+   * Does not modify board.
    */
   private checkDoubleThree(row: number, col: number, player: Player): boolean {
-    // Temporarily place the stone for analysis
-    this.board.setPiece(row, col, player);
-
     let freeThreeCount = 0;
-    const directions = [
-      { r: 0, c: 1 },  // Horizontal
-      { r: 1, c: 0 },  // Vertical
-      { r: 1, c: 1 },  // Diagonal \
-      { r: 1, c: -1 }  // Diagonal /
-    ];
-
-    // Check each of the 4 axes for a free-three formation
-    for (const dir of directions) {
+    for (const dir of DIRECTIONS) {
       if (this.isFreeThree(row, col, dir, player)) {
         freeThreeCount++;
       }
     }
-
-    // Restore the board to its original state before the temporary placement
-    this.board.setPiece(row, col, Player.NONE);
-
     return freeThreeCount >= 2;
   }
 
-  /**
-   * Check if a move at a given position creates a "free-three" in a specific direction.
-   * A free-three is an alignment of three stones that is not blocked by an opponent
-   * and can be extended to an open-four.
-   * This function assumes the stone has already been temporarily placed on the board for analysis.
-   */
   private isFreeThree(row: number, col: number, direction: { r: number; c: number }, player: Player): boolean {
-    let line = '';
-    // Extract a line of characters centered on the move. 'P' for player, '_' for empty, 'O' for opponent.
-    // A window of 11 (-5 to +5) is safe to detect patterns of up to 6 characters.
-    for (let i = -5; i <= 5; i++) {
-        const r = row + i * direction.r;
-        const c = col + i * direction.c;
-        
-        // CRITICAL FIX: Treat out-of-bounds as Opponent (Blocker), not Empty.
-        if (!this.board.isValidPosition(r, c)) {
-             line += 'O'; // Wall acts like an opponent
-             continue;
-        }
-
-        const piece = this.board.getPiece(r, c);
-        if (piece === player) {
-            line += 'P';
-        } else if (piece === Player.NONE) {
-            line += '_';
-        } else {
-            line += 'O'; // Opponent stone
-        }
-    }
-
-    const centerIndex = 5; // The position of the move within our extracted line string
-
-    // Define free-three patterns and check if the new move is part of them.
-    const patterns = ['_PPP_', '_P_PP_', '_PP_P_'];
-    for (const pattern of patterns) {
-        let index = -1;
-        // Search for all occurrences of the pattern in the line
-        while ((index = line.indexOf(pattern, index + 1)) !== -1) {
-            // Check if the move we are analyzing is part of the found pattern instance
-            if (centerIndex >= index && centerIndex < index + pattern.length) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    const line = this.getLinePattern(row, col, direction, player);
+    // Simple pattern match
+    return ['_PPP_', '_P_PP_', '_PP_P_'].some(pattern => line.includes(pattern));
   }
 
   /**
-   * Get current game state
+   * Builds a string representation of the line for pattern matching.
+   * P = Player, _ = Empty, O = Opponent/Wall
    */
+  private getLinePattern(row: number, col: number, direction: { r: number; c: number }, player: Player): string {
+    let line = '';
+    for (let i = -5; i <= 5; i++) {
+      const r = row + i * direction.r;
+      const c = col + i * direction.c;
+      
+      if (!this.board.isValidPosition(r, c)) {
+        line += 'O';
+        continue;
+      }
+
+      const piece = this.board.getPiece(r, c);
+      if (piece === player) line += 'P';
+      else if (piece === Player.NONE) line += '_';
+      else line += 'O';
+    }
+    return line;
+  }
+
   getGameState(): GameState {
     return {
       board: this.board.getBoardState(),
@@ -451,14 +327,11 @@ export class GomokuGame {
       whiteCaptures: this.whiteCaptures,
       lastMove: this.lastMove,
       winner: this.winner,
-      gameMode: GameMode.PLAYER_VS_PLAYER, // Default mode
+      gameMode: GameMode.PLAYER_VS_PLAYER,
       moveHistory: this.moveHistory,
     };
   }
 
-  /**
-   * Reset game to initial state
-   */
   reset(): void {
     this.board.reset();
     this.currentPlayer = Player.BLACK;
@@ -468,20 +341,17 @@ export class GomokuGame {
     this.winner = null;
     this.moveHistory = [];
     this.currentMoveIndex = 0;
-    this.gameId++; // Invalidate previous async operations
+    this.gameId++;
     emitPlayerChanged(this.currentPlayer);
   }
 
   /**
-   * Time Travel: Jump to a specific point in history
-   * Reconstructs the board state from the beginning.
+   * Time Travel: Jump to history point using shared mechanics
    */
   jumpTo(index: number): void {
     if (index < 0 || index > this.moveHistory.length) return;
 
-    this.gameId++; // Invalidate previous async operations (e.g. thinking during replay)
-
-    // 1. Reset State completely
+    this.gameId++;
     this.board.reset();
     this.blackCaptures = 0;
     this.whiteCaptures = 0;
@@ -489,97 +359,36 @@ export class GomokuGame {
     this.winner = null;
     this.lastMove = null;
 
-    // 2. Replay moves up to index
     for (let i = 0; i < index; i++) {
       const move = this.moveHistory[i];
-      const { row, col } = move.position;
-      const player = move.player;
-
-      // Place stone
-      this.board.setPiece(row, col, player);
-      this.lastMove = { row, col };
-
-      // Apply captures (Silent logic)
-      const captures = this.checkCaptures(row, col);
-      this.applyCaptures(captures);
-
-      // Switch player (unless it's the last move of the loop)
-      // Actually, we just toggle every time to match standard flow
-      this.currentPlayer = (player === Player.BLACK) ? Player.WHITE : Player.BLACK;
       
-      // Check win condition on the very last move played to restore winner state
+      // Reuse mechanic logic
+      this.applyMoveMechanics(move.position.row, move.position.col, move.player);
+      
+      this.currentPlayer = (move.player === Player.BLACK) ? Player.WHITE : Player.BLACK;
+      
+      // Restore winner if this was the winning move
       if (i === index - 1) {
-         if (this.checkWin(row, col) || (player === Player.BLACK ? this.blackCaptures : this.whiteCaptures) >= 10) {
-             this.winner = player;
+         if (this.checkWin(move.position.row, move.position.col) || this.getCaptures(move.player) >= 10) {
+             this.winner = move.player;
          }
       }
     }
-
     this.currentMoveIndex = index;
-    
-    // Emit update to sync UI/Renderer
-    // We use player changed to force UI refresh, but we might need a specific event
-    // For now, the renderer will call getGameState() after jumping
   }
 
-  getCurrentMoveIndex(): number {
-    return this.currentMoveIndex;
-  }
+  getCurrentMoveIndex(): number { return this.currentMoveIndex; }
+  getTotalMoves(): number { return this.moveHistory.length; }
+  getMoveHistory(): Move[] { return [...this.moveHistory]; }
+  isGameOver(): boolean { return this.winner !== null; }
+  getWinner(): Player | null { return this.winner; }
+  getCurrentPlayer(): Player { return this.currentPlayer; }
+  getBlackCaptures(): number { return this.blackCaptures; }
+  getWhiteCaptures(): number { return this.whiteCaptures; }
+  getLastMove(): Position | null { return this.lastMove; }
+  getBoard(): GameBoard { return this.board; }
 
-  getTotalMoves(): number {
-    return this.moveHistory.length;
-  }
-
-  /**
-   * Get move history
-   */
-  getMoveHistory(): Move[] {
-    return [...this.moveHistory];
-  }
-
-  /**
-   * Check if game is over
-   */
-  isGameOver(): boolean {
-    return this.winner !== null;
-  }
-
-  /**
-   * Get winner
-   */
-  getWinner(): Player | null {
-    return this.winner;
-  }
-
-  /**
-   * Get current player
-   */
-  getCurrentPlayer(): Player {
-    return this.currentPlayer;
-  }
-
-  /**
-   * Get capture counts
-   */
-  getBlackCaptures(): number {
-    return this.blackCaptures;
-  }
-
-  getWhiteCaptures(): number {
-    return this.whiteCaptures;
-  }
-
-  /**
-   * Get last move
-   */
-  getLastMove(): Position | null {
-    return this.lastMove;
-  }
-
-  /**
-   * Get board instance
-   */
-  getBoard(): GameBoard {
-    return this.board;
+  private getCaptures(player: Player): number {
+    return player === Player.BLACK ? this.blackCaptures : this.whiteCaptures;
   }
 }
