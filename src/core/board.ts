@@ -10,9 +10,9 @@ export class GameBoard {
   private board: Player[][];
 
   constructor() {
-    this.board = Array(BOARD_SIZE)
-      .fill(null)
-      .map(() => Array(BOARD_SIZE).fill(Player.NONE));
+    // Initialize with a placeholder to satisfy TS before reset
+    this.board = [];
+    this.reset();
   }
 
   /**
