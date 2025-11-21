@@ -12,6 +12,11 @@ import { UIManager, AppState } from './ui_manager.js';
 import { SoundManager } from './sound_manager.js';
 import { LeaderboardManager } from './leaderboard_manager.js';
 
+interface GameConfig {
+  color?: Player;
+  modelId?: string;
+}
+
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
@@ -23,7 +28,7 @@ class GameController {
   private ui: UIManager;
   private soundManager!: SoundManager;
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
-  private lastGameConfig: Record<string, unknown> = {}; 
+  private lastGameConfig: GameConfig = {}; 
   
   // Actor configuration: Who controls which color?
   private players: { [key in Player]: ActorType } = {
@@ -250,13 +255,14 @@ class GameController {
 
     // 3. Show Setup Modal for AI modes
     this.ui.showSetupModal(mode, (config) => {
+        // The UI returns { color: Player, modelId?: string } which matches GameConfig
         this.startGame(mode, config);
     }, () => {
         // On cancel, do nothing (stay in menu)
     });
   }
 
-  private startGame(mode: GameMode, config: Record<string, unknown>): void {
+  private startGame(mode: GameMode, config: GameConfig): void {
     this.currentMode = mode;
     this.lastGameConfig = config;
 
@@ -271,7 +277,7 @@ class GameController {
   }
 
   // 2. Configure Actors based on Mode and User Choice
-    const userColor = config.color as Player || Player.BLACK;
+    const userColor = config.color || Player.BLACK;
     const opponentColor = userColor === Player.BLACK ? Player.WHITE : Player.BLACK;
 
     // Default: Human vs Human
@@ -591,7 +597,7 @@ class GameController {
     }
   }
 
-  private resetGame(isNewGame: boolean, config: Record<string, unknown> = {}): void {
+  private resetGame(isNewGame: boolean, config: GameConfig = {}): void {
     this.game.reset();
     this.hoverPosition = null;
     this.suggestionPosition = null;
@@ -615,7 +621,7 @@ class GameController {
     // 2. If WasmAI is NOT playing (PvP or PvLLM), initialize it to the User's color
     // so suggestions are calculated from the User's perspective.
     else {
-        const userColor = (config.color as Player) || Player.BLACK;
+        const userColor = config.color || Player.BLACK;
         wasmIdentity = userColor;
     }
 
