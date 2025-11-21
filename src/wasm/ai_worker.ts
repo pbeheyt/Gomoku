@@ -4,7 +4,19 @@
  * It loads the WebAssembly module and communicates with the main thread.
  */
 
-let wasmModule: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+// Interface describing the Emscripten Module exports
+interface GomokuModule {
+  _initAI: (player: number) => void;
+  _setBoard: (ptr: number) => void;
+  _makeMove: (row: number, col: number, player: number) => void;
+  _getBestMove: () => number;
+  _cleanupAI: () => void;
+  _malloc: (size: number) => number;
+  _free: (ptr: number) => void;
+  HEAP32: Int32Array;
+}
+
+let wasmModule: GomokuModule | null = null;
 
 /**
  * Load and initialize the WebAssembly module.

@@ -20,6 +20,13 @@ interface GameConfig {
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
+// Extend the global Window interface to include our game controller
+declare global {
+  interface Window {
+    gameController: GameController;
+  }
+}
+
 type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
 
 class GameController {
@@ -729,8 +736,7 @@ class GameController {
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const gameController = new GameController('boardContainer');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).gameController = gameController;
+    window.gameController = gameController;
   } catch (error) {
     console.error('Failed to initialize game:', error);
   }
