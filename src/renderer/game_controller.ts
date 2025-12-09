@@ -1,7 +1,16 @@
-// @src/renderer/renderer.ts
+// @src/renderer/game_controller.ts
+
 /**
- * Gomoku Game Renderer
+ * Game Controller - Le Chef d'Orchestre (MVC)
+ * 
+ * Rôle :
+ * 1. Fait le lien entre le Modèle (GomokuGame), la Vue (ThreeRenderer/DOM) et les IA.
+ * 2. Gère le flux de la partie (Tour par tour, Timers).
+ * 3. Orchestre les appels asynchrones aux IA (Wasm & LLM) sans bloquer l'interface.
+ * 
+ * Note : Ce fichier ne contient aucune règle de jeu (voir game.ts) ni aucun code de dessin 3D (voir three_renderer.ts).
  */
+
 import { Player, Position, GameMode } from '../core/types.js';
 import { GomokuGame } from '../core/game.js';
 import { ThreeRenderer } from '../ui/three_renderer.js';
@@ -12,6 +21,8 @@ import { UIManager, AppState } from './ui_manager.js';
 import { SoundManager } from './sound_manager.js';
 import { LeaderboardManager } from './leaderboard_manager.js';
 
+// --- CONFIGURATION & TYPES ---
+
 interface GameConfig {
   color?: Player;
   modelId?: string;
@@ -20,178 +31,178 @@ interface GameConfig {
 const LOCAL_STORAGE_API_KEY = 'gomoku-llm-api-key';
 const LOCAL_STORAGE_MODEL = 'gomoku-llm-model';
 
-// Extend the global Window interface to include our game controller
+// Extension de l'interface Window pour le débogage dans la console
 declare global {
   interface Window {
     gameController: GameController;
   }
 }
 
+// Définit qui contrôle une couleur donnée
 type ActorType = 'HUMAN' | 'AI_WASM' | 'AI_LLM';
 
 class GameController {
-  private game: GomokuGame;
-  private renderer!: ThreeRenderer;
-  private ui: UIManager;
-  private soundManager!: SoundManager;
+  // ==================================================================================
+  // 1. ÉTAT & COMPOSANTS (STATE)
+  // ==================================================================================
+
+  // --- Composants MVC ---
+  private game: GomokuGame;            // Le Modèle (Règles & Données)
+  private renderer!: ThreeRenderer;    // La Vue 3D (Initialisée tardivement)
+  private ui: UIManager;               // La Vue 2D (HTML/CSS)
+  private soundManager!: SoundManager; // Le Gestionnaire Audio
+
+  // --- Configuration de la Partie ---
   private currentMode: GameMode = GameMode.PLAYER_VS_PLAYER;
-  private lastGameConfig: GameConfig = {}; 
+  private lastGameConfig: GameConfig = {}; // Mémorisé pour le bouton "Rejouer"
   
-  // Actor configuration: Who controls which color?
+  // Table de routage : Pour chaque couleur, qui joue ?
+  // Ex: { BLACK: 'HUMAN', WHITE: 'AI_WASM' }
   private players: { [key in Player]: ActorType } = {
     [Player.BLACK]: 'HUMAN',
     [Player.WHITE]: 'HUMAN',
-    [Player.NONE]: 'HUMAN' // Fallback
+    [Player.NONE]: 'HUMAN' // Fallback technique
   };
 
-  private hoverPosition: Position | null = null;
-  private suggestionPosition: Position | null = null;
+  // --- État Visuel ---
+  private hoverPosition: Position | null = null;      // Fantôme sous la souris
+  private suggestionPosition: Position | null = null; // Anneau vert (Conseil IA)
+  private appState: AppState = 'MENU';                // Vue actuelle (Menu, Jeu, Fin)
+
+  // --- Cerveau IA (Asynchrone) ---
   private wasmAI: WasmAI | null = null;
   private llmAI: LlmAI | null = null;
-  private isAIThinking: boolean = false;
-  private lastAIThinkingTime: number = 0;
-  private appState: AppState = 'MENU';
+  
+  // MUTEX CRITIQUE : Empêche toute interaction (clic, reset) pendant que l'IA calcule.
+  private isAIThinking: boolean = false; 
+  private lastAIThinkingTime: number = 0; // Pour l'affichage "0.45s"
 
-  // Cumulative timers (in seconds)
-  private blackTimeTotal: number = 0;
-  private whiteTimeTotal: number = 0;
-  private turnStartTime: number = 0;
-  private timerInterval: ReturnType<typeof setInterval> | null = null;
-  private isRanked: boolean = true; // True by default, becomes false if replay is used
+  // --- Chronométrie & Classement ---
+  private blackTimeTotal: number = 0; // Cumul secondes Noir
+  private whiteTimeTotal: number = 0; // Cumul secondes Blanc
+  private turnStartTime: number = 0;  // Timestamp début du tour
+  private gameTimerInterval: ReturnType<typeof setInterval> | null = null; // Intervalle du chrono global
+  
+  // Sécurité Anti-Triche : Passe à false si on utilise l'historique ("Replay")
+  private isRanked: boolean = true; 
+
+  // ==================================================================================
+  // 2. INITIALISATION (SETUP)
+  // ==================================================================================
 
   constructor(_containerId: string) {
+    // Instanciation des sous-systèmes
     this.game = new GomokuGame();
     this.ui = new UIManager();
     this.soundManager = new SoundManager();
     
-  // Renderer initialized in startGame to ensure DOM is visible
-    this.setupBindings();
-    this.setupGameEvents();
-    this.initializeAI();
-    this.loadAndPopulateModels();
+    // Note : Le Renderer 3D n'est pas créé ici car le conteneur est encore caché (display:none).
+    // Il sera créé dans initRenderer() au moment du startGame.
+
+    this.setupBindings();       // Câblage des boutons HTML
+    this.setupGameEvents();     // Écoute des événements du Modèle
+    this.initializeAI();        // Préchauffage du Wasm (peut être long)
+    this.loadAndPopulateModels(); // Récupération des modèles LLM
 
     this.showView('MENU');
   }
 
+  /**
+   * Initialise la 3D une fois que le conteneur est visible.
+   * Gère aussi les événements souris "bruts" sur le Canvas.
+   */
   private initRenderer(containerId: string): void {
-  if (this.renderer) return; // Already initialized
+    if (this.renderer) return; // Singleton : on ne le crée qu'une fois
 
-  this.renderer = new ThreeRenderer(containerId, this.game.getBoard());
+    this.renderer = new ThreeRenderer(containerId, this.game.getBoard());
 
-  // Bind events to the canvas
-  const canvas = this.renderer.getCanvas();
-  canvas.addEventListener('click', (e: MouseEvent) => this.handleClick(e));
-  canvas.addEventListener('mousemove', (e: MouseEvent) => this.handleMouseMove(e));
-  canvas.addEventListener('mouseleave', (_e: MouseEvent) => this.handleMouseLeave());
-    
-  // Handle Window Resize
-  window.addEventListener('resize', () => {
-    if (this.renderer && this.appState === 'IN_GAME') {
-      const container = document.getElementById(containerId);
-      if (container) {
-        this.renderer.resize(container.clientWidth, container.clientHeight);
+    // Liaison Input Physique -> Logique
+    const canvas = this.renderer.getCanvas();
+    canvas.addEventListener('click', (e: MouseEvent) => this.handleClick(e));
+    canvas.addEventListener('mousemove', (e: MouseEvent) => this.handleMouseMove(e));
+    canvas.addEventListener('mouseleave', (_e: MouseEvent) => this.handleMouseLeave());
+      
+    // Gestion Responsive
+    window.addEventListener('resize', () => {
+      if (this.renderer && this.appState === 'IN_GAME') {
+        const container = document.getElementById(containerId);
+        if (container) {
+          this.renderer.resize(container.clientWidth, container.clientHeight);
+        }
       }
-    }
-  });
+    });
   }
 
+  /**
+   * Relie les actions de l'UI (clics boutons) aux méthodes du Contrôleur.
+   */
   private setupBindings(): void {
-    // Menu Actions (Launcher)
+    // Menu Principal
     this.ui.bindMenuButtons({
       onPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_PLAYER),
       onPva: () => this.initiateGameStart(GameMode.PLAYER_VS_AI),
       onLlmPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_LLM),
       onAiVsLlm: () => this.initiateGameStart(GameMode.AI_VS_LLM),
-      onReplay: () => this.startGame(this.currentMode, this.lastGameConfig), // Replay with last config
+      onReplay: () => this.startGame(this.currentMode, this.lastGameConfig),
       onMenu: () => this.showView('MENU'),
       onSettings: () => this.openSettingsModal()
     });
 
-    // In-Game Controls (Side Panel)
+    // Contrôles In-Game
     this.ui.bindGameControls({
       onReset: () => this.confirmReset(),
       onSuggest: () => this.showAISuggestion(),
       onHistory: (action) => this.handleHistoryAction(action)
     });
 
-  // Header Controls
-  this.ui.bindHeaderControls({
-    onHome: () => this.confirmGoToMenu(),
-    onRules: () => this.showRulesModal(),
-    onSettings: () => this.openSettingsModal()
-  });
+    // Header & Modales
+    this.ui.bindHeaderControls({
+      onHome: () => this.confirmGoToMenu(),
+      onRules: () => this.showRulesModal(),
+      onSettings: () => this.openSettingsModal()
+    });
 
-    // Settings Actions
     this.ui.bindSettingsActions({
       onSave: () => this.saveSettings(),
       onCancel: () => this.ui.hideSettingsModal()
     });
   }
 
-  private showView(view: AppState): void {
-    this.appState = view;
-    this.ui.showView(view);
-  }
-
-  private async loadAndPopulateModels(): Promise<void> {
-    try {
-      const response = await fetch('./openrouter_models.json');
-      if (!response.ok) throw new Error('Failed to load models');
-      const models = await response.json();
-      this.ui.populateModels(models);
-      
-      // Set initial selection if exists
-      const savedModel = localStorage.getItem(LOCAL_STORAGE_MODEL);
-      if (savedModel) {
-        // We can't easily set the select value here without exposing it from UI,
-        // but openSettingsModal handles it when opened.
-      }
-    } catch (error) {
-      console.error('Error loading models:', error);
-    }
-  }
-
-  private openSettingsModal(): void {
-    const savedApiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY) || '';
-    const savedModel = localStorage.getItem(LOCAL_STORAGE_MODEL) || '';
-    this.ui.showSettingsModal(savedApiKey, savedModel);
-  }
-
-  private saveSettings(): void {
-    const { apiKey, model, soundEnabled } = this.ui.getSettingsValues();
-    if (apiKey) localStorage.setItem(LOCAL_STORAGE_API_KEY, apiKey);
-    if (model) localStorage.setItem(LOCAL_STORAGE_MODEL, model);
-    
-    this.soundManager.setMuted(!soundEnabled);
-    
-    this.ui.hideSettingsModal();
-    this.ui.showMessage('Paramètres sauvegardés', 'success');
-  }
-
+  /**
+   * C'est ici que le Contrôleur "écoute" le Modèle.
+   * Pattern Observer : Le Modèle change -> Événement -> Mise à jour Vue.
+   */
   private setupGameEvents(): void {
+    // 1. Un coup a été validé
     gameEvents.on('move:made', (move) => {
-        this.redraw();
-        this.soundManager.playStoneDrop(move.player);
+        this.redraw(); // Met à jour la 3D
+        this.soundManager.playStoneDrop(move.player); // Son "Clack"
     });
-  gameEvents.on('capture:made', () => {
-    this.updateUI();
-    this.soundManager.playCapture();
-  });
+
+    // 2. Une capture a eu lieu
+    gameEvents.on('capture:made', () => {
+      this.updateUI(); // Met à jour le score HTML
+      this.soundManager.playCapture(); // Son "Tchick"
+    });
+
+    // 3. Fin de partie (Victoire)
     gameEvents.on('game:won', (winner) => {
-      this.stopGlobalTimer(); // Stop counting time
+      this.stopGlobalTimer(); // Arrêt immédiat du chrono
       this.ui.setWinnerMessage(winner);
       this.showView('GAME_OVER');
-      this.updateUI(); // Final update
+      this.updateUI(); 
       
-      // Determine if "We" won (Human or current perspective)
+      // --- LOGIQUE DU LEADERBOARD ---
+      // On enregistre le score uniquement si :
+      // - C'est une victoire Humaine
+      // - Contre l'IA C++ (Le vrai challenge)
+      // - En mode Classé (Pas de retour en arrière utilisé)
       let isVictory = true;
       const humanColor = this.lastGameConfig.color || Player.BLACK;
       
       if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
           isVictory = (winner === humanColor);
 
-          // === LEADERBOARD LOGIC ===
-          // Only save score if Human won against C++ AI AND game is Ranked
           if (isVictory && this.currentMode === GameMode.PLAYER_VS_AI) {
               if (this.isRanked) {
                   const moves = this.game.getMoveHistory().length;
@@ -207,87 +218,71 @@ class GameController {
       
       this.soundManager.playWin(isVictory);
     });
-  gameEvents.on('player:changed', () => {
-    // Player changed, so we restart the turn timer for the NEW player
-    this.startGlobalTimer();
-    this.updateUI();
-  });
+
+    // 4. Changement de tour
+    gameEvents.on('player:changed', () => {
+      // On bascule le chronomètre sur le nouveau joueur
+      this.startGlobalTimer();
+      this.updateUI();
+    });
   }
 
-  private showRulesModal(): void {
-    const rulesHTML = `
-      <ul>
-        <li><b>Victoire par Alignement :</b> Le premier joueur à aligner 5 pierres (ou plus) horizontalement, verticalement ou en diagonale gagne.</li>
-        <li><b>Victoire par Capture :</b> Capturez 10 pierres adverses (5 paires) pour gagner. Une capture se fait en encerclant exactement deux pierres adverses avec les vôtres.</li>
-        <li><b>Règle de Fin de Partie :</b> Une victoire par alignement n'est validée que si l'adversaire ne peut pas "casser" la ligne en capturant une paire de pierres à l'intérieur de celle-ci lors de son prochain tour.</li>
-        <li><b>Double-Trois Interdit :</b> Il est interdit de jouer un coup qui crée simultanément deux lignes de trois pierres "libres" (non bloquées aux extrémités).</li>
-      </ul>`;
-    this.ui.showModal('Règles du Gomoku', rulesHTML, [{ text: 'Fermer', callback: () => {} }]);
-  }
+  // ==================================================================================
+  // 3. BOUCLE DE JEU (GAME LOOP)
+  // ==================================================================================
 
-  private confirmReset(): void {
-    this.ui.showModal('Recommencer', '<p>Êtes-vous sûr de vouloir recommencer la partie ?</p>', [
-        { text: 'Oui', callback: () => this.resetGame(false, this.lastGameConfig), className: 'primary' },
-        { text: 'Non', callback: () => {} }
-    ]);
-  }
-
-  private confirmGoToMenu(): void {
-    this.ui.showModal('Menu Principal', '<p>Êtes-vous sûr de vouloir quitter la partie et retourner au menu principal ?</p>', [
-        { text: 'Oui', callback: () => this.showView('MENU'), className: 'primary' },
-        { text: 'Non', callback: () => {} }
-    ]);
-  }
-
+  /**
+   * Point d'entrée pour démarrer une partie.
+   * Gère le cas "Setup nécessaire" (IA) vs "Démarrage immédiat" (PvP).
+   */
   private initiateGameStart(mode: GameMode): void {
-    // 1. Fast Track for Local PvP (Instant Start)
+    // Fast Track pour le PvP local
     if (mode === GameMode.PLAYER_VS_PLAYER) {
-      // Default config: Player starts as Black (standard rule)
       this.startGame(mode, { color: Player.BLACK });
       return;
     }
 
-    // 2. Check requirements for LLM
+    // Vérification Pré-requis LLM
     if (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM) {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       if (!apiKey || apiKey.trim() === '') {
         this.ui.showModal(
           'Clé API requise',
-          '<p>Pour jouer contre une IA LLM, vous devez d\'abord configurer votre clé API OpenRouter dans les paramètres.</p>',
-          [{ text: 'Ouvrir les Paramètres', callback: () => this.openSettingsModal(), className: 'primary' }]
+          '<p>Configurez votre clé API OpenRouter dans les paramètres.</p>',
+          [{ text: 'Ouvrir Paramètres', callback: () => this.openSettingsModal(), className: 'primary' }]
         );
         return;
       }
     }
 
-    // 3. Show Setup Modal for AI modes
+    // Affiche la modale de configuration (Couleur, Modèle...)
     this.ui.showSetupModal(mode, (config) => {
-        // The UI returns { color: Player, modelId?: string } which matches GameConfig
         this.startGame(mode, config);
-    }, () => {
-        // On cancel, do nothing (stay in menu)
-    });
+    }, () => {});
   }
 
+  /**
+   * Configure et lance physiquement la partie.
+   */
   private startGame(mode: GameMode, config: GameConfig): void {
     this.currentMode = mode;
     this.lastGameConfig = config;
 
-  // 1. Show view and initialize renderer to ensure DOM dimensions are valid
-  this.showView('IN_GAME');
+    // Prépare l'affichage
+    this.showView('IN_GAME');
+    this.initRenderer('boardContainer');
+    
+    // Force le redimensionnement pour éviter le bug de taille 0
+    const container = document.getElementById('boardContainer');
+    if (container && this.renderer) {
+      this.renderer.resize(container.clientWidth, container.clientHeight);
+    }
 
-  this.initRenderer('boardContainer');
-  // Force a resize to fit container
-  const container = document.getElementById('boardContainer');
-  if (container && this.renderer) {
-    this.renderer.resize(container.clientWidth, container.clientHeight);
-  }
-
-  // 2. Configure Actors based on Mode and User Choice
+    // CONFIGURATION DES ACTEURS (Qui joue quoi ?)
     const userColor = config.color || Player.BLACK;
     const opponentColor = userColor === Player.BLACK ? Player.WHITE : Player.BLACK;
 
-    // Default: Human vs Human
+    // Reset par défaut
     this.players[Player.BLACK] = 'HUMAN';
     this.players[Player.WHITE] = 'HUMAN';
 
@@ -303,68 +298,51 @@ class GameController {
             break;
 
         case GameMode.AI_VS_LLM:
-            // Arena: C++ (Black) vs LLM (White) for now
             this.players[Player.BLACK] = 'AI_WASM';
             this.players[Player.WHITE] = 'AI_LLM';
             break;
-            
-        case GameMode.PLAYER_VS_PLAYER:
-        default:
-            // Already set to HUMAN vs HUMAN
-            break;
     }
 
-    // Save selected model
+    // Sauvegarde du modèle choisi
     if (config.modelId) {
         localStorage.setItem(LOCAL_STORAGE_MODEL, config.modelId as string);
     }
 
-  // 4. Reset Game State
-  this.resetGame(true, config);
-
-  // 5. Start Timers and Turn
+    // Reset complet et lancement
+    this.resetGame(true, config);
     this.startGlobalTimer();
-    this.handleTurnStart();
+    this.handleTurnStart(); // Déclenche le premier tour (Important si l'IA est Noir)
   }
 
-  private canvasToBoard(x: number, y: number): Position | null {
-    if (!this.renderer) return null;
-    return this.renderer.canvasToBoard(x, y);
-  }
-
+  /**
+   * Gestion du Clic Souris (Input Humain).
+   * Agit comme un gardien : vérifie si l'humain a le droit de jouer.
+   */
   private handleClick(e: MouseEvent): void {
+    // Sécurité globale (Jeu en cours, IA ne réfléchit pas)
     if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking) return;
 
-    // Use the Actor map to determine if human can play
+    // Sécurité de Tour : Est-ce à l'humain de jouer ?
     const currentPlayer = this.game.getCurrentPlayer();
-    const currentActor = this.players[currentPlayer];
-
-    if (currentActor !== 'HUMAN') {
-        return; // It's an AI's turn, ignore clicks
+    if (this.players[currentPlayer] !== 'HUMAN') {
+        return; // On ignore le clic, c'est au tour de l'IA
     }
 
+    // Conversion Pixels -> Case du plateau
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) this.makeMove(pos.row, pos.col);
   }
 
-  private handleMouseMove(e: MouseEvent): void {
-    if (this.appState !== 'IN_GAME' || this.game.isGameOver()) return;
-    const pos = this.canvasToBoard(e.clientX, e.clientY);
-    this.hoverPosition = (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) ? pos : null;
-    this.redraw();
-  }
-
-  private handleMouseLeave(): void {
-    this.hoverPosition = null;
-    this.redraw();
-  }
-
+  /**
+   * Exécute un coup (Humain ou IA).
+   * C'est le point de convergence de toutes les actions de jeu.
+   */
   private makeMove(row: number, col: number): void {
-    // Update time for the current move before sending it
+    // Calcul précis du temps écoulé pour ce coup
     const now = performance.now();
     const deltaSeconds = (now - this.turnStartTime) / 1000;
     
-    // Temporarily add delta to pass correct snapshot
+    // On met à jour le temps localement pour le passer au snapshot
     let currentBlackTime = this.blackTimeTotal;
     let currentWhiteTime = this.whiteTimeTotal;
     
@@ -374,114 +352,94 @@ class GameController {
         currentWhiteTime += deltaSeconds;
     }
 
+    // APPEL AU MODÈLE
     const result = this.game.makeMove(row, col, currentBlackTime, currentWhiteTime);
     
+    // Si coup invalide (règle violée)
     if (!result.isValid) {
       this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
       return;
     }
     
-    // If we made a move while NOT at the end of history (branching), disable ranking
-    // Note: makeMove inside game.ts handles the slicing, but we check if we *were* in the past
-    // However, since game.ts slices immediately, we can infer branching if we used history controls previously.
-    // A simpler check: If isRanked is already false, stay false. 
-    // If we just branched (history was cut), game.ts handles logic.
-    // We need to ensure isRanked is set to false if we play a move after rewinding.
-    // We will handle the "Set to False" logic in handleHistoryAction when the user clicks "Prev".
+    // Nettoyage visuel post-coup
     this.hoverPosition = null;
     this.suggestionPosition = null;
 
-    if (this.game.isGameOver()) return;
-
-    // Hand over control to the next actor
-    this.handleTurnStart();
+    // Si la partie continue, on passe la main au joueur suivant
+    if (!this.game.isGameOver()) {
+        this.handleTurnStart();
+    }
   }
 
   /**
-   * Central logic to dispatch turns based on Actor configuration.
+   * Le Dispatcher : Décide qui doit jouer maintenant.
+   * Appelé après chaque coup ou au début de la partie.
    */
   private handleTurnStart(): void {
     const currentPlayer = this.game.getCurrentPlayer();
     const actor = this.players[currentPlayer];
 
+    // On utilise requestAnimationFrame pour laisser le temps au navigateur
+    // de dessiner le dernier coup avant de lancer un calcul lourd (IA).
     if (actor === 'AI_WASM') {
-        // Use requestAnimationFrame to ensure the board is fully rendered/painted 
-        // BEFORE we start the heavy AI operations.
         requestAnimationFrame(() => {
-            // Keep a tiny delay for UX (so moves aren't robotically instant)
             setTimeout(() => this.triggerAIMove(), 50);
         });
     } else if (actor === 'AI_LLM') {
         requestAnimationFrame(() => {
             setTimeout(() => this.triggerLlmMove(), 50);
         });
-    } else {
-        // HUMAN: Do nothing, wait for input events
-    }
+    } 
+    // Si actor === 'HUMAN', on ne fait rien, on attend le handleClick.
   }
 
-  private startGlobalTimer(): void {
-    this.stopGlobalTimer();
-    this.turnStartTime = performance.now();
-    
-    // Refresh every 100ms for 0.1s precision
-    this.timerInterval = setInterval(() => {
-        const now = performance.now();
-        const deltaSeconds = (now - this.turnStartTime) / 1000;
-        this.turnStartTime = now; // reset for next tick
+  // ==================================================================================
+  // 4. ORCHESTRATION DES IA (THE BRAIN)
+  // ==================================================================================
 
-        // Add delta to current player
-        if (this.game.getCurrentPlayer() === Player.BLACK) {
-            this.blackTimeTotal += deltaSeconds;
-        } else {
-            this.whiteTimeTotal += deltaSeconds;
-        }
-        
-        // Update UI without full redraw
-        this.updateUI();
-    }, 100);
-  }
-
-  private stopGlobalTimer(): void {
-    if (this.timerInterval) {
-        clearInterval(this.timerInterval);
-        this.timerInterval = null;
-    }
-  }
-
+  /**
+   * Initialise le module WebAssembly (Wasm).
+   */
   private async initializeAI(): Promise<void> {
     try {
       this.wasmAI = await createWasmAI();
       console.log('WebAssembly AI initialized successfully');
     } catch (error) {
       console.error('Failed to initialize WebAssembly AI:', error);
-      this.ui.showMessage(
-        "Erreur critique: Impossible de charger l'IA Native (WASM). Le mode 'Solo vs C++' sera indisponible.", 
-        'error'
-      );
+      this.ui.showMessage("Erreur critique: IA Native (WASM) indisponible.", 'error');
     }
   }
 
+  /**
+   * Déclenche le calcul de l'IA C++ (Minimax).
+   * Fonction Asynchrone pour ne pas geler l'UI.
+   */
   private async triggerAIMove(): Promise<void> {
     if (this.isAIThinking || !this.wasmAI) return;
 
-    const turnGameId = this.game.getGameId(); // Capture ID
+    // SÉCURITÉ ANTI-ZOMBIE : On note l'ID de la partie actuelle.
+    const turnGameId = this.game.getGameId();
 
-    this.isAIThinking = true;
+    this.isAIThinking = true; // Verrouillage
     this.ui.startThinkingTimer();
     this.updateUI();
 
-  try {
-  // Stateless AI: send the game state directly to getBestMove
-  // Check ID before expensive calc
-  if (this.game.getGameId() !== turnGameId) return;
+    try {
+        // Vérification paranoïaque avant calcul
+        if (this.game.getGameId() !== turnGameId) return;
 
-  const startTime = performance.now();
-  const aiMove = await this.wasmAI.getBestMove(this.game.getGameState());
+        const startTime = performance.now();
+        
+        // --- CALCUL LOURD (Worker) ---
+        // On envoie l'état complet du jeu (Stateless AI)
+        const aiMove = await this.wasmAI.getBestMove(this.game.getGameState());
+        
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
-        // Check ID after calc (CRITICAL)
+        // Vérification paranoïaque après calcul
+        // Si l'utilisateur a cliqué sur Reset pendant les 3s de calcul,
+        // turnGameId ne correspondra plus à this.game.getGameId().
         if (this.game.getGameId() !== turnGameId) return;
 
         if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
@@ -494,7 +452,7 @@ class GameController {
             this.ui.showMessage(`Erreur IA C++: ${error}`, 'error');
         }
     } finally {
-        // Only update UI if the game context hasn't changed
+        // Déverrouillage uniquement si on est toujours dans la même partie
         if (this.game.getGameId() === turnGameId) {
             await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
             this.isAIThinking = false;
@@ -503,10 +461,13 @@ class GameController {
     }
   }
 
+  /**
+   * Déclenche la réflexion de l'IA LLM (Via API OpenRouter).
+   */
   private async triggerLlmMove(): Promise<void> {
     if (this.isAIThinking) return;
 
-    const turnGameId = this.game.getGameId(); // Capture ID
+    const turnGameId = this.game.getGameId();
 
     this.isAIThinking = true;
     this.ui.startThinkingTimer();
@@ -520,12 +481,13 @@ class GameController {
       this.llmAI = new LlmAI(apiKey, model);
       const startTime = performance.now();
       
+      // Appel API
+      // On passe un validateur pour que le LLM puisse vérifier ses propres coups
       const result = await this.llmAI.getBestMove(
         this.game.getGameState(),
         (row, col) => this.game.validateMove(row, col)
       );
 
-      // Check ID after network request (CRITICAL)
       if (this.game.getGameId() !== turnGameId) return;
 
       const endTime = performance.now();
@@ -535,8 +497,8 @@ class GameController {
       this.ui.setReasoning(result.reasoning || "Aucun raisonnement disponible.");
 
       if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        // Final ID check before move
+        await new Promise(resolve => setTimeout(resolve, 300)); // Petit délai UX
+        
         if (this.game.getGameId() === turnGameId) {
              this.makeMove(llmMove.row, llmMove.col);
         }
@@ -557,24 +519,26 @@ class GameController {
     }
   }
 
+  /**
+   * Demande un conseil à l'IA Wasm sans jouer le coup.
+   * Appelé par le bouton "Suggérer un coup".
+   */
   private async showAISuggestion(): Promise<void> {
     if (this.isAIThinking || !this.wasmAI) return;
     
-    // Only allow suggestion if it's a human turn
+    // Seulement si c'est à l'humain de jouer
     if (this.players[this.game.getCurrentPlayer()] !== 'HUMAN') return;
 
-    const turnGameId = this.game.getGameId(); // Capture ID
+    const turnGameId = this.game.getGameId();
 
-    this.isAIThinking = true;
+    this.isAIThinking = true; // On verrouille quand même pour éviter les conflits
     this.ui.startThinkingTimer();
     this.updateUI();
 
-  try {
-  // Stateless AI: send the current game state to get a suggestion
-  if (this.game.getGameId() !== turnGameId) return;
-
-  const startTime = performance.now();
-  const suggestion = await this.wasmAI.getBestMove(this.game.getGameState());
+    try {
+        const startTime = performance.now();
+        // On réutilise le même moteur que pour jouer
+        const suggestion = await this.wasmAI.getBestMove(this.game.getGameState());
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
@@ -583,8 +547,9 @@ class GameController {
         if (suggestion) {
             this.suggestionPosition = suggestion;
             this.redraw();
+            
+            // Efface la suggestion après 3 secondes
             setTimeout(() => {
-                // Only clear if we are still in the same game and the suggestion is still valid
                 if (this.game.getGameId() === turnGameId) {
                     this.suggestionPosition = null;
                     this.redraw();
@@ -604,39 +569,47 @@ class GameController {
     }
   }
 
+  // ==================================================================================
+  // 5. OUTILS & UTILITAIRES
+  // ==================================================================================
+
+  /**
+   * Remet la partie à zéro (Reset).
+   * 
+   * Nettoyage complet :
+   * 1. Modèle : On vide le plateau via game.reset().
+   * 2. UI : On efface les fantômes, les suggestions et les messages.
+   * 3. IA : On tue l'instance LLM et on reset les timers.
+   * 4. Classement : Une nouvelle partie est classée par défaut (isRanked = true).
+   */
   private resetGame(isNewGame: boolean, config: GameConfig = {}): void {
     this.game.reset();
+    
+    // Reset états visuels
     this.hoverPosition = null;
     this.suggestionPosition = null;
     this.isAIThinking = false;
     this.lastAIThinkingTime = 0;
     this.llmAI = null;
     
+    // Réactivation du mode Classé
     this.isRanked = true;
     this.ui.setRankedStatus(true);
 
-    // Configure WasmAI Identity
-    // Even if WasmAI isn't playing (e.g. PvLLM), we initialize it 
-    // so it can provide suggestions for the HUMAN player.
-    
-    let wasmIdentity = Player.WHITE; // Default
-
-    // 1. If WasmAI is actually playing, it must be that color
+    // Configuration de l'identité de l'IA (pour les suggestions)
+    // Si l'IA ne joue pas, on l'initialise à la couleur du joueur pour qu'elle conseille le joueur.
+    let wasmIdentity = Player.WHITE;
     if (this.players[Player.BLACK] === 'AI_WASM') wasmIdentity = Player.BLACK;
     else if (this.players[Player.WHITE] === 'AI_WASM') wasmIdentity = Player.WHITE;
-    
-    // 2. If WasmAI is NOT playing (PvP or PvLLM), initialize it to the User's color
-    // so suggestions are calculated from the User's perspective.
     else {
         const userColor = config.color || Player.BLACK;
         wasmIdentity = userColor;
     }
-
     this.wasmAI?.initAI(wasmIdentity);
 
     if (!isNewGame) emitGameReset();
     
-  // Reset Timers
+    // Reset Timers
     this.blackTimeTotal = 0;
     this.whiteTimeTotal = 0;
     this.stopGlobalTimer();
@@ -648,18 +621,114 @@ class GameController {
     this.ui.clearMessage();
   }
 
+  /**
+   * Gère le Chronomètre Global de la partie.
+   * Utilise performance.now() pour la précision.
+   */
+  private startGlobalTimer(): void {
+    this.stopGlobalTimer();
+    this.turnStartTime = performance.now();
+    
+    this.gameTimerInterval = setInterval(() => {
+        const now = performance.now();
+        const deltaSeconds = (now - this.turnStartTime) / 1000;
+        this.turnStartTime = now; 
+
+        if (this.game.getCurrentPlayer() === Player.BLACK) {
+            this.blackTimeTotal += deltaSeconds;
+        } else {
+            this.whiteTimeTotal += deltaSeconds;
+        }
+        
+        this.updateUI();
+    }, 100);
+  }
+
+  private stopGlobalTimer(): void {
+    if (this.gameTimerInterval) {
+        clearInterval(this.gameTimerInterval);
+        this.gameTimerInterval = null;
+    }
+  }
+
+  /**
+   * Gestionnaire de Voyage dans le Temps (Time Travel).
+   * Appelé par les boutons de l'historique (<< < > >>).
+   * 
+   * IMPORTANT :
+   * Si le joueur revient en arrière (Action PREV ou START) dans une partie contre l'IA,
+   * le mode "Classé" est désactivé immédiatement pour éviter la triche (Retry scumming).
+   * La partie continue en mode "Sandbox".
+   */
+  private handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): void {
+    const current = this.game.getCurrentMoveIndex();
+    const total = this.game.getTotalMoves();
+    
+    // Si on recule, on passe en mode Sandbox (Non classé)
+    if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
+        if (this.isRanked && this.currentMode === GameMode.PLAYER_VS_AI) {
+            this.isRanked = false;
+            this.ui.setRankedStatus(false);
+            this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
+        }
+    }
+
+    switch (action) {
+        case 'START': this.game.jumpTo(0); break;
+        case 'PREV': if (current > 0) this.game.jumpTo(current - 1); break;
+        case 'NEXT': if (current < total) this.game.jumpTo(current + 1); break;
+        case 'END': this.game.jumpTo(total); break;
+    }
+    
+    // Restauration des timers historiques
+    const newCurrent = this.game.getCurrentMoveIndex();
+    if (newCurrent === 0) {
+        this.blackTimeTotal = 0;
+        this.whiteTimeTotal = 0;
+    } else {
+        const history = this.game.getMoveHistory();
+        const lastMove = history[newCurrent - 1];
+        if (lastMove) {
+            this.blackTimeTotal = lastMove.blackTime;
+            this.whiteTimeTotal = lastMove.whiteTime;
+        }
+    }
+    
+    this.turnStartTime = performance.now(); // Reset delta
+
+    if (!this.game.isGameOver()) {
+        this.showView('IN_GAME');
+    }
+    
+    this.redraw();
+  }
+
+  // ==================================================================================
+  // 6. GESTION DE L'AFFICHAGE & INPUTS (HELPERS UI)
+  // ==================================================================================
+
+  /**
+   * Orchestre le rafraîchissement visuel complet (3D + 2D).
+   * Appelé à chaque mouvement de souris, coup joué ou changement d'état.
+   */
   private redraw(): void {
     if (this.renderer) {
+        // Envoie toutes les infos visuelles au moteur 3D
         this.renderer.draw(
-        this.game.getCurrentPlayer(),
-        this.hoverPosition,
-        this.game.getLastMove(),
-        this.suggestionPosition
+            this.game.getCurrentPlayer(), // Couleur du fantôme
+            this.hoverPosition,           // Position du fantôme
+            this.game.getLastMove(),      // Marqueur rouge
+            this.suggestionPosition       // Marqueur vert (conseil)
         );
     }
+    // Synchronise le HUD (Scores, Timers, Boutons)
     this.updateUI();
   }
 
+  /**
+   * Met à jour les éléments HTML (HUD).
+   * Cette fonction doit être très rapide car appelée souvent (ex: timer).
+   */
   private updateUI(): void {
     this.ui.updateGameInfo(
         this.game.getCurrentPlayer(), 
@@ -669,70 +738,141 @@ class GameController {
         this.blackTimeTotal,
         this.whiteTimeTotal
     );
-    
-    // Update History Controls
+    // Grise ou active les boutons << < > >> selon l'index historique
     this.ui.updateHistoryControls(
         this.game.getCurrentMoveIndex(),
         this.game.getTotalMoves()
     );
   }
 
-  private handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): void {
-    const current = this.game.getCurrentMoveIndex();
-    const total = this.game.getTotalMoves();
+  /**
+   * Gère le "Fantôme" (Ghost Stone) sous la souris.
+   * 1. Convertit les pixels en case de grille.
+   * 2. Vérifie si le coup est légal (pas sur une autre pierre).
+   * 3. Met à jour l'état pour le prochain redraw().
+   */
+  private handleMouseMove(e: MouseEvent): void {
+    // Optimisation : On ne calcule rien si le jeu est fini ou en pause
+    if (this.appState !== 'IN_GAME' || this.game.isGameOver()) return;
     
-    // If we move backwards, we disable ranking for this game (Sandbox Mode)
-    // BUT only if we are in the competitive mode (Player vs AI)
-    if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
-        if (this.isRanked && this.currentMode === GameMode.PLAYER_VS_AI) {
-            this.isRanked = false;
-            this.ui.setRankedStatus(false); // Shows "NON CLASSÉ" badge
-            this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
-        }
-    }
-
-    switch (action) {
-        case 'START':
-            this.game.jumpTo(0);
-            break;
-        case 'PREV':
-            if (current > 0) this.game.jumpTo(current - 1);
-            break;
-        case 'NEXT':
-            if (current < total) this.game.jumpTo(current + 1);
-            break;
-        case 'END':
-            this.game.jumpTo(total);
-            break;
-    }
+    const pos = this.canvasToBoard(e.clientX, e.clientY);
     
-    // RESTORE TIMERS
-    const newCurrent = this.game.getCurrentMoveIndex();
-    if (newCurrent === 0) {
-        this.blackTimeTotal = 0;
-        this.whiteTimeTotal = 0;
-    } else {
-        const history = this.game.getMoveHistory();
-        // The move at index N-1 resulted in state N.
-        const lastMove = history[newCurrent - 1];
-        if (lastMove) {
-            this.blackTimeTotal = lastMove.blackTime;
-            this.whiteTimeTotal = lastMove.whiteTime;
-        }
-    }
-    
-    // Reset Turn Timer for UX consistency
-    this.turnStartTime = performance.now();
-
-    // If we jumped to a state where the game is over, show it, otherwise hide it
-    if (!this.game.isGameOver()) {
-        this.showView('IN_GAME'); // Hide game over modal if we go back
-    }
+    // On affiche le fantôme SEULEMENT si la case est valide
+    this.hoverPosition = (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) ? pos : null;
     
     this.redraw();
   }
+
+  /**
+   * Nettoie le fantôme quand la souris quitte la zone de jeu.
+   */
+  private handleMouseLeave(): void {
+    this.hoverPosition = null;
+    this.redraw();
+  }
+
+  /**
+   * Pont entre l'écran 2D (Pixels) et le monde 3D (Raycasting).
+   * Délègue le calcul mathématique complexe au ThreeRenderer.
+   */
+  private canvasToBoard(x: number, y: number): Position | null {
+    if (!this.renderer) return null;
+    return this.renderer.canvasToBoard(x, y);
+  }
+
+  /**
+   * Gestionnaire de Vues (Router simple).
+   * Bascule l'affichage entre le Menu Principal, le Jeu et l'Écran de Fin.
+   */
+  private showView(view: AppState): void {
+    this.appState = view;
+    this.ui.showView(view);
+  }
+
+  // ==================================================================================
+  // 7. PARAMÈTRES & MODALES (SETTINGS)
+  // ==================================================================================
+
+  /**
+   * Charge la liste des modèles LLM depuis un fichier JSON externe.
+   * Permet de mettre à jour la liste des IA sans recompiler le code.
+   */
+  private async loadAndPopulateModels(): Promise<void> {
+    try {
+      const response = await fetch('./openrouter_models.json');
+      if (!response.ok) throw new Error('Failed to load models');
+      const models = await response.json();
+      this.ui.populateModels(models);
+    } catch (error) {
+      console.error('Error loading models:', error);
+    }
+  }
+
+  /**
+   * Ouvre la modale de configuration globale.
+   * Pré-remplit les champs avec les données du LocalStorage.
+   */
+  private openSettingsModal(): void {
+    const savedApiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY) || '';
+    const savedModel = localStorage.getItem(LOCAL_STORAGE_MODEL) || '';
+    this.ui.showSettingsModal(savedApiKey, savedModel);
+  }
+
+  /**
+   * Sauvegarde les préférences utilisateur dans le navigateur (Persistance).
+   * Applique immédiatement les changements (ex: couper le son).
+   */
+  private saveSettings(): void {
+    const { apiKey, model, soundEnabled } = this.ui.getSettingsValues();
+    
+    // On ne sauvegarde que si les valeurs existent
+    if (apiKey) localStorage.setItem(LOCAL_STORAGE_API_KEY, apiKey);
+    if (model) localStorage.setItem(LOCAL_STORAGE_MODEL, model);
+    
+    this.soundManager.setMuted(!soundEnabled);
+    
+    this.ui.hideSettingsModal();
+    this.ui.showMessage('Paramètres sauvegardés', 'success');
+  }
+
+  /**
+   * Affiche les règles du jeu (Rappel pour l'utilisateur).
+   */
+  private showRulesModal(): void {
+    const rulesHTML = `
+      <ul>
+        <li><b>Victoire par Alignement :</b> Le premier joueur à aligner 5 pierres...</li>
+        <li><b>Victoire par Capture :</b> Capturez 10 pierres adverses...</li>
+        <li><b>Double-Trois Interdit :</b> Il est interdit de jouer un coup...</li>
+      </ul>`;
+    this.ui.showModal('Règles du Gomoku', rulesHTML, [{ text: 'Fermer', callback: () => {} }]);
+  }
+
+  /**
+   * Demande confirmation avant de recommencer (Évite les miss-click).
+   */
+  private confirmReset(): void {
+    this.ui.showModal('Recommencer', '<p>Êtes-vous sûr de vouloir recommencer ?</p>', [
+        { text: 'Oui', callback: () => this.resetGame(false, this.lastGameConfig), className: 'primary' },
+        { text: 'Non', callback: () => {} }
+    ]);
+  }
+
+  /**
+   * Demande confirmation avant de quitter vers le menu.
+   */
+  private confirmGoToMenu(): void {
+    this.ui.showModal('Menu Principal', '<p>Quitter la partie en cours ?</p>', [
+        { text: 'Oui', callback: () => this.showView('MENU'), className: 'primary' },
+        { text: 'Non', callback: () => {} }
+    ]);
+  }
 }
 
+/**
+ * Point d'entrée global.
+ * Instancie le Contrôleur et l'attache à la fenêtre pour le débogage.
+ */
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const gameController = new GameController('boardContainer');
