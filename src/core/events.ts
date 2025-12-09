@@ -1,15 +1,18 @@
 /**
- * Event system for game communication
+ * Bus d'événements
+ * 
+ * Permet de découpler les modules : le Game (Core) notifie que quelque chose
+ * s'est passé, et l'UI ou le Renderer réagissent sans que le Core ne les connaisse.
  */
 
 import { GameEvents, Move, CaptureResult, Player, Position } from './types.js';
 
 export class EventEmitter {
+  // Registry des listeners : Map<EventName, Array<Callback>>
   private listeners: { [K in keyof GameEvents]?: GameEvents[K][] } = {};
 
-  /**
-   * Subscribe to an event
-   */
+  // S'abonne à un événement.
+  // Le type générique K garantit l'autocomplétion et la sécurité du payload.
   on<K extends keyof GameEvents>(event: K, callback: GameEvents[K]): void {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
@@ -17,9 +20,8 @@ export class EventEmitter {
     this.listeners[event]!.push(callback);
   }
 
-  /**
-   * Unsubscribe from an event
-   */
+  // Se désabonne (retire le callback de la liste).
+  // Utile pour éviter les fuites de mémoire si un composant est détruit.
   off<K extends keyof GameEvents>(event: K, callback: GameEvents[K]): void {
     if (this.listeners[event]) {
       const index = this.listeners[event]!.indexOf(callback);
@@ -29,9 +31,8 @@ export class EventEmitter {
     }
   }
 
-  /**
-   * Emit an event
-   */
+  // Diffuse un événement à tous les abonnés.
+  // Les args sont typés strictement selon l'interface GameEvents.
   emit<K extends keyof GameEvents>(event: K, ...args: Parameters<GameEvents[K]>): void {
     if (this.listeners[event]) {
       this.listeners[event]!.forEach(callback => {
@@ -41,22 +42,23 @@ export class EventEmitter {
     }
   }
 
-  /**
-   * Clear all listeners
-   */
+  // Nettoyage complet
   clear(): void {
     this.listeners = {};
   }
 }
 
 /**
- * Game event manager - singleton instance
+ * Instance Singleton.
+ * Garantit que tout le monde (Game, UI, Controller) parle sur le même canal.
  */
 export const gameEvents = new EventEmitter();
 
 /**
- * Helper functions for common event emissions
+ * Wrappers pour simplifier l'émission d'événements dans le code métier.
+ * Évite d'avoir des strings magiques ('move:made') partout dans le code.
  */
+
 export function emitMoveMade(move: Move): void {
   gameEvents.emit('move:made', move);
 }
