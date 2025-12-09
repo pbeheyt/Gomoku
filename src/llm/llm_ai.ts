@@ -2,9 +2,16 @@
 import { GameState, Player, Position, ValidationResult } from '../core/types.js';
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MAX_RETRIES = 3;
 
 /**
- * Represents an AI player powered by a Large Language Model via OpenRouter.
+ * Interface client pour les modèles LLM (via OpenRouter).
+ * 
+ * Rôle : 
+ * 1. Traduire l'état du jeu (Board) en Prompt textuel (ASCII Art).
+ * 2. Gérer le dialogue avec l'IA (Request/Response).
+ * 3. Implémenter une boucle de "Self-Correction" : si l'IA hallucine un coup invalide,
+ *    on lui renvoie l'erreur pour qu'elle corrige elle-même.
  */
 export class LlmAI {
   private apiKey: string;
@@ -19,21 +26,22 @@ export class LlmAI {
   }
 
   /**
-   * Requests the best move from the LLM based on the current game state.
-   * @param gameState The current state of the game.
-   * @param validator Optional callback to validate the move against game rules.
-   * @returns A promise that resolves to the position and the reasoning.
+   * Demande le meilleur coup à l'IA.
+   * Utilise une boucle de retry pour gérer les hallucinations ou les coups interdits.
+   * 
+   * Callback vers le moteur de règles (Game) pour valider le coup proposé.
    */
   public async getBestMove(
     gameState: GameState, 
     validator?: (row: number, col: number) => ValidationResult
   ): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
+    
+    // Historique de la conversation (Stateful pour la durée de la réflexion)
     const messages: { role: string; content: string }[] = [{ role: 'user', content: prompt }];
-    const MAX_RETRIES = 3;
 
-    // --- DEBUG: Log the prompt sent to the LLM ---
-    console.log("%c--- PROMPT SENT TO LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
+    // Debug: Log du prompt pour vérifier l'ASCII art
+    // console.log("%c--- PROMPT SENT TO LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -59,24 +67,24 @@ export class LlmAI {
         const data = await response.json();
         const content = data.choices[0].message.content;
 
-        // --- DEBUG: Log the raw response from the LLM ---
-        console.log(`%c--- RÉPONSE BRUTE DU LLM (Essai ${attempt}) ---`, "color: yellow; font-weight: bold;", "\n", content);
+        // console.log(`%c--- RÉPONSE BRUTE DU LLM (Essai ${attempt}) ---`, "color: yellow; font-weight: bold;", "\n", content);
         
-        // Add the assistant's response to history
+        // On ajoute la réponse au contexte pour que l'IA s'en souvienne si on doit la corrige
         messages.push({ role: 'assistant', content: content });
 
-        // Extract reasoning from <reasoning> tags
+        // Extraction du raisonnement (Chain of Thought)
         const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
         const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Aucun raisonnement fourni.";
 
-        // Parse the response
+        // Parsing robuste (Regex)
         const move = this.parseMove(content);
         
         if (move) {
-          // 1. Basic Local Validation (Bounds & Empty)
+          // 1. Validation Technique (Hors limites / Case occupée)
           let validationError = this.validateMove(move, gameState.board);
 
-          // 2. Advanced Rule Validation (Suicide, Double-Three) via callback
+          // 2. Validation Métier (Règles Gomoku : Suicide, Double-3)
+          // On délègue ça au Core via le validator injecté.
           if (!validationError && validator) {
             const result = validator(move.row, move.col);
             if (!result.isValid) {
@@ -85,17 +93,17 @@ export class LlmAI {
           }
           
           if (!validationError) {
-            // Valid move found!
+            // Coup valide trouvé
             return { 
               position: move,
               reasoning: reasoning
             };
           }
 
-          // If invalid, add feedback to history and loop again
+          // FEEDBACK LOOP : L'IA a proposé un coup invalide.
+          // On ne plante pas. On injecte l'erreur dans la conversation et on boucle.
           console.warn(`LLM suggested invalid move ${JSON.stringify(move)}: ${validationError}`);
           
-          // Generate list of occupied spots to help the LLM
           const occupiedList = this.getOccupiedPositions(gameState.board);
           
           messages.push({ 
@@ -114,7 +122,7 @@ INSTRUCTION:
 4. Reply with the corrected move in JSON.` 
           });
         } else {
-           // Could not parse JSON
+           // Parsing échoué (Format JSON non trouvé)
            console.warn("Could not parse JSON from LLM response.");
            messages.push({ 
             role: 'user', 
@@ -124,9 +132,7 @@ INSTRUCTION:
 
       } catch (error) {
         console.error("Error inside LLM loop:", error);
-        // If it's a network error, we might want to stop or retry. 
-        // For now, we rethrow to be handled by the UI.
-        throw error;
+        throw error; // Erreur réseau fatale
       }
     }
 
@@ -134,10 +140,10 @@ INSTRUCTION:
   }
 
   /**
-   * Parses the LLM response to extract row and col.
+   * Extraction robuste des coordonnées via Regex.
+   * Permet à l'IA d'être verbeuse tant qu'elle fournit le JSON à la fin.
    */
   private parseMove(content: string): Position | null {
-    // More robust parsing using regex to find "row": [number] and "col": [number]
     const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
     const colMatch = content.match(/"col"\s*:\s*(\d+)/);
 
@@ -153,7 +159,8 @@ INSTRUCTION:
   }
 
   /**
-   * Validates if a move is within bounds and on an empty cell.
+   * Validation locale basique (Limites & Occupation).
+   * Évite de solliciter le moteur de jeu pour des erreurs triviales.
    */
   private validateMove(pos: Position, board: Player[][]): string | null {
     const size = board.length;
@@ -167,9 +174,12 @@ INSTRUCTION:
   }
 
   /**
-   * Generates the complete prompt to be sent to the LLM.
-   * @param gameState The current state of the game.
-   * @returns The formatted prompt string.
+   * Construit le Prompt Engineering.
+   * Stratégie :
+   * 1. Contexte (Qui suis-je ?)
+   * 2. Visuel (Board ASCII)
+   * 3. Tactique (Règles & Priorités)
+   * 4. Format (Chain of Thought + JSON)
    */
   private generatePrompt(gameState: GameState): string {
     const playerChar = gameState.currentPlayer === Player.BLACK ? 'X' : 'O';
@@ -222,7 +232,7 @@ After the \`<reasoning>\` block, provide your final move in the following strict
   }
 
   /**
-   * Generates a compact JSON list of occupied positions [[r,c], [r,c]...]
+   * Helper pour aider l'IA à éviter les collisions en lui donnant la liste noire.
    */
   private getOccupiedPositions(board: Player[][]): number[][] {
     const occupied: number[][] = [];
@@ -237,15 +247,11 @@ After the \`<reasoning>\` block, provide your final move in the following strict
   }
 
   /**
-   * Formats the board into a human-readable string for the prompt.
-   * @param board The game board state.
-   * @param playerChar The character for the current player.
-   * @param opponentChar The character for the opponent.
-   * @param lastMove The last move made on the board.
-   * @returns A string representation of the board.
+   * Générateur de représentation ASCII.
+   * Utilise des marqueurs visuels [X] pour le dernier coup pour attirer l'attention de l'IA.
    */
   private formatBoard(board: Player[][], playerChar: string, opponentChar: string, lastMove: Position | null): string {
-    // Header for columns, perfectly aligned
+    // En-tête des colonnes
     let header = '      ';
     for (let i = 0; i < 19; i++) {
       header += String(i).padStart(2, '0') + ' ';
@@ -253,29 +259,29 @@ After the \`<reasoning>\` block, provide your final move in the following strict
 
     let boardStr = header + '\n';
 
-    // Board rows
+    // Lignes du plateau
     board.forEach((row, rowIndex) => {
       const r = String(rowIndex).padStart(2, '0');
-      let line = `   ${r}  `; // Prefix for row numbers
+      let line = `   ${r}  `; // Préfixe ligne
       row.forEach((cell, colIndex) => {
         let symbol = '.';
-        // Determine which Player enum value corresponds to the LLM's symbol for this turn.
+        // On traduit Player.BLACK/WHITE en 'X'/'O' selon le point de vue de l'IA
         const currentPlayerNumber = (playerChar === 'X') ? Player.BLACK : Player.WHITE;
 
         if (cell === currentPlayerNumber) {
-            symbol = playerChar; // It's one of our stones
+            symbol = playerChar; // C'est nous
         } else if (cell !== Player.NONE) {
-            symbol = opponentChar; // It's an opponent's stone
+            symbol = opponentChar; // C'est l'autre
         }
         
-        // Mark the last move with []
+        // Marqueur visuel pour le dernier coup
         if (lastMove && lastMove.row === rowIndex && lastMove.col === colIndex) {
           line += `[${symbol}]`;
         } else {
           line += ` ${symbol} `;
         }
       });
-      // Add row number at the end for better visual alignment
+      // Suffixe ligne (pour lisibilité)
       line += ` ${r}`;
       boardStr += line + '\n';
     });
