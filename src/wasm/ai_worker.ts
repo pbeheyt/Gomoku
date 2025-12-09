@@ -1,32 +1,32 @@
 /**
- * Web Worker for Gomoku AI
- * This script runs in a separate thread to avoid blocking the UI.
- * It loads the WebAssembly module and communicates with the main thread.
+ * Web Worker IA (Thread dédié).
+ * 
+ * Rôle : Exécuter le code C++ (via Wasm) sans bloquer le Thread Principal (UI).
+ * Responsable de l'allocation mémoire manuelle pour les échanges de données JS <-> C++.
  */
 
-// Interface describing the Emscripten Module exports
+// Interface décrivant les exports du Module Emscripten (C++)
 interface GomokuModule {
   _initAI: (player: number) => void;
   _setBoard: (ptr: number) => void;
   _makeMove: (row: number, col: number, player: number) => void;
   _getBestMove: () => number;
   _cleanupAI: () => void;
-  _malloc: (size: number) => number;
-  _free: (ptr: number) => void;
-  HEAP32: Int32Array;
+  _malloc: (size: number) => number; // Allocation mémoire manuelle
+  _free: (ptr: number) => void;      // Libération mémoire manuelle
+  HEAP32: Int32Array;                // Vue directe sur la RAM du Wasm (Entiers 32 bits)
 }
 
 let wasmModule: GomokuModule | null = null;
 
 /**
- * Load and initialize the WebAssembly module.
+ * Charge et instancie le module WebAssembly.
+ * Utilise 'importScripts' (spécifique Worker) pour charger le code de glue Emscripten.
  */
 async function loadWasmModule() {
-    // The 'ia_core.js' script is expected to be in the same directory as the worker script
-    // in the final build output.
     self.importScripts('ia_core.js');
 
-    // @ts-expect-error - GomokuAI is loaded globally by importScripts
+    // @ts-expect-error - GomokuAI est injecté dans le scope global par importScripts
     const GomokuAIModule = self.GomokuAI;
 
     if (!GomokuAIModule) {
@@ -39,22 +39,20 @@ async function loadWasmModule() {
     }
 }
 
-// Load the module as soon as the worker starts.
+// Initialisation au démarrage du Worker
 const wasmReadyPromise = loadWasmModule().then(() => {
     console.log('WebAssembly AI module loaded successfully in worker');
-    // Signal to the main thread that the worker is ready.
     self.postMessage({ type: 'worker_ready' });
 }).catch(error => {
     console.error('Error loading Wasm in worker:', error);
-    // Signal a failure to the main thread.
     self.postMessage({ type: 'worker_error', payload: error.message });
 });
 
 /**
- * Handle messages from the main thread.
+ * Gestionnaire de messages (Main Thread -> Worker).
  */
 self.onmessage = async (event) => {
-    // Ensure the Wasm module is ready before processing commands.
+    // On attend que le C++ soit prêt avant de traiter la requête
     await wasmReadyPromise;
 
     if (!wasmModule) {
@@ -71,7 +69,7 @@ self.onmessage = async (event) => {
                 break;
 
             case 'getBestMove': {
-                // Expect flatBoard as payload in this request
+                // Payload : Le plateau aplati (1D Array)
                 const flatBoard = payload?.flatBoard;
 
                 if (!flatBoard || !Array.isArray(flatBoard)) {
@@ -79,27 +77,35 @@ self.onmessage = async (event) => {
                     break;
                 }
 
-                // Modern replacement for deprecated allocate/ALLOC_NORMAL
-                // 1. Calculate size (int32 = 4 bytes)
+                // --- GESTION MÉMOIRE (CRITIQUE) ---
+                // Le C++ ne peut pas lire les objets JS. Il faut copier les données dans SA mémoire (Heap).
+                
+                // 1. Allocation : On réserve de l'espace dans le Heap Wasm.
+                // int32 = 4 octets par case.
                 const bytesPerElement = 4;
                 const ptr = wasmModule._malloc(flatBoard.length * bytesPerElement);
 
                 try {
-                    // 2. Copy data to Wasm Heap (divide pointer by 4 because HEAP32 is an Int32Array view)
+                    // 2. Copie : JS -> Wasm Heap.
+                    // HEAP32 est une vue Int32Array.
+                    // On divise le pointeur (octets) par 4 pour obtenir l'index (entiers).
+                    // (ptr >> 2) est équivalent à (ptr / 4) mais plus idiomatique/rapide.
                     wasmModule.HEAP32.set(flatBoard, ptr >> 2);
 
-                    // 3. Call C++ function to set board in Wasm memory
+                    // 3. Exécution : On passe le POINTEUR au C++.
                     wasmModule._setBoard(ptr);
 
-                    // 4. Compute best move
+                    // 4. Calcul
                     const result = wasmModule._getBestMove();
                     const row = Math.floor(result / 100);
                     const col = result % 100;
 
-                    // Send the result back to the main thread.
+                    // 5. Réponse
                     self.postMessage({ type: 'bestMoveResult', payload: { row, col } });
                 } finally {
-                    // 5. Free memory as soon as possible
+                    // 6. Nettoyage : INDISPENSABLE.
+                    // Contrairement au JS, il n'y a pas de Garbage Collector ici.
+                    // Si on ne free pas, on leak de la mémoire à chaque tour.
                     wasmModule._free(ptr);
                 }
                 break;
