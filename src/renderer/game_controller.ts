@@ -176,7 +176,7 @@ class GameController {
     // 1. Un coup a été validé
     gameEvents.on('move:made', (move) => {
         this.redraw(); // Met à jour la 3D
-        this.soundManager.playStoneDrop(move.player); // Son "Clack"
+        this.soundManager.playStoneDrop(); // Son "Clack"
     });
 
     // 2. Une capture a eu lieu

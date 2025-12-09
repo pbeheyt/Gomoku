@@ -1,20 +1,24 @@
 /**
- * Sound Manager - File-based Audio
- * Manages loading and playing of game sound assets.
+ * Gestionnaire Audio (SFX).
+ * 
+ * Responsabilités :
+ * 1. Préchargement des assets (latence zéro).
+ * 2. Gestion de la polyphonie (sons simultanés).
+ * 3. Persistance de l'état Mute/Unmute.
  */
-import { Player } from '../core/types.js';
 
 export class SoundManager {
   private isMuted: boolean = false;
   
+  // Cache des éléments audio originaux
   private sounds: { [key: string]: HTMLAudioElement } = {};
 
   constructor() {
-    // Load preference
+    // Récupération de la préférence utilisateur
     const savedMute = localStorage.getItem('gomoku-muted');
     this.isMuted = savedMute === 'true';
 
-    // Preload sounds
+    // Préchargement immédiat pour éviter le lag au premier clic
     this.loadSound('move', './sounds/Move.mp3');
     this.loadSound('capture', './sounds/Capture.mp3');
     this.loadSound('victory', './sounds/Victory.mp3');
@@ -23,7 +27,7 @@ export class SoundManager {
 
   private loadSound(key: string, path: string): void {
     const audio = new Audio(path);
-    audio.preload = 'auto';
+    audio.preload = 'auto'; // Force le chargement du buffer
     this.sounds[key] = audio;
   }
 
@@ -37,21 +41,26 @@ export class SoundManager {
   }
 
   /**
-   * Play a sound by key
+   * Joue un son spécifique.
+   * 
+   * Polyphonie via cloneNode()
+   * On clone l'élément Audio pour permettre de jouer le même son plusieurs fois 
+   * en parallèle (ex: clics rapides) sans couper le précédent.
    */
   private play(key: string): void {
     if (this.isMuted || !this.sounds[key]) return;
 
-    // Clone the node to allow overlapping sounds (e.g., fast moves)
+    // Clone pour permettre la superposition
     const sound = this.sounds[key].cloneNode() as HTMLAudioElement;
-    sound.volume = 0.5; // Default volume 50%
+    sound.volume = 0.5; // Volume standardisé
     
+    // Gestion silencieuse des erreurs (ex: Autoplay policy du navigateur)
     sound.play().catch(e => {
-      console.warn(`Could not play sound ${key}:`, e);
+      console.warn(`Audio playback failed (${key}):`, e);
     });
   }
 
-  public playStoneDrop(_player: Player): void {
+  public playStoneDrop(): void {
     this.play('move');
   }
 
