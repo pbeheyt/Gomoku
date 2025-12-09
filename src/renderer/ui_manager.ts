@@ -5,29 +5,45 @@ import { LeaderboardManager } from './leaderboard_manager.js';
 export type AppState = 'MENU' | 'IN_GAME' | 'GAME_OVER';
 export type ModalButton = { text: string; callback: () => void; className?: string; };
 
+/**
+ * Gestionnaire d'Interface (La Vue).
+ * 
+ * Rôle : Abstraire le DOM pour le Contrôleur.
+ * 
+ * Performance : 
+ * Cette classe met en cache toutes les références DOM au démarrage (dans le constructeur)
+ * pour éviter de faire des `document.getElementById` coûteux à chaque frame ou chaque clic.
+ */
 export class UIManager {
+  // --- Écrans Principaux ---
   private mainMenuEl: HTMLElement | null;
   private gameOverMenuEl: HTMLElement | null;
   private gameContainerEl: HTMLElement | null;
+  
+  // --- HUD (Heads-Up Display) & Info ---
   private winnerMessageEl: HTMLElement | null;
   private suggestBtnEl: HTMLElement | null;
-  
-  // History Controls
-  private histStartBtn: HTMLButtonElement | null;
-  private histPrevBtn: HTMLButtonElement | null;
-  private histNextBtn: HTMLButtonElement | null;
-  private histEndBtn: HTMLButtonElement | null;
-  private histLabel: HTMLElement | null;
   private blackTimerEl: HTMLElement | null;
   private whiteTimerEl: HTMLElement | null;
   private aiTimerSectionEl: HTMLElement | null;
   private timerLabelEl: HTMLElement | null;
   private timerDisplayEl: HTMLElement | null;
   private miniSpinnerEl: HTMLElement | null;
+  
+  // --- Contrôles IA (LLM) ---
   private aiReasoningControlsEl: HTMLElement | null;
   private aiReasoningHudEl: HTMLElement | null;
   private hudTextEl: HTMLElement | null;
   private showReasoningBtn: HTMLElement | null;
+
+  // --- Contrôles Historique ---
+  private histStartBtn: HTMLButtonElement | null;
+  private histPrevBtn: HTMLButtonElement | null;
+  private histNextBtn: HTMLButtonElement | null;
+  private histEndBtn: HTMLButtonElement | null;
+  private histLabel: HTMLElement | null;
+
+  // --- Modales & Settings ---
   private genericModalEl: HTMLElement | null;
   private modalTitleEl: HTMLElement | null;
   private modalBodyEl: HTMLElement | null;
@@ -36,10 +52,10 @@ export class UIManager {
   private apiKeyInputEl: HTMLInputElement | null;
   private modelSelectEl: HTMLSelectElement | null;
   private soundToggleEl: HTMLInputElement | null = null;
-  private messageEl: HTMLElement | null = null;
+  private messageEl: HTMLElement | null = null; // Toast notification
   private rankedBadgeEl: HTMLElement | null = null;
-  
-  // Setup Modal Elements
+
+  // --- Setup Modal (Configuration partie) ---
   private setupModalEl: HTMLElement | null;
   private setupModelSelectEl: HTMLSelectElement | null;
   private setupColorBtns: NodeListOf<Element>;
@@ -48,26 +64,31 @@ export class UIManager {
   private setupModelSection: HTMLElement | null;
   private setupColorSection: HTMLElement | null;
 
+  // --- État interne UI ---
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private thinkingStartTime: number = 0;
   private messageTimeout: ReturnType<typeof setTimeout> | null = null;
   private hudTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    // Initialisation massive des références DOM (Cache).
     this.mainMenuEl = document.getElementById('mainMenu');
     this.gameOverMenuEl = document.getElementById('gameOverMenu');
     this.gameContainerEl = document.getElementById('gameContainer');
-  this.winnerMessageEl = document.getElementById('winnerMessage');
-  this.suggestBtnEl = document.getElementById('suggestBtn');
-  
-  this.histStartBtn = document.getElementById('histStartBtn') as HTMLButtonElement;
-  this.histPrevBtn = document.getElementById('histPrevBtn') as HTMLButtonElement;
-  this.histNextBtn = document.getElementById('histNextBtn') as HTMLButtonElement;
-  this.histEndBtn = document.getElementById('histEndBtn') as HTMLButtonElement;
-  this.histLabel = document.getElementById('histLabel');
-  this.blackTimerEl = document.getElementById('blackTimer');
-  this.whiteTimerEl = document.getElementById('whiteTimer');
-  this.aiTimerSectionEl = document.getElementById('aiTimerSection');
+    this.winnerMessageEl = document.getElementById('winnerMessage');
+    this.suggestBtnEl = document.getElementById('suggestBtn');
+    
+    // Historique
+    this.histStartBtn = document.getElementById('histStartBtn') as HTMLButtonElement;
+    this.histPrevBtn = document.getElementById('histPrevBtn') as HTMLButtonElement;
+    this.histNextBtn = document.getElementById('histNextBtn') as HTMLButtonElement;
+    this.histEndBtn = document.getElementById('histEndBtn') as HTMLButtonElement;
+    this.histLabel = document.getElementById('histLabel');
+
+    // Timers & IA
+    this.blackTimerEl = document.getElementById('blackTimer');
+    this.whiteTimerEl = document.getElementById('whiteTimer');
+    this.aiTimerSectionEl = document.getElementById('aiTimerSection');
     this.timerLabelEl = document.getElementById('timerLabel');
     this.timerDisplayEl = document.getElementById('timer');
     this.miniSpinnerEl = document.getElementById('miniSpinner');
@@ -76,13 +97,15 @@ export class UIManager {
     this.hudTextEl = document.getElementById('hudText');
     this.showReasoningBtn = document.getElementById('showReasoningBtn');
 
-    // Bind HUD interactions
+    // Bindings internes (fermeture HUD au clic)
     if (this.aiReasoningHudEl) {
         this.aiReasoningHudEl.onclick = () => this.hideReasoning();
     }
     if (this.showReasoningBtn) {
         this.showReasoningBtn.onclick = () => this.toggleReasoning();
     }
+
+    // Modales
     this.genericModalEl = document.getElementById('genericModal');
     this.modalTitleEl = document.getElementById('modalTitle');
     this.modalBodyEl = document.getElementById('modalBody');
@@ -101,18 +124,18 @@ export class UIManager {
     this.setupModelSection = document.getElementById('modelSelectionSection');
     this.setupColorSection = document.getElementById('colorSelection');
     
-    // Create Ranked Badge dynamically
+    // Injection dynamique du Badge "Non Classé" dans le Header
     this.rankedBadgeEl = document.createElement('div');
     this.rankedBadgeEl.className = 'ranked-badge hidden';
     this.rankedBadgeEl.textContent = '🚫 NON CLASSÉ';
     
-    // Insert into header center group
     const headerCenter = document.getElementById('headerCenter');
     if (headerCenter) {
         headerCenter.appendChild(this.rankedBadgeEl);
     }
   }
 
+  // Affiche ou masque le badge "Non Classé" (quand on utilise l'historique)
   public setRankedStatus(isRanked: boolean): void {
     if (this.rankedBadgeEl) {
         if (isRanked) {
@@ -123,16 +146,24 @@ export class UIManager {
     }
   }
 
+  // Gestionnaire de vues (Router basique)
   public showView(view: AppState): void {
     this.mainMenuEl?.classList.toggle('hidden', view !== 'MENU');
     
-    // Keep Game Container visible during GAME_OVER so we can see the board behind the blur
+    // Astuce UX : On garde le jeu visible en arrière-plan du Game Over (flouté par le CSS)
+    // pour que le joueur puisse voir le plateau final.
     const isGameVisible = (view === 'IN_GAME' || view === 'GAME_OVER');
     this.gameContainerEl?.classList.toggle('hidden', !isGameVisible);
     
     this.gameOverMenuEl?.classList.toggle('hidden', view !== 'GAME_OVER');
   }
 
+  /**
+   * Met à jour toutes les infos dynamiques (Scores, Temps, Tour).
+   * 
+   * Optimisation : Utilise `classList.toggle` pour éviter des blocs `if/else` verbeux
+   * lors de l'activation/désactivation des éléments UI (comme le highlight du joueur actif).
+   */
   public updateGameInfo(
     player: Player, 
     blackCaptures: number, 
@@ -141,38 +172,42 @@ export class UIManager {
     blackTime: number,
     whiteTime: number
   ): void {
+    // Highlight du joueur actif (Bordure brillante)
     document.getElementById('playerInfoBlack')?.classList.toggle('active-player', player === Player.BLACK);
     document.getElementById('playerInfoWhite')?.classList.toggle('active-player', player === Player.WHITE);
     
+    // Mise à jour textuelle simple
     if (document.getElementById('blackCaptures')) document.getElementById('blackCaptures')!.textContent = `Captures: ${blackCaptures} / 10`;
     if (document.getElementById('whiteCaptures')) document.getElementById('whiteCaptures')!.textContent = `Captures: ${whiteCaptures} / 10`;
 
-  if (this.blackTimerEl) this.blackTimerEl.textContent = this.formatTime(blackTime);
-  if (this.whiteTimerEl) this.whiteTimerEl.textContent = this.formatTime(whiteTime);
+    if (this.blackTimerEl) this.blackTimerEl.textContent = this.formatTime(blackTime);
+    if (this.whiteTimerEl) this.whiteTimerEl.textContent = this.formatTime(whiteTime);
 
-  const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
+    // Gestion de la visibilité des panneaux IA selon le mode de jeu
+    const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
 
     const isLlmMode = mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
     this.aiReasoningControlsEl?.classList.toggle('hidden', !isLlmMode);
     
-    // Hide HUD if we switch modes or players, unless it's the AI turn
+    // Si on n'est pas en mode LLM, on force la fermeture du HUD de raisonnement
     if (!isLlmMode) {
         this.hideReasoning();
     }
     
+    // Le bouton "Suggérer" n'est dispo qu'en PvP local (En mode IA, c'est de la triche/assisté)
     this.suggestBtnEl?.classList.toggle('hidden', mode !== GameMode.PLAYER_VS_PLAYER);
   }
 
   private formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
-    const d = Math.floor((seconds % 1) * 10); // Tenths
+    const d = Math.floor((seconds % 1) * 10); // Dixièmes
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${d}`;
   }
 
+  // Réinitialise l'affichage du timer de réflexion de l'IA
   public resetAiTimer(): void {
-    // Critical: Stop the interval so it doesn't overwrite the reset 0.0000s
     if (this.timerInterval) {
         clearInterval(this.timerInterval);
         this.timerInterval = null;
@@ -200,12 +235,19 @@ export class UIManager {
     if (this.timerLabelEl) this.timerLabelEl.textContent = "Réflexion en cours...";
     if (this.miniSpinnerEl) this.miniSpinnerEl.classList.remove('hidden');
     
+    // Rafraîchissement à 20fps (50ms) suffisant pour l'œil humain
     this.timerInterval = setInterval(() => {
       const current = (performance.now() - this.thinkingStartTime) / 1000;
       if (this.timerDisplayEl) this.timerDisplayEl.textContent = `${current.toFixed(4)}s`;
     }, 50);
   }
 
+  /**
+   * Arrête le timer et fige le temps final.
+   * 
+   * UX Trick : Si l'IA répond trop vite (< 600ms), on force un petit délai d'attente.
+   * Cela évite que le texte "Réflexion..." ne flashe trop vite à l'écran.
+   */
   public async stopThinkingTimer(finalDuration: number): Promise<void> {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
@@ -223,11 +265,12 @@ export class UIManager {
     if (this.miniSpinnerEl) this.miniSpinnerEl.classList.add('hidden');
   }
 
+  // Met à jour le texte du HUD (Raisonnement LLM)
   public setReasoning(text: string): void {
     if (this.hudTextEl) {
         this.hudTextEl.textContent = text;
         
-        // Only mark as unread if it's actual content, not a reset state
+        // Notification visuelle (Glow) sur le bouton si nouveau contenu
         if (this.showReasoningBtn) {
             if (text.includes("En attente")) {
                 this.showReasoningBtn.classList.remove('unread');
@@ -250,12 +293,7 @@ export class UIManager {
 
   public showReasoning(): void {
     if (!this.aiReasoningHudEl) return;
-
-    // Clear notification state on open
-    if (this.showReasoningBtn) {
-        this.showReasoningBtn.classList.remove('unread');
-    }
-
+    if (this.showReasoningBtn) this.showReasoningBtn.classList.remove('unread');
     this.aiReasoningHudEl.classList.remove('hidden');
   }
 
@@ -269,6 +307,7 @@ export class UIManager {
     }
   }
 
+  // Affiche une modale générique
   public showModal(title: string, contentHTML: string, buttons: ModalButton[]): void {
     if (!this.genericModalEl || !this.modalTitleEl || !this.modalBodyEl || !this.modalFooterEl) return;
     
@@ -337,6 +376,11 @@ export class UIManager {
     }
   }
 
+  /**
+   * Affiche la modale de configuration de partie.
+   * Gère la logique d'affichage dynamique : on ne montre que les options pertinentes
+   * pour le mode de jeu choisi (ex: pas de choix de modèle LLM en mode PvP).
+   */
   public showSetupModal(
     mode: GameMode, 
     onStart: (config: { color: Player, modelId?: string }) => void,
@@ -344,20 +388,20 @@ export class UIManager {
   ): void {
     if (!this.setupModalEl) return;
 
-    // Reset state
+    // Reset sélection couleur (Noir par défaut)
     this.setupColorBtns.forEach(btn => {
         btn.classList.remove('selected');
         if (btn.getAttribute('data-color') === '1') btn.classList.add('selected');
     });
 
-    // Logic to show/hide sections based on mode
+    // Affichage conditionnel des sections
     const needsModel = (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM);
     const needsColor = (mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM);
 
     if (this.setupModelSection) this.setupModelSection.classList.toggle('hidden', !needsModel);
     if (this.setupColorSection) this.setupColorSection.classList.toggle('hidden', !needsColor);
 
-    // Pre-select Default Model from Settings
+    // Pré-sélection du modèle par défaut
     if (needsModel && this.setupModelSelectEl) {
         const savedModel = localStorage.getItem('gomoku-llm-model');
         if (savedModel) {
@@ -365,7 +409,7 @@ export class UIManager {
         }
     }
 
-    // Bind Color Buttons
+    // Bindings Click Couleur
     this.setupColorBtns.forEach(btn => {
         (btn as HTMLElement).onclick = () => {
             this.setupColorBtns.forEach(b => b.classList.remove('selected'));
@@ -404,40 +448,35 @@ export class UIManager {
     this.setupModalEl.classList.remove('hidden');
   }
 
+  // Affiche une notification temporaire (Toast)
   public showMessage(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
-    // Lazy creation
     if (!this.messageEl) {
       this.messageEl = document.createElement('div');
       this.messageEl.id = 'gameMessage';
       document.body.appendChild(this.messageEl);
     }
 
-    // Reset classes
     this.messageEl.className = '';
     this.messageEl.classList.add(`toast-${type}`);
 
-    // Clear existing timeout to prevent early closing
     if (this.messageTimeout) {
         clearTimeout(this.messageTimeout);
         this.messageTimeout = null;
     }
 
-    // Set content with Close Button
     this.messageEl.innerHTML = `
         <span>${message}</span>
         <button class="toast-close">&times;</button>
     `;
     
-    // Bind click event to the new button
     const closeBtn = this.messageEl.querySelector('.toast-close') as HTMLElement;
     if (closeBtn) {
         closeBtn.onclick = () => this.clearMessage();
     }
 
-    // Show the toast
     this.messageEl.style.display = 'block';
     
-    // Auto-hide after 8 seconds (Longer duration)
+    // Auto-hide après 8 secondes
     this.messageTimeout = setTimeout(() => { 
         this.clearMessage();
     }, 8000);
@@ -447,7 +486,9 @@ export class UIManager {
     if (this.messageEl) this.messageEl.style.display = 'none';
   }
 
-  // Bindings
+  // --- BINDINGS (Liaison UI -> Controller) ---
+  // Ces méthodes connectent les événements DOM aux fonctions du GameController.
+
   public bindMenuButtons(actions: {
     onPvp: () => void,
     onPva: () => void,
@@ -457,23 +498,19 @@ export class UIManager {
     onMenu: () => void,
     onSettings: () => void
   }): void {
-    // Card clicks
     document.getElementById('cardPvp')?.addEventListener('click', actions.onPvp);
     document.getElementById('cardPva')?.addEventListener('click', actions.onPva);
     document.getElementById('cardLlm')?.addEventListener('click', actions.onLlmPvp);
     document.getElementById('cardArena')?.addEventListener('click', actions.onAiVsLlm);
     
-    // Main Menu Settings
-  document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
-  document.getElementById('leaderboardBtn')?.addEventListener('click', () => {
-    this.showLeaderboardModal();
-  });
+    document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
+    document.getElementById('leaderboardBtn')?.addEventListener('click', () => {
+        this.showLeaderboardModal();
+    });
 
-    // Game Over Buttons
     document.getElementById('replayBtn')?.addEventListener('click', actions.onReplay);
     document.getElementById('gameOverMenuBtn')?.addEventListener('click', actions.onMenu);
     
-    // Close (X) button just hides the modal to reveal the board
     document.getElementById('gameOverCloseBtn')?.addEventListener('click', () => {
         this.gameOverMenuEl?.classList.add('hidden');
     });
