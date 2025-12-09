@@ -21,12 +21,18 @@ export interface Position {
   col: number;
 }
 
+export interface CaptureResult {
+  capturedPositions: Position[];
+  newCaptureCount: number;
+}
+
 export interface Move {
   position: Position;
   player: Player;
   timestamp: number;
   blackTime: number; // Accumulated time for Black at this move
   whiteTime: number; // Accumulated time for White at this move
+  captures: CaptureResult[]; // Stockage du résultat pour le replay (Event Sourcing)
 }
 
 export interface GameState {
@@ -38,11 +44,6 @@ export interface GameState {
   winner: Player | null;
   gameMode: GameMode;
   moveHistory: Move[];
-}
-
-export interface CaptureResult {
-  capturedPositions: Position[];
-  newCaptureCount: number;
 }
 
 export interface ValidationResult {
