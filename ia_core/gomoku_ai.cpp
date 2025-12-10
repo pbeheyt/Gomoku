@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <climits>
 #include <cstring>
+#include <unordered_map>
+#include <stack>
+#include <iostream>
 
 // Global Instance
 static GomokuAI* globalAI = nullptr;
@@ -18,10 +21,11 @@ GomokuAI* getGlobalAI() {
 const int DX[] = {0, 1, 1, 1, 0, -1, -1, -1};
 const int DY[] = {1, 1, 0, -1, -1, -1, 0, 1};
 
-// Constants
-const int INITIAL_DEPTH = 6;
-const int WIN_SCORE = 1000000;
-const int CAPTURE_WIN_SCORE = 900000;
+// Minimax constants
+const int MAX_DEPTH = 12;             // Profondeur maximale (au-dessus des 10 requis)
+const int INITIAL_DEPTH = 6;          // Commencer avec 6 pour équilibrer perf/qualité
+const int WIN_SCORE = 1000000;        // Score pour victoire
+const int CAPTURE_WIN_SCORE = 900000; // Score pour victoire par capture
 const int INF = INT_MAX;
 const int FOUR_OPEN_WEIGHT = 50000;
 const int FOUR_BLOCKED_WEIGHT = 10000;

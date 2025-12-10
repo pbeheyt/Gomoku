@@ -71,6 +71,7 @@ export class GomokuGame {
       whiteTime: whiteTime,
       captures: analysis.captures || []
     };
+    
     this.moveHistory.push(move);
     this.currentMoveIndex++;
     
