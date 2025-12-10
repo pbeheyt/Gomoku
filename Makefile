@@ -24,6 +24,7 @@ build: up install wasm tsc copy-static
 	@echo "Création du lien symbolique..."
 	@ln -sf dist/linux-unpacked/Gomoku $(NAME)
 	@echo "\n\033[1;32m✅ Build terminé.\033[0m"
+	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
 
 re: fclean all
 
