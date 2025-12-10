@@ -47,12 +47,12 @@ install:
 # -s ALLOW_MEMORY_GROWTH=1  : Permet au Heap Wasm de s'agrandir dynamiquement si l'IA alloue trop de RAM.
 wasm:
 	@echo "Compilation Wasm..."
-	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp ia_core/gomoku_rules.cpp -o src/renderer/ia_core.js \
+	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp ia_core/gomoku_rules.cpp ia_core/gomoku_bridge.cpp -o src/renderer/ia_core.js \
 		-O3 \
 		-s WASM=1 \
 		-s MODULARIZE=1 \
 		-s EXPORT_NAME="GomokuAI" \
-		-s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_malloc", "_free"]' \
+		-s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_malloc", "_free", "_rules_isValidMove", "_rules_isSuicide", "_rules_checkDoubleThree", "_rules_checkWin", "_rules_checkCaptures"]' \
 		-s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "intArrayFromString", "writeArrayToMemory"]' \
 		-s ALLOW_MEMORY_GROWTH=1
 
