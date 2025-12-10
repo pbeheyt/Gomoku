@@ -9,12 +9,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <stack>
-
-// Board constants
-const int BOARD_SIZE = 19;
-const int EMPTY = 0;
-const int BLACK = 1;
-const int WHITE = 2;
+#include "gomoku_rules.h"
 
 // Direction vectors (horizontal, vertical, diagonal)
 const int DX[] = {0, 1, 1, 1, 0, -1, -1, -1};
@@ -104,7 +99,7 @@ public:
     void clearBoard() {
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                board[i][j] = EMPTY;
+                board[i][j] = NONE;
             }
         }
         gameState = GameState();
@@ -128,9 +123,8 @@ public:
     }
     
     bool isValidMove(int row, int col) {
-        return row >= 0 && row < BOARD_SIZE && 
-               col >= 0 && col < BOARD_SIZE && 
-               board[row][col] == EMPTY;
+        // Basic check only. AI logic might handle complex rules in evaluation.
+        return GomokuRules::isValidMove(board, row, col);
     }
     
     /**
@@ -808,7 +802,7 @@ private:
         bool boardIsEmpty = true;
         for (int i = 0; i < BOARD_SIZE && boardIsEmpty; i++) {
             for (int j = 0; j < BOARD_SIZE && boardIsEmpty; j++) {
-                if (board[i][j] != EMPTY) {
+                if (board[i][j] != NONE) {
                     boardIsEmpty = false;
                 }
             }
@@ -827,7 +821,7 @@ private:
         // Trouver positions autour des pierres existantes (rayon 2)
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
-                if (board[row][col] != EMPTY) {
+                if (board[row][col] != NONE) {
                     // Ajouter positions vides autour
                     for (int dr = -2; dr <= 2; dr++) {
                         for (int dc = -2; dc <= 2; dc++) {
@@ -888,46 +882,29 @@ private:
     }
     
     /**
-     * Vérifier et effectuer les captures
+     * Vérifier et effectuer les captures via GomokuRules
      */
     int checkAndPerformCaptures(int row, int col, int player) {
-        int totalCaptures = 0;
-        int opponent = (player == BLACK) ? WHITE : BLACK;
+        int capturedStones[16][2]; // Max 8 directions * 2 stones = 16 stones
+        int numCapturedStones = GomokuRules::checkCaptures(board, row, col, player, capturedStones);
         
-        for (int dir = 0; dir < 8; dir++) {
-            // Vérifier pattern de capture : Player - Opponent - Opponent - Player
-            int r1 = row + DX[dir];
-            int c1 = col + DY[dir];
-            int r2 = row + 2 * DX[dir];
-            int c2 = col + 2 * DY[dir];
-            int r3 = row + 3 * DX[dir];
-            int c3 = col + 3 * DY[dir];
-            
-            if (r1 >= 0 && r1 < BOARD_SIZE && c1 >= 0 && c1 < BOARD_SIZE &&
-                r2 >= 0 && r2 < BOARD_SIZE && c2 >= 0 && c2 < BOARD_SIZE &&
-                r3 >= 0 && r3 < BOARD_SIZE && c3 >= 0 && c3 < BOARD_SIZE) {
-                
-                if (board[r1][c1] == opponent && 
-                    board[r2][c2] == opponent && 
-                    board[r3][c3] == player) {
-                    
-                    // Capture les deux pierres adverses
-                    board[r1][c1] = EMPTY;
-                    board[r2][c2] = EMPTY;
-                    
-                    // Enregistrer la capture
-                    if (player == BLACK) {
-                        gameState.capturedByBlack += 2;
-                    } else {
-                        gameState.capturedByWhite += 2;
-                    }
-                    
-                    totalCaptures += 2;
-                }
+        if (numCapturedStones > 0) {
+            // Appliquer les captures sur le plateau
+            for (int i = 0; i < numCapturedStones; i++) {
+                int r = capturedStones[i][0];
+                int c = capturedStones[i][1];
+                board[r][c] = NONE;
+            }
+
+            // Mettre à jour le score
+            if (player == BLACK) {
+                gameState.capturedByBlack += numCapturedStones;
+            } else {
+                gameState.capturedByWhite += numCapturedStones;
             }
         }
         
-        return totalCaptures;
+        return numCapturedStones;
     }
     
     /**
@@ -947,7 +924,7 @@ private:
         
         // Retirer la pierre
         if (history.row >= 0 && history.col >= 0) {
-            board[history.row][history.col] = EMPTY;
+            board[history.row][history.col] = NONE;
         }
     }
 };
