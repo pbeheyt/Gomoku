@@ -12,9 +12,17 @@ interface GomokuModule {
   _makeMove: (row: number, col: number, player: number) => void;
   _getBestMove: () => number;
   _cleanupAI: () => void;
-  _malloc: (size: number) => number; // Allocation mémoire manuelle
-  _free: (ptr: number) => void;      // Libération mémoire manuelle
-  HEAP32: Int32Array;                // Vue directe sur la RAM du Wasm (Entiers 32 bits)
+
+  // Exports du moteur de règles
+  _rules_isValidMove: (row: number, col: number) => number;
+  _rules_isSuicide: (row: number, col: number, player: number) => number;
+  _rules_checkDoubleThree: (row: number, col: number, player: number) => number;
+  _rules_checkWin: (row: number, col: number, player: number) => number;
+  // Retourne un pointeur vers un tableau d'entiers statique. Index 0 = nombre, puis l, c, l, c...
+  _rules_checkCaptures: (row: number, col: number, player: number) => number; 
+
+  _get_board_buffer: () => number; // Retourne un pointeur vers le buffer statique du board
+  HEAP32: Int32Array;
 }
 
 let wasmModule: GomokuModule | null = null;
@@ -69,7 +77,7 @@ self.onmessage = async (event) => {
                 break;
 
             case 'getBestMove': {
-                // Payload : Le plateau aplati (1D Array)
+                // Payload : Le board aplati (1D Array)
                 const flatBoard = payload?.flatBoard;
 
                 if (!flatBoard || !Array.isArray(flatBoard)) {
@@ -77,37 +85,84 @@ self.onmessage = async (event) => {
                     break;
                 }
 
-                // --- GESTION MÉMOIRE (CRITIQUE) ---
-                // Le C++ ne peut pas lire les objets JS. Il faut copier les données dans SA mémoire (Heap).
+                // STRATÉGIE ZÉRO MALLOC
+                // 1. Obtenir le pointeur vers le buffer statique en C++
+                const ptr = wasmModule._get_board_buffer();
+
+                // 2. Écrire les données directement dans la mémoire Wasm
+                // ptr est en octets, HEAP32 est une vue int32, donc diviser par 4
+                wasmModule.HEAP32.set(flatBoard, ptr >> 2);
+
+                // 3. Dire à l'IA de lire depuis ce buffer
+                wasmModule._setBoard(ptr);
+
+                // 4. Calculer
+                const result = wasmModule._getBestMove();
+                const row = Math.floor(result / 100);
+                const col = result % 100;
+
+                self.postMessage({ type: 'bestMoveResult', payload: { row, col } });
+                break;
+            }
+
+            // --- REQUÊTES DE RÈGLES ---
+
+            case 'rules_isValidMove':
+                self.postMessage({ 
+                    type: 'rules_isValidMove_result', 
+                    payload: wasmModule._rules_isValidMove(payload.row, payload.col) === 1 
+                });
+                break;
+
+            case 'rules_isSuicide':
+                self.postMessage({ 
+                    type: 'rules_isSuicide_result', 
+                    payload: wasmModule._rules_isSuicide(payload.row, payload.col, payload.player) === 1 
+                });
+                break;
+
+            case 'rules_checkDoubleThree':
+                self.postMessage({ 
+                    type: 'rules_checkDoubleThree_result', 
+                    payload: wasmModule._rules_checkDoubleThree(payload.row, payload.col, payload.player) === 1 
+                });
+                break;
+
+            case 'rules_checkWin':
+                self.postMessage({ 
+                    type: 'rules_checkWin_result', 
+                    payload: wasmModule._rules_checkWin(payload.row, payload.col, payload.player) === 1 
+                });
+                break;
+
+            case 'rules_checkCaptures': {
+                // Appelle la fonction C++ qui retourne un pointeur vers le buffer statique
+                const ptr = wasmModule._rules_checkCaptures(payload.row, payload.col, payload.player);
                 
-                // 1. Allocation : On réserve de l'espace dans le Heap Wasm.
-                // int32 = 4 octets par case.
-                const bytesPerElement = 4;
-                const ptr = wasmModule._malloc(flatBoard.length * bytesPerElement);
-
-                try {
-                    // 2. Copie : JS -> Wasm Heap.
-                    // HEAP32 est une vue Int32Array.
-                    // On divise le pointeur (octets) par 4 pour obtenir l'index (entiers).
-                    // (ptr >> 2) est équivalent à (ptr / 4) mais plus idiomatique/rapide.
-                    wasmModule.HEAP32.set(flatBoard, ptr >> 2);
-
-                    // 3. Exécution : On passe le POINTEUR au C++.
-                    wasmModule._setBoard(ptr);
-
-                    // 4. Calcul
-                    const result = wasmModule._getBestMove();
-                    const row = Math.floor(result / 100);
-                    const col = result % 100;
-
-                    // 5. Réponse
-                    self.postMessage({ type: 'bestMoveResult', payload: { row, col } });
-                } finally {
-                    // 6. Nettoyage : INDISPENSABLE.
-                    // Contrairement au JS, il n'y a pas de Garbage Collector ici.
-                    // Si on ne free pas, on leak de la mémoire à chaque tour.
-                    wasmModule._free(ptr);
+                // Lire depuis HEAP32
+                // L'index 0 contient le nombre
+                const startIdx = ptr >> 2;
+                const count = wasmModule.HEAP32[startIdx];
+                
+                const captures = [];
+                
+                // Les données commencent à l'index 1. Chaque pierre est 2 entiers (ligne, col).
+                // Une capture est une paire, donc on boucle par 2 pierres (4 entiers).
+                for (let i = 0; i < count; i += 2) {
+                    const base = startIdx + 1 + (i * 2);
+                    
+                    const r1 = wasmModule.HEAP32[base];
+                    const c1 = wasmModule.HEAP32[base + 1];
+                    const r2 = wasmModule.HEAP32[base + 2];
+                    const c2 = wasmModule.HEAP32[base + 3];
+                    
+                    captures.push({
+                        capturedPositions: [{row: r1, col: c1}, {row: r2, col: c2}],
+                        newCaptureCount: 0 
+                    });
                 }
+                
+                self.postMessage({ type: 'rules_checkCaptures_result', payload: captures });
                 break;
             }
 

@@ -8,8 +8,6 @@
 
 import { Player, Position, GameState } from '../core/types.js';
 
-type BestMoveResolve = (value: Position) => void;
-
 export class WasmAI {
     private worker: Worker | null = null;
     
@@ -18,10 +16,8 @@ export class WasmAI {
     private resolveWorkerReady: () => void = () => {};
     private rejectWorkerReady: (reason?: unknown) => void = () => {};
     
-    // Gestion de la requête en cours (Pattern Request/Response manuel)
-    private bestMovePromise: Promise<Position> | null = null;
-    private resolveBestMove: BestMoveResolve | null = null;
-    private rejectBestMove: ((reason?: unknown) => void) | null = null;
+    // File d'attente générique pour TOUTES les requêtes (Map<TypeRéponse, Résolveur>)
+    private pendingQueries: Map<string, {resolve: (val: any) => void, reject: (err: any) => void}> = new Map();
     
     private aiPlayer: Player = Player.WHITE;
 
@@ -48,13 +44,16 @@ export class WasmAI {
                         break;
 
                     case 'bestMoveResult':
-                        // Le calcul est fini, on débloque la Promesse en attente
-                        if (this.resolveBestMove) {
-                            this.resolveBestMove(payload);
-                            // Nettoyage
-                            this.bestMovePromise = null;
-                            this.resolveBestMove = null;
-                        }
+                        this.resolveQuery('bestMoveResult', payload);
+                        break;
+
+                    // --- RULES RESPONSES ---
+                    case 'rules_isValidMove_result':
+                    case 'rules_isSuicide_result':
+                    case 'rules_checkDoubleThree_result':
+                    case 'rules_checkWin_result':
+                    case 'rules_checkCaptures_result':
+                        this.resolveQuery(type, payload);
                         break;
 
                     case 'worker_error':
@@ -64,13 +63,11 @@ export class WasmAI {
 
                     case 'error':
                         console.error('Runtime AI Worker Error:', payload);
-                        // Si une requête était en cours, on la fait échouer proprement
-                        if (this.rejectBestMove) {
-                            this.rejectBestMove(new Error(payload));
-                            this.bestMovePromise = null;
-                            this.resolveBestMove = null;
-                            this.rejectBestMove = null;
-                        }
+                        // Rejeter toutes les requêtes en attente
+                        this.pendingQueries.forEach((query) => {
+                            query.reject(new Error(payload));
+                        });
+                        this.pendingQueries.clear();
                         break;
                 }
             };
@@ -93,32 +90,58 @@ export class WasmAI {
 
     /**
      * Demande un calcul de coup.
-     * 
-     * Promisification
-     * 1. On crée une Promise.
-     * 2. On stocke ses fonctions de contrôle (resolve/reject) dans l'instance.
-     * 3. On envoie le message au Worker.
-     * 4. On attend... (le Worker répondra via onmessage qui appellera notre resolve stocké).
+     * Utilise le système générique de requête.
      */
     public getBestMove(gameState: GameState): Promise<Position> {
-        // Sécurité : Une seule requête à la fois
-        if (!this.bestMovePromise) {
-            this.bestMovePromise = new Promise((resolve, reject) => {
-                this.resolveBestMove = resolve;
-                this.rejectBestMove = reject;
-                
-                // Aplatissement du board (2D -> 1D) pour faciliter le transfert mémoire vers C++
-                const flatBoard = gameState.board.flat();
-                this.worker?.postMessage({ type: 'getBestMove', payload: { flatBoard } });
-            });
-        }
-        return this.bestMovePromise;
+        // Aplatissement du board (2D -> 1D) pour faciliter le transfert mémoire vers C++
+        const flatBoard = gameState.board.flat();
+        return this.sendQuery('getBestMove', 'bestMoveResult', { flatBoard });
     }
 
     // Permet à l'UI d'attendre que le binaire Wasm soit chargé et compilé
     public async isReady(): Promise<boolean> {
         await this.workerReadyPromise;
         return this.worker !== null;
+    }
+
+    // --- RULES API ---
+
+    public async isValidMove(row: number, col: number): Promise<boolean> {
+        return this.sendQuery('rules_isValidMove', 'rules_isValidMove_result', { row, col });
+    }
+
+    public async isSuicide(row: number, col: number, player: Player): Promise<boolean> {
+        return this.sendQuery('rules_isSuicide', 'rules_isSuicide_result', { row, col, player });
+    }
+
+    public async checkDoubleThree(row: number, col: number, player: Player): Promise<boolean> {
+        return this.sendQuery('rules_checkDoubleThree', 'rules_checkDoubleThree_result', { row, col, player });
+    }
+
+    public async checkWin(row: number, col: number, player: Player): Promise<boolean> {
+        return this.sendQuery('rules_checkWin', 'rules_checkWin_result', { row, col, player });
+    }
+
+    public async checkCaptures(row: number, col: number, player: Player): Promise<any[]> {
+        return this.sendQuery('rules_checkCaptures', 'rules_checkCaptures_result', { row, col, player });
+    }
+
+    // --- INTERNAL HELPERS ---
+
+    private sendQuery(requestType: string, responseType: string, payload: any): Promise<any> {
+        return new Promise((resolve, reject) => {
+            // On enregistre le résolveur pour le TYPE DE RÉPONSE ATTENDU
+            this.pendingQueries.set(responseType, { resolve, reject });
+            this.worker?.postMessage({ type: requestType, payload });
+        });
+    }
+
+    private resolveQuery(type: string, result: any) {
+        const query = this.pendingQueries.get(type);
+        if (query) {
+            query.resolve(result);
+            this.pendingQueries.delete(type);
+        }
     }
 
     public getAIPlayer(): Player {

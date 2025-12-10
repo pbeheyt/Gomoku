@@ -7,7 +7,15 @@
 #include "gomoku_ai.h"
 #include "gomoku_rules.h"
 
+// Static buffer for Board Input (19x19) to avoid malloc/free in JS
+static int BRIDGE_BOARD_BUFFER[BOARD_SIZE * BOARD_SIZE];
+
 extern "C" {
+
+// Helper to get the address of the static board buffer
+int* get_board_buffer() {
+    return BRIDGE_BOARD_BUFFER;
+}
 
 // --- AI LIFECYCLE ---
 
@@ -81,15 +89,36 @@ int rules_checkWin(int row, int col, int player) {
     return GomokuRules::checkWin(ai->getBoard(), row, col, player);
 }
 
+// Static buffer to avoid malloc/free in JavaScript
+// Max 8 directions * 2 stones * 2 coordinates (row, col) = 32 ints
+static int BRIDGE_CAPTURE_BUFFER[32];
+
 /**
- * Returns number of captures.
- * Writes captured coordinates into the buffer pointed to by `out_ptr`.
- * JS must allocate memory: 16 ints (8 pairs * 2 coords) * 4 bytes = 64 bytes.
+ * Returns a pointer to the static capture buffer.
+ * The first element of the buffer will contain the NUMBER of stones captured.
+ * The following elements are the coordinates: [r1, c1, r2, c2, ...]
  */
-int rules_checkCaptures(int row, int col, int player, int* out_ptr) {
+int* rules_checkCaptures(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
-    if (ai == nullptr) return 0;
-    return GomokuRules::checkCaptures(ai->getBoard(), row, col, player, (int(*)[2])out_ptr);
+    // Default: 0 captures
+    BRIDGE_CAPTURE_BUFFER[0] = 0; 
+    
+    if (ai == nullptr) return BRIDGE_CAPTURE_BUFFER;
+
+    // We use a temporary buffer for the logic engine
+    int tempCaptures[16][2];
+    int count = GomokuRules::checkCaptures(ai->getBoard(), row, col, player, tempCaptures);
+    
+    // Write count at index 0
+    BRIDGE_CAPTURE_BUFFER[0] = count;
+
+    // Flatten results into the static buffer starting at index 1
+    for (int i = 0; i < count; i++) {
+        BRIDGE_CAPTURE_BUFFER[1 + (i * 2)] = tempCaptures[i][0];     // Row
+        BRIDGE_CAPTURE_BUFFER[1 + (i * 2) + 1] = tempCaptures[i][1]; // Col
+    }
+
+    return BRIDGE_CAPTURE_BUFFER;
 }
 
 } // extern "C"
