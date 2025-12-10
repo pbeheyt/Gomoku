@@ -74,19 +74,46 @@ int rules_isValidMove(int row, int col) {
 int rules_isSuicide(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
     if (ai == nullptr) return 0;
-    return GomokuRules::isSuicideMove(ai->getBoard(), row, col, player);
+    
+    // Simulate move locally
+    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
+    board[row][col] = player;
+    
+    bool result = GomokuRules::isSuicideMove(board, row, col, player);
+    
+    // Revert
+    board[row][col] = 0; // NONE
+    return result;
 }
 
 int rules_checkDoubleThree(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
     if (ai == nullptr) return 0;
-    return GomokuRules::checkDoubleThree(ai->getBoard(), row, col, player);
+
+    // Simulate move locally
+    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
+    board[row][col] = player;
+
+    bool result = GomokuRules::checkDoubleThree(board, row, col, player);
+
+    // Revert
+    board[row][col] = 0; // NONE
+    return result;
 }
 
 int rules_checkWin(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
     if (ai == nullptr) return 0;
-    return GomokuRules::checkWin(ai->getBoard(), row, col, player);
+
+    // Simulate move locally
+    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
+    board[row][col] = player;
+
+    bool result = GomokuRules::checkWin(board, row, col, player);
+
+    // Revert
+    board[row][col] = 0; // NONE
+    return result;
 }
 
 // Static buffer to avoid malloc/free in JavaScript
@@ -105,9 +132,16 @@ int* rules_checkCaptures(int row, int col, int player) {
     
     if (ai == nullptr) return BRIDGE_CAPTURE_BUFFER;
 
+    // Simulate move locally
+    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
+    board[row][col] = player;
+
     // We use a temporary buffer for the logic engine
     int tempCaptures[16][2];
-    int count = GomokuRules::checkCaptures(ai->getBoard(), row, col, player, tempCaptures);
+    int count = GomokuRules::checkCaptures(board, row, col, player, tempCaptures);
+    
+    // Revert
+    board[row][col] = 0; // NONE
     
     // Write count at index 0
     BRIDGE_CAPTURE_BUFFER[0] = count;

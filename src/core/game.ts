@@ -119,23 +119,14 @@ export class GomokuGame {
       return { isValid: false, reason: 'Position invalide ou occupée' };
     }
 
-    // STRATÉGIE : 
-    // 1. Mise à jour Plateau Local (Simulation)
-    this.board.setPiece(row, col, player);
-    
-    // 2. Synchro vers Wasm (Zero Malloc = Rapide)
-    await this.wasmAI.setBoard(this.board.getBoardState().flat());
+    // STRATÉGIE : Délégation totale au C++
+    // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).
+    // Le plateau C++ est supposé être à jour depuis le dernier coup validé.
 
-    // 3. Vérification Règles via Wasm
+    // Vérification Règles via Wasm
     const suicide = await this.wasmAI.isSuicide(row, col, player);
     const doubleThree = await this.wasmAI.checkDoubleThree(row, col, player);
     const rawCaptures = await this.wasmAI.checkCaptures(row, col, player);
-
-    // 4. Restauration Plateau Local
-    this.board.setPiece(row, col, Player.NONE);
-    
-    // 5. Restauration Plateau Wasm (Important pour la suite)
-    await this.wasmAI.setBoard(this.board.getBoardState().flat());
 
     // 6. Verdict
     if (suicide) return { isValid: false, reason: 'Suicide interdit' };
