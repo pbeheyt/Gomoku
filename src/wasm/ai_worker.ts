@@ -76,6 +76,26 @@ self.onmessage = async (event) => {
                 wasmModule._initAI(payload.aiPlayer);
                 break;
 
+            case 'setBoard': {
+                const flatBoard = payload?.flatBoard;
+                if (!flatBoard || !Array.isArray(flatBoard)) break;
+
+                // Stratégie Zero Malloc
+                const ptr = wasmModule._get_board_buffer();
+                wasmModule.HEAP32.set(flatBoard, ptr >> 2);
+                wasmModule._setBoard(ptr);
+                
+                // Confirmation
+                self.postMessage({ type: 'setBoard_done' });
+                break;
+            }
+
+            case 'makeMove': {
+                wasmModule._makeMove(payload.row, payload.col, payload.player);
+                self.postMessage({ type: 'makeMove_done' });
+                break;
+            }
+
             case 'getBestMove': {
                 // Payload : Le board aplati (1D Array)
                 const flatBoard = payload?.flatBoard;

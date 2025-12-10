@@ -33,7 +33,7 @@ export class LlmAI {
    */
   public async getBestMove(
     gameState: GameState, 
-    validator?: (row: number, col: number) => ValidationResult
+    validator?: (row: number, col: number) => Promise<ValidationResult>
   ): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
     
@@ -86,7 +86,7 @@ export class LlmAI {
           // 2. Validation Métier (Règles Gomoku : Suicide, Double-3)
           // On délègue ça au Core via le validator injecté.
           if (!validationError && validator) {
-            const result = validator(move.row, move.col);
+            const result = await validator(move.row, move.col);
             if (!result.isValid) {
               validationError = result.reason || "Move violates game rules";
             }

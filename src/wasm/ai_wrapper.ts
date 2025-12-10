@@ -43,6 +43,13 @@ export class WasmAI {
                         this.resolveWorkerReady();
                         break;
 
+                    case 'setBoard_done':
+                        this.resolveQuery('setBoard_done', null);
+                        break;
+                    case 'makeMove_done':
+                        this.resolveQuery('makeMove_done', null);
+                        break;
+
                     case 'bestMoveResult':
                         this.resolveQuery('bestMoveResult', payload);
                         break;
@@ -83,9 +90,15 @@ export class WasmAI {
 
     public async initAI(aiPlayer: Player): Promise<void> {
         this.aiPlayer = aiPlayer;
-        // On envoie la config sans attendre de réponse bloquante
         this.worker?.postMessage({ type: 'initAI', payload: { aiPlayer } });
-        console.log(`AI initialized for player ${aiPlayer === Player.BLACK ? 'BLACK' : 'WHITE'}`);
+    }
+
+    public setBoard(flatBoard: number[]): Promise<void> {
+        return this.sendQuery('setBoard', 'setBoard_done', { flatBoard });
+    }
+
+    public makeMove(row: number, col: number, player: Player): Promise<void> {
+        return this.sendQuery('makeMove', 'makeMove_done', { row, col, player });
     }
 
     /**

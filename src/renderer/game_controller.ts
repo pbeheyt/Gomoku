@@ -75,7 +75,8 @@ class GameController {
   
   // MUTEX CRITIQUE : Empêche toute interaction (clic, reset) pendant que l'IA calcule.
   private isAIThinking: boolean = false; 
-  private lastAIThinkingTime: number = 0; // Pour l'affichage "0.45s"
+  private isProcessingMove: boolean = false; // Verrouillage pendant la validation Wasm
+  private lastAIThinkingTime: number = 0;
 
   // --- Chronométrie & Classement ---
   private blackTimeTotal: number = 0; // Cumul secondes Noir
@@ -318,56 +319,60 @@ class GameController {
    * Gestion du Clic Souris (Input Humain).
    * Agit comme un gardien : vérifie si l'humain a le droit de jouer.
    */
-  private handleClick(e: MouseEvent): void {
-    // Sécurité globale (Jeu en cours, IA ne réfléchit pas)
-    if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking) return;
+  private async handleClick(e: MouseEvent): Promise<void> {
+    // Sécurité globale (Jeu en cours, IA ne réfléchit pas, Traitement en cours)
+    if (this.appState !== 'IN_GAME' || this.game.isGameOver() || this.isAIThinking || this.isProcessingMove) return;
 
     // Sécurité de Tour : Est-ce à l'humain de jouer ?
     const currentPlayer = this.game.getCurrentPlayer();
-    if (this.players[currentPlayer] !== 'HUMAN') {
-        return; // On ignore le clic, c'est au tour de l'IA
-    }
+    if (this.players[currentPlayer] !== 'HUMAN') return;
 
     // Conversion Pixels -> Case du plateau
     const pos = this.canvasToBoard(e.clientX, e.clientY);
-    if (pos) this.makeMove(pos.row, pos.col);
+    if (pos) await this.makeMove(pos.row, pos.col);
   }
 
   /**
    * Exécute un coup (Humain ou IA).
-   * C'est le point de convergence de toutes les actions de jeu.
+   * ASYNC : Attend la validation du moteur Wasm.
    */
-  private makeMove(row: number, col: number): void {
-    // Calcul précis du temps écoulé pour ce coup
-    const now = performance.now();
-    const deltaSeconds = (now - this.turnStartTime) / 1000;
-    
-    // On met à jour le temps localement pour le passer au snapshot
-    let currentBlackTime = this.blackTimeTotal;
-    let currentWhiteTime = this.whiteTimeTotal;
-    
-    if (this.game.getCurrentPlayer() === Player.BLACK) {
-        currentBlackTime += deltaSeconds;
-    } else {
-        currentWhiteTime += deltaSeconds;
-    }
+  private async makeMove(row: number, col: number): Promise<void> {
+    if (this.isProcessingMove) return;
+    this.isProcessingMove = true;
 
-    // APPEL AU MODÈLE
-    const result = this.game.makeMove(row, col, currentBlackTime, currentWhiteTime);
-    
-    // Si coup invalide (règle violée)
-    if (!result.isValid) {
-      this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
-      return;
-    }
-    
-    // Nettoyage visuel post-coup
-    this.hoverPosition = null;
-    this.suggestionPosition = null;
+    try {
+        // Calcul précis du temps écoulé pour ce coup
+        const now = performance.now();
+        const deltaSeconds = (now - this.turnStartTime) / 1000;
+        
+        let currentBlackTime = this.blackTimeTotal;
+        let currentWhiteTime = this.whiteTimeTotal;
+        
+        if (this.game.getCurrentPlayer() === Player.BLACK) {
+            currentBlackTime += deltaSeconds;
+        } else {
+            currentWhiteTime += deltaSeconds;
+        }
 
-    // Si la partie continue, on passe la main au joueur suivant
-    if (!this.game.isGameOver()) {
-        this.handleTurnStart();
+        // APPEL AU MODÈLE (Async)
+        const result = await this.game.makeMove(row, col, currentBlackTime, currentWhiteTime);
+        
+        // Si coup invalide (règle violée)
+        if (!result.isValid) {
+          this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
+          return;
+        }
+        
+        // Nettoyage visuel post-coup
+        this.hoverPosition = null;
+        this.suggestionPosition = null;
+
+        // Si la partie continue, on passe la main au joueur suivant
+        if (!this.game.isGameOver()) {
+            this.handleTurnStart();
+        }
+    } finally {
+        this.isProcessingMove = false;
     }
   }
 
@@ -403,6 +408,7 @@ class GameController {
   private async initializeAI(): Promise<void> {
     try {
       this.wasmAI = await createWasmAI();
+      this.game.setAI(this.wasmAI); // Inject AI into Game Rule Engine
       console.log('WebAssembly AI initialized successfully');
     } catch (error) {
       console.error('Failed to initialize WebAssembly AI:', error);
@@ -482,10 +488,10 @@ class GameController {
       const startTime = performance.now();
       
       // Appel API
-      // On passe un validateur pour que le LLM puisse vérifier ses propres coups
+      // On passe un validateur ASYNC pour que le LLM puisse vérifier ses propres coups
       const result = await this.llmAI.getBestMove(
         this.game.getGameState(),
-        (row, col) => this.game.validateMove(row, col)
+        async (row, col) => await this.game.validateMove(row, col)
       );
 
       if (this.game.getGameId() !== turnGameId) return;
@@ -660,47 +666,54 @@ class GameController {
    * le mode "Classé" est désactivé immédiatement pour éviter la triche (Retry scumming).
    * La partie continue en mode "Sandbox".
    */
-  private handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): void {
-    const current = this.game.getCurrentMoveIndex();
-    const total = this.game.getTotalMoves();
-    
-    // Si on recule, on passe en mode Sandbox (Non classé)
-    if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
-        if (this.isRanked && this.currentMode === GameMode.PLAYER_VS_AI) {
-            this.isRanked = false;
-            this.ui.setRankedStatus(false);
-            this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
-        }
-    }
+  private async handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): Promise<void> {
+    if (this.isProcessingMove) return;
+    this.isProcessingMove = true;
 
-    switch (action) {
-        case 'START': this.game.jumpTo(0); break;
-        case 'PREV': if (current > 0) this.game.jumpTo(current - 1); break;
-        case 'NEXT': if (current < total) this.game.jumpTo(current + 1); break;
-        case 'END': this.game.jumpTo(total); break;
-    }
-    
-    // Restauration des timers historiques
-    const newCurrent = this.game.getCurrentMoveIndex();
-    if (newCurrent === 0) {
-        this.blackTimeTotal = 0;
-        this.whiteTimeTotal = 0;
-    } else {
-        const history = this.game.getMoveHistory();
-        const lastMove = history[newCurrent - 1];
-        if (lastMove) {
-            this.blackTimeTotal = lastMove.blackTime;
-            this.whiteTimeTotal = lastMove.whiteTime;
+    try {
+        const current = this.game.getCurrentMoveIndex();
+        const total = this.game.getTotalMoves();
+        
+        // Si on recule, on passe en mode Sandbox (Non classé)
+        if ((action === 'START' && current > 0) || (action === 'PREV' && current > 0)) {
+            if (this.isRanked && this.currentMode === GameMode.PLAYER_VS_AI) {
+                this.isRanked = false;
+                this.ui.setRankedStatus(false);
+                this.ui.showMessage("Mode Replay : Classement désactivé.", 'warning');
+            }
         }
-    }
-    
-    this.turnStartTime = performance.now(); // Reset delta
 
-    if (!this.game.isGameOver()) {
-        this.showView('IN_GAME');
+        switch (action) {
+            case 'START': await this.game.jumpTo(0); break;
+            case 'PREV': if (current > 0) await this.game.jumpTo(current - 1); break;
+            case 'NEXT': if (current < total) await this.game.jumpTo(current + 1); break;
+            case 'END': await this.game.jumpTo(total); break;
+        }
+        
+        // Restauration des timers historiques
+        const newCurrent = this.game.getCurrentMoveIndex();
+        if (newCurrent === 0) {
+            this.blackTimeTotal = 0;
+            this.whiteTimeTotal = 0;
+        } else {
+            const history = this.game.getMoveHistory();
+            const lastMove = history[newCurrent - 1];
+            if (lastMove) {
+                this.blackTimeTotal = lastMove.blackTime;
+                this.whiteTimeTotal = lastMove.whiteTime;
+            }
+        }
+        
+        this.turnStartTime = performance.now(); // Reset delta
+
+        if (!this.game.isGameOver()) {
+            this.showView('IN_GAME');
+        }
+        
+        this.redraw();
+    } finally {
+        this.isProcessingMove = false;
     }
-    
-    this.redraw();
   }
 
   // ==================================================================================
