@@ -38,21 +38,21 @@ async function loadWasmModule() {
     const GomokuAIModule = self.GomokuAI;
 
     if (!GomokuAIModule) {
-        throw new Error('GomokuAI module not found in worker');
+        throw new Error('Module GomokuAI pas trouvé après importScripts');
     }
 
     wasmModule = await GomokuAIModule();
     if (!wasmModule) {
-        throw new Error('Failed to instantiate WebAssembly module in worker');
+        throw new Error('Échec de l\'instanciation du module WebAssembly dans le worker');
     }
 }
 
 // Initialisation au démarrage du Worker
 const wasmReadyPromise = loadWasmModule().then(() => {
-    console.log('WebAssembly AI module loaded successfully in worker');
+    console.log('Module IA WebAssembly chargé avec succès dans le worker');
     self.postMessage({ type: 'worker_ready' });
 }).catch(error => {
-    console.error('Error loading Wasm in worker:', error);
+    console.error('Erreur lors du chargement du Wasm dans le worker :', error);
     self.postMessage({ type: 'worker_error', payload: error.message });
 });
 
@@ -64,7 +64,7 @@ self.onmessage = async (event) => {
     await wasmReadyPromise;
 
     if (!wasmModule) {
-        self.postMessage({ type: 'error', payload: 'Wasm module not initialized.' });
+        self.postMessage({ type: 'error', payload: 'Module WebAssembly non initialisé.' });
         return;
     }
 
@@ -101,7 +101,7 @@ self.onmessage = async (event) => {
                 const flatBoard = payload?.flatBoard;
 
                 if (!flatBoard || !Array.isArray(flatBoard)) {
-                    self.postMessage({ type: 'error', payload: 'Invalid or missing flatBoard in getBestMove payload' });
+                    self.postMessage({ type: 'error', payload: "flatBoard invalide ou manquant dans le payload de getBestMove" });
                     break;
                 }
 
@@ -194,7 +194,7 @@ self.onmessage = async (event) => {
                 break;
         }
     } catch (error) {
-        console.error(`Error in worker processing message type ${type}:`, error);
+        console.error(`Erreur lors du traitement du type de message ${type} dans le worker :`, error);
         self.postMessage({ type: 'error', payload: (error as Error).message });
     }
 };

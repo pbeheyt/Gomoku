@@ -19,7 +19,7 @@ export class LlmAI {
 
   constructor(apiKey: string, model: string) {
     if (!apiKey) {
-      throw new Error("API key is required for LlmAI");
+      throw new Error("Clé API LLM non fournie.");
     }
     this.apiKey = apiKey;
     this.model = model;
@@ -88,7 +88,7 @@ export class LlmAI {
           if (!validationError && validator) {
             const result = await validator(move.row, move.col);
             if (!result.isValid) {
-              validationError = result.reason || "Move violates game rules";
+              validationError = result.reason || "Le coup viole les règles du jeu";
             }
           }
           
@@ -102,7 +102,7 @@ export class LlmAI {
 
           // FEEDBACK LOOP : L'IA a proposé un coup invalide.
           // On ne plante pas. On injecte l'erreur dans la conversation et on boucle.
-          console.warn(`LLM suggested invalid move ${JSON.stringify(move)}: ${validationError}`);
+          console.warn(`LLM a proposé un coup invalide ${JSON.stringify(move)}: ${validationError}`);
           
           const occupiedList = this.getOccupiedPositions(gameState.board);
           

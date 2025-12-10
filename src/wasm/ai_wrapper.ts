@@ -39,7 +39,7 @@ export class WasmAI {
                 const { type, payload } = event.data;
                 switch (type) {
                     case 'worker_ready':
-                        console.log('AI Worker is ready.');
+                        console.log('IA non prête dans le worker');
                         this.resolveWorkerReady();
                         break;
 
@@ -64,12 +64,12 @@ export class WasmAI {
                         break;
 
                     case 'worker_error':
-                        console.error('Critical AI Worker Error:', payload);
+                        console.error('Erreur critique du worker IA :', payload);
                         this.rejectWorkerReady(new Error(payload));
                         break;
 
                     case 'error':
-                        console.error('Runtime AI Worker Error:', payload);
+                        console.error('Erreur d\'exécution du worker IA :', payload);
                         // Rejeter toutes les requêtes en attente
                         this.pendingQueries.forEach((query) => {
                             query.reject(new Error(payload));
@@ -80,11 +80,11 @@ export class WasmAI {
             };
 
             this.worker.onerror = (error) => {
-                console.error('An error occurred in the AI Worker:', error);
+                console.error('Une erreur est survenue dans le worker IA :', error);
             };
 
         } catch (error) {
-            console.error('Failed to initialize AI Worker:', error);
+            console.error('Échec de l\'initialisation du worker IA :', error);
         }
     }
 

@@ -48,7 +48,7 @@ export class GomokuGame {
    * ASYNC : Applique un coup après validation par le Wasm.
    */
   async makeMove(row: number, col: number, blackTime: number = 0, whiteTime: number = 0): Promise<ValidationResult> {
-    if (!this.wasmAI) return { isValid: false, reason: 'Game Engine not ready' };
+    if (!this.wasmAI) return { isValid: false, reason: 'IA non prête' };
 
     // 1. Branchement d'Historique
     if (this.currentMoveIndex < this.moveHistory.length) {

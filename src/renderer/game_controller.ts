@@ -409,9 +409,9 @@ class GameController {
     try {
       this.wasmAI = await createWasmAI();
       this.game.setAI(this.wasmAI); // Inject AI into Game Rule Engine
-      console.log('WebAssembly AI initialized successfully');
+      console.log('WebAssembly AI initialisée avec succès.');
     } catch (error) {
-      console.error('Failed to initialize WebAssembly AI:', error);
+      console.error('Erreur lors de l\'initialisation de l\'IA WebAssembly :', error);
       this.ui.showMessage("Erreur critique: IA Native (WASM) indisponible.", 'error');
     }
   }
@@ -482,7 +482,7 @@ class GameController {
     try {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       const model = localStorage.getItem(LOCAL_STORAGE_MODEL);
-      if (!apiKey || !model) throw new Error("API Key or Model not configured.");
+      if (!apiKey || !model) throw new Error("Clé API ou Modèle LLM non configuré.");
 
       this.llmAI = new LlmAI(apiKey, model);
       const startTime = performance.now();
@@ -813,11 +813,11 @@ class GameController {
   private async loadAndPopulateModels(): Promise<void> {
     try {
       const response = await fetch('./openrouter_models.json');
-      if (!response.ok) throw new Error('Failed to load models');
+      if (!response.ok) throw new Error('Erreur de chargement des modèles LLM.');
       const models = await response.json();
       this.ui.populateModels(models);
     } catch (error) {
-      console.error('Error loading models:', error);
+      console.error('Erreur lors du chargement des modèles LLM :', error);
     }
   }
 
@@ -891,6 +891,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameController = new GameController('boardContainer');
     window.gameController = gameController;
   } catch (error) {
-    console.error('Failed to initialize game:', error);
+    console.error('Échec de l\'initialisation du jeu :', error);
   }
 });

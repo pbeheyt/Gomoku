@@ -41,7 +41,7 @@ export class LeaderboardManager {
       
       return JSON.parse(raw) as LeaderboardEntry[];
     } catch (e) {
-      console.error("Failed to parse leaderboard", e);
+      console.error("Échec de l'analyse du classement", e);
       return []; // En cas de corruption, on renvoie une liste vide (Fail Safe)
     }
   }

@@ -56,7 +56,7 @@ export class SoundManager {
     
     // Gestion silencieuse des erreurs (ex: Autoplay policy du navigateur)
     sound.play().catch(e => {
-      console.warn(`Audio playback failed (${key}):`, e);
+      console.warn(`Échec de la lecture audio (${key}):`, e);
     });
   }
 
