@@ -65,14 +65,14 @@ public:
 
     // --- Vérifications de Base ---
     /**
-     * Vérifie si une position est dans les limites du plateau.
+     * Checks if coordinates are within board bounds (0-18).
      */
-    static bool isValidPosition(int row, int col);
+    static bool isOnBoard(int row, int col);
     /**
-     * Vérifie si un mouvement est physiquement possible (dans les limites et cellule vide).
-     * Ne vérifie PAS les règles complexes comme Suicide ou Double-Trois.
+     * Checks if a cell is physically available (on board AND empty).
+     * Does NOT check complex rules like Suicide or Double-Three.
      */
-    static bool isValidMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
+    static bool isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
     /**
      * Obtient le joueur à une position donnée.
      */

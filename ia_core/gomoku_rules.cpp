@@ -5,12 +5,12 @@
 #include "gomoku_rules.h"
 #include <algorithm>
 
-bool GomokuRules::isValidPosition(int row, int col) {
+bool GomokuRules::isOnBoard(int row, int col) {
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
-bool GomokuRules::isValidMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
-    return isValidPosition(row, col) && board[row][col] == NONE;
+bool GomokuRules::isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
+    return isOnBoard(row, col) && board[row][col] == NONE;
 }
 
 int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]) {
@@ -40,7 +40,7 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 
 MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
     // 1. Basic Checks
-    if (!isValidPosition(row, col)) return INVALID_BOUNDS;
+    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
     if (board[row][col] != NONE) return INVALID_OCCUPIED;
 
     // 2. Simulate Move
@@ -68,7 +68,7 @@ MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row,
 }
 
 Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
-    if (!isValidPosition(row, col)) return NONE;
+    if (!isOnBoard(row, col)) return NONE;
     return static_cast<Player>(board[row][col]);
 }
 
@@ -84,7 +84,7 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
         int r2 = row + 2 * dir.r; int c2 = col + 2 * dir.c;
         int r3 = row + 3 * dir.r; int c3 = col + 3 * dir.c;
 
-        if (!isValidPosition(r1, c1) || !isValidPosition(r2, c2) || !isValidPosition(r3, c3)) continue;
+        if (!isOnBoard(r1, c1) || !isOnBoard(r2, c2) || !isOnBoard(r3, c3)) continue;
 
         // Motif : [Joueur] [Adversaire] [Adversaire] [Joueur]
         if (getPlayerAt(board, r1, c1) == opponent &&
@@ -139,7 +139,7 @@ std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE],
         int r = row + i * dir.r;
         int c = col + i * dir.c;
 
-        if (!isValidPosition(r, c)) {
+        if (!isOnBoard(r, c)) {
             line += 'O'; // Mur/Adversaire
         } else {
             Player p = getPlayerAt(board, r, c);
@@ -218,7 +218,7 @@ bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZ
             // Vérifier validité de base + Suicide
             // Note : Nous ne vérifions pas Double-Trois pour le DÉFENSEUR habituellement,
             // mais les règles strictes pourraient. Restons sur validité de base + suicide pour l'instant.
-            if (isValidMove(board, captureMove.r, captureMove.c) && 
+            if (isEmptyCell(board, captureMove.r, captureMove.c) && 
                 !isSuicideMove(board, captureMove.r, captureMove.c, opponent)) {
                 return true;
             }
