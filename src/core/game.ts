@@ -121,7 +121,8 @@ export class GomokuGame {
 
     // STRATÉGIE : Délégation totale au C++
     // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).
-    // Le plateau C++ est supposé être à jour depuis le dernier coup validé.
+    // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses.
+    await this.wasmAI.setBoard(this.board.getBoardState().flat());
 
     // Vérification Règles via Wasm
     const suicide = await this.wasmAI.isSuicide(row, col, player);

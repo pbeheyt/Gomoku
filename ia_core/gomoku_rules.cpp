@@ -36,7 +36,7 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
         if (getPlayerAt(board, r1, c1) == opponent &&
             getPlayerAt(board, r2, c2) == opponent &&
             getPlayerAt(board, r3, c3) == player) {
-            
+
             if (capturedStonesOut != nullptr) {
                 capturedStonesOut[captureCount][0] = r1;
                 capturedStonesOut[captureCount][1] = c1;

@@ -41,7 +41,12 @@ async function loadWasmModule() {
         throw new Error('Module GomokuAI pas trouvé après importScripts');
     }
 
-    wasmModule = await GomokuAIModule();
+    // Injection des canaux de sortie pour les logs C++
+    wasmModule = await GomokuAIModule({
+        print: (text: string) => console.log("%c[C++ LOG]", "color: cyan; font-weight: bold;", text),
+        printErr: (text: string) => console.error("%c[C++ ERR]", "color: red; font-weight: bold;", text)
+    });
+
     if (!wasmModule) {
         throw new Error('Échec de l\'instanciation du module WebAssembly dans le worker');
     }
@@ -156,6 +161,7 @@ self.onmessage = async (event) => {
                 break;
 
             case 'rules_checkCaptures': {
+
                 // Appel au C++ : Récupération du pointeur vers le buffer statique
                 const ptr = wasmModule._rules_checkCaptures(payload.row, payload.col, payload.player);
                 
