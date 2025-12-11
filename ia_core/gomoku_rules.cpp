@@ -30,10 +30,7 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
         int r2 = row + 2 * dir.r; int c2 = col + 2 * dir.c;
         int r3 = row + 3 * dir.r; int c3 = col + 3 * dir.c;
 
-        if (!isValidPosition(r3, c3)) continue; // Implique que r1, r2 sont valides ou vérification hors limites non nécessaire si r3 est valide ? Non, besoin d'être prudent.
-        // En fait, si r3 est valide, r1/r2 pourraient NE PAS être valides si enroulement ? Non, grille plate.
-        // Attendre, vérification simple :
-        if (!isValidPosition(r1, c1) || !isValidPosition(r2, c2)) continue;
+        if (!isValidPosition(r1, c1) || !isValidPosition(r2, c2) || !isValidPosition(r3, c3)) continue;
 
         // Motif : [Joueur] [Adversaire] [Adversaire] [Joueur]
         if (getPlayerAt(board, r1, c1) == opponent &&

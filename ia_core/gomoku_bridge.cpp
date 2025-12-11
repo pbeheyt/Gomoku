@@ -116,9 +116,10 @@ int rules_checkWin(int row, int col, int player) {
     return result;
 }
 
-// Static buffer to avoid malloc/free in JavaScript
-// Max 8 directions * 2 stones * 2 coordinates (row, col) = 32 ints
-static int BRIDGE_CAPTURE_BUFFER[32];
+// Buffer statique pour éviter les allocations dynamiques (malloc/free) en JS.
+// Taille 64 : Suffisant pour couvrir le pire cas théorique (8 directions * 2 pierres * 2 coords + 1 compteur = 33 ints).
+// Marge de sécurité confortable.
+static int BRIDGE_CAPTURE_BUFFER[64];
 
 /**
  * Returns a pointer to the static capture buffer.

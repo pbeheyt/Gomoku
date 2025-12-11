@@ -156,25 +156,27 @@ self.onmessage = async (event) => {
                 break;
 
             case 'rules_checkCaptures': {
-                // Appelle la fonction C++ qui retourne un pointeur vers le buffer statique
+                // Appel au C++ : Récupération du pointeur vers le buffer statique
                 const ptr = wasmModule._rules_checkCaptures(payload.row, payload.col, payload.player);
                 
-                // Lire depuis HEAP32
-                // L'index 0 contient le nombre
+                // Conversion Pointeur (octets) -> Index (int32)
                 const startIdx = ptr >> 2;
-                const count = wasmModule.HEAP32[startIdx];
+                
+                // Lecture du compteur de pierres (Index 0)
+                const stoneCount = wasmModule.HEAP32[startIdx];
                 
                 const captures = [];
                 
-                // Les données commencent à l'index 1. Chaque pierre est 2 entiers (ligne, col).
-                // Une capture est une paire, donc on boucle par 2 pierres (4 entiers).
-                for (let i = 0; i < count; i += 2) {
-                    const base = startIdx + 1 + (i * 2);
-                    
-                    const r1 = wasmModule.HEAP32[base];
-                    const c1 = wasmModule.HEAP32[base + 1];
-                    const r2 = wasmModule.HEAP32[base + 2];
-                    const c2 = wasmModule.HEAP32[base + 3];
+                // Curseur de lecture : Démarre juste après le compteur
+                let readCursor = startIdx + 1;
+                
+                // Boucle par paire de pierres (Une capture = 2 pierres)
+                for (let i = 0; i < stoneCount; i += 2) {
+                    // Lecture séquentielle des coordonnées (Ligne, Colonne) pour la paire
+                    const r1 = wasmModule.HEAP32[readCursor++];
+                    const c1 = wasmModule.HEAP32[readCursor++];
+                    const r2 = wasmModule.HEAP32[readCursor++];
+                    const c2 = wasmModule.HEAP32[readCursor++];
                     
                     captures.push({
                         capturedPositions: [{row: r1, col: c1}, {row: r2, col: c2}],
