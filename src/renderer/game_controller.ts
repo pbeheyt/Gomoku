@@ -590,6 +590,7 @@ class GameController {
    */
   private resetGame(isNewGame: boolean, config: GameConfig = {}): void {
     this.game.reset();
+    this.showView('IN_GAME');
     
     // Reset états visuels
     this.hoverPosition = null;
