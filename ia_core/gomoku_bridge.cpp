@@ -1,30 +1,42 @@
 /**
  * Gomoku Bridge
- * The Diplomat: Exposes C++ logic to JavaScript via WebAssembly.
- * Contains NO game logic, only interface code.
+ * Expose la logique C++ vers JavaScript via WebAssembly.
+ * Ne contient AUCUNE logique de jeu, uniquement du code d'interface.
  */
 
 #include "gomoku_ai.h"
 #include "gomoku_rules.h"
 
-// Static buffer for Board Input (19x19) to avoid malloc/free in JS
+// =================================================================================
+//                            GESTION MÉMOIRE (BUFFERS)
+// =================================================================================
+
+// Buffer statique pour le Plateau (19x19)
+// Permet d'écrire l'état du jeu depuis JS directement dans la mémoire Wasm
+// sans faire d'allocation dynamique (malloc/free) à chaque frame.
 static int BRIDGE_BOARD_BUFFER[BOARD_SIZE * BOARD_SIZE];
+
+// Buffer statique pour les Captures
+// Taille 64 : Suffisant pour le pire cas théorique (8 directions * 2 pierres * 2 coords + header).
+static int BRIDGE_CAPTURE_BUFFER[64];
 
 extern "C" {
 
-// Helper to get the address of the static board buffer
+// Helper pour obtenir l'adresse du buffer plateau
 int* get_board_buffer() {
     return BRIDGE_BOARD_BUFFER;
 }
 
-// --- AI LIFECYCLE ---
+// =================================================================================
+//                            CYCLE DE VIE DE L'IA
+// =================================================================================
 
 void initAI(int aiPlayer) {
     GomokuAI* ai = getGlobalAI();
     if (ai != nullptr) {
         delete ai;
     }
-    // Constructor sets the global instance automatically
+    // Le constructeur définit l'instance globale automatiquement
     new GomokuAI(aiPlayer);
 }
 
@@ -34,6 +46,18 @@ void setBoard(const int* flatBoard) {
         ai->setBoard(flatBoard);
     }
 }
+
+void cleanupAI() {
+    GomokuAI* ai = getGlobalAI();
+    if (ai != nullptr) {
+        delete ai;
+        // Le pointeur global est nettoyé par la logique appelante ou le prochain init
+    }
+}
+
+// =================================================================================
+//                            ACTIONS DE JEU (IA)
+// =================================================================================
 
 void makeMove(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
@@ -49,29 +73,24 @@ int getBestMove() {
     int bestRow, bestCol;
     ai->getBestMove(bestRow, bestCol);
     
+    // Encodage simple : Row * 100 + Col
     if (bestRow >= 0 && bestCol >= 0) {
         return bestRow * 100 + bestCol;
     }
     return -1;
 }
 
-void cleanupAI() {
-    GomokuAI* ai = getGlobalAI();
-    if (ai != nullptr) {
-        delete ai;
-        // Global pointer is cleared by the caller logic or re-init
-    }
-}
+// =================================================================================
+//                            MOTEUR DE RÈGLES (EXPORTS)
+// =================================================================================
 
-// --- RULES ENGINE EXPORTS ---
-
-// Master Validation Function exposed to JS
-// Returns: 0=VALID, 1=BOUNDS, 2=OCCUPIED, 3=SUICIDE, 4=DOUBLE_THREE
+// Fonction de Validation Maître exposée au JS
+// Retourne : 0=VALID, 1=BOUNDS, 2=OCCUPIED, 3=SUICIDE, 4=DOUBLE_THREE
 int rules_validateMove(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
-    if (ai == nullptr) return 1; // Error
+    if (ai == nullptr) return 1; // Erreur par défaut
 
-    // We need a writable board for simulation
+    // On a besoin d'un pointeur non-const pour la simulation
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
     
     return (int)GomokuRules::validateMove(board, row, col, player);
@@ -81,46 +100,49 @@ int rules_checkWin(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
     if (ai == nullptr) return 0;
 
-    // Simulate move locally
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
-    board[row][col] = player;
 
+    // 1. Simulation complète (Pose + Captures) via applyMove
+    // C'est plus robuste que de simplement poser la pierre, car cela reflète
+    // l'état réel du plateau après le coup (pierres adverses retirées).
+    int captured[16][2];
+    int count = GomokuRules::applyMove(board, row, col, player, captured);
+
+    // 2. Vérification de la victoire
     bool result = GomokuRules::checkWin(board, row, col, player);
 
-    // Revert
-    board[row][col] = 0; // NONE
+    // 3. Annulation complète (Restauration + Retrait) via undoMove
+    GomokuRules::undoMove(board, row, col, player, captured, count);
+    
     return result;
 }
 
-// Buffer statique pour éviter les allocations dynamiques (malloc/free) en JS.
-// Taille 64 : Suffisant pour couvrir le pire cas théorique (8 directions * 2 pierres * 2 coords + 1 compteur = 33 ints).
-// Marge de sécurité confortable.
-static int BRIDGE_CAPTURE_BUFFER[64];
-
 /**
- * Returns a pointer to the static capture buffer.
- * The first element of the buffer will contain the NUMBER of stones captured.
- * The following elements are the coordinates: [r1, c1, r2, c2, ...]
+ * Retourne un pointeur vers le buffer de captures statique.
+ * Structure du buffer :
+ * [0] : Nombre de pierres capturées (N)
+ * [1..N] : Coordonnées [r1, c1, r2, c2, ...]
  */
 int* rules_checkCaptures(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
-    // Default: 0 captures
+    // Par défaut : 0 captures
     BRIDGE_CAPTURE_BUFFER[0] = 0; 
     
     if (ai == nullptr) return BRIDGE_CAPTURE_BUFFER;
 
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
 
+    // Simulation physique (Pose + Captures)
     int tempCaptures[16][2];
     int count = GomokuRules::applyMove(board, row, col, player, tempCaptures);
     
-    // Revert immediately
+    // Annulation physique immédiate
     GomokuRules::undoMove(board, row, col, player, tempCaptures, count);
     
-    // Write count at index 0
+    // Écriture du résultat dans le buffer statique
     BRIDGE_CAPTURE_BUFFER[0] = count;
 
-    // Flatten results into the static buffer starting at index 1
+    // Aplatissement des coordonnées
     for (int i = 0; i < count; i++) {
         BRIDGE_CAPTURE_BUFFER[1 + (i * 2)] = tempCaptures[i][0];     // Row
         BRIDGE_CAPTURE_BUFFER[1 + (i * 2) + 1] = tempCaptures[i][1]; // Col

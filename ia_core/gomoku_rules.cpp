@@ -5,6 +5,45 @@
 #include "gomoku_rules.h"
 #include <algorithm>
 
+// =================================================================================
+//                              1. VALIDATION MAÎTRE
+// =================================================================================
+
+MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
+    // 1. Contrôles basiques
+    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
+    if (board[row][col] != NONE) return INVALID_OCCUPIED;
+
+    // 2. Simulation du coup (Physique)
+    // On place la pierre et on retire les captures potentielles pour analyser l'état résultant.
+    int captured[16][2];
+    int numCaptured = applyMove(board, row, col, player, captured);
+
+    // 3. Vérification Suicide
+    // Se fait sur le plateau "nettoyé" après captures.
+    bool suicide = isSuicideMove(board, row, col, player);
+
+    // 4. Vérification Double-Trois
+    // La règle précise : Le Double-Trois est interdit SAUF s'il provoque une capture.
+    bool doubleThree = false;
+    if (numCaptured == 0 && !suicide) {
+        doubleThree = checkDoubleThree(board, row, col, player);
+    }
+
+    // 5. Restauration de l'état (Rollback)
+    undoMove(board, row, col, player, captured, numCaptured);
+
+    // 6. Verdict final
+    if (suicide) return INVALID_SUICIDE;
+    if (doubleThree) return INVALID_DOUBLE_THREE;
+
+    return VALID;
+}
+
+// =================================================================================
+//                              2. UTILITAIRES DE BASE
+// =================================================================================
+
 bool GomokuRules::isOnBoard(int row, int col) {
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
@@ -13,14 +52,23 @@ bool GomokuRules::isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
     return isOnBoard(row, col) && board[row][col] == NONE;
 }
 
+Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
+    if (!isOnBoard(row, col)) return NONE;
+    return static_cast<Player>(board[row][col]);
+}
+
+// =================================================================================
+//                              3. MÉCANIQUE DE JEU
+// =================================================================================
+
 int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]) {
-    // 1. Place stone
+    // 1. Pose de la pierre
     board[row][col] = player;
 
-    // 2. Check captures
+    // 2. Calcul des captures
     int numCaptured = checkCaptures(board, row, col, player, capturedStonesOut);
     
-    // 3. Remove captured stones
+    // 3. Retrait des pierres capturées
     for (int i = 0; i < numCaptured; i++) {
         board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = NONE;
     }
@@ -30,46 +78,12 @@ int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount) {
     int opponent = (player == BLACK) ? WHITE : BLACK;
 
-    // 1. Restore captured stones
+    // 1. Restauration des pierres capturées (remises à l'adversaire)
     for (int i = 0; i < captureCount; i++) {
         board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = opponent;
     }
-    // 2. Remove played stone
+    // 2. Retrait de la pierre jouée
     board[row][col] = NONE;
-}
-
-MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
-    // 1. Basic Checks
-    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
-    if (board[row][col] != NONE) return INVALID_OCCUPIED;
-
-    // 2. Simulate Move
-    int captured[16][2];
-    int numCaptured = applyMove(board, row, col, player, captured);
-
-    // 3. Check Suicide (on cleaned board)
-    bool suicide = isSuicideMove(board, row, col, player);
-
-    // 4. Check Double-Three (Only if NO capture)
-    // The rule says: Double-three is forbidden UNLESS it captures.
-    bool doubleThree = false;
-    if (numCaptured == 0 && !suicide) {
-        doubleThree = checkDoubleThree(board, row, col, player);
-    }
-
-    // 5. Rollback
-    undoMove(board, row, col, player, captured, numCaptured);
-
-    // 6. Verdict
-    if (suicide) return INVALID_SUICIDE;
-    if (doubleThree) return INVALID_DOUBLE_THREE;
-
-    return VALID;
-}
-
-Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
-    if (!isOnBoard(row, col)) return NONE;
-    return static_cast<Player>(board[row][col]);
 }
 
 int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStonesOut[][2]) {
@@ -80,13 +94,14 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
     for (int i = 0; i < 8; i++) {
         Direction dir = CAPTURE_DIRECTIONS[i];
         
+        // Coordonnées des 3 pierres suivantes dans la direction
         int r1 = row + dir.r;     int c1 = col + dir.c;
         int r2 = row + 2 * dir.r; int c2 = col + 2 * dir.c;
         int r3 = row + 3 * dir.r; int c3 = col + 3 * dir.c;
 
         if (!isOnBoard(r1, c1) || !isOnBoard(r2, c2) || !isOnBoard(r3, c3)) continue;
 
-        // Motif : [Joueur] [Adversaire] [Adversaire] [Joueur]
+        // Motif de capture : [NOUS] [EUX] [EUX] [NOUS]
         if (getPlayerAt(board, r1, c1) == opponent &&
             getPlayerAt(board, r2, c2) == opponent &&
             getPlayerAt(board, r3, c3) == player) {
@@ -102,6 +117,10 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
     }
     return captureCount;
 }
+
+// =================================================================================
+//                              4. RÈGLES COMPLEXES
+// =================================================================================
 
 bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
     Player player = static_cast<Player>(playerInt);
@@ -129,48 +148,9 @@ bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row
     return false;
 }
 
-// --- Logique Double Trois ---
-
-std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
-    Player player = static_cast<Player>(playerInt);
-    std::string line = "";
-    // Scanner -5 à +5
-    for (int i = -5; i <= 5; i++) {
-        int r = row + i * dir.r;
-        int c = col + i * dir.c;
-
-        if (!isOnBoard(r, c)) {
-            line += 'O'; // Mur/Adversaire
-        } else {
-            Player p = getPlayerAt(board, r, c);
-            if (p == player) line += 'P';
-            else if (p == NONE) line += '_';
-            else line += 'O'; // Adversaire
-        }
-    }
-    return line;
-}
-
-bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
-    std::string line = getLinePattern(board, row, col, dir, player);
-    // Motifs de game.ts
-    const char* patterns[] = {"_PPP_", "_P_PP_", "_PP_P_"};
-    
-    for (int i = 0; i < 3; i++) {
-        if (line.find(patterns[i]) != std::string::npos) return true;
-    }
-    return false;
-}
-
 bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
-    // Note : Dans une vraie simulation, nous devrions placer temporairement la pierre sur le plateau
-    // avant d'appeler ceci, OU getLinePattern doit assumer que la pierre est là.
-    // Ici, getLinePattern lit depuis le plateau.
-    // SI la pierre n'est PAS encore sur le plateau, getLinePattern verra '_' au centre.
-    // Donc nous devons compter sur l'appelant pour placer la pierre, OU patcher getLinePattern.
-    // DÉCISION : Pour correspondre à la structure de game.ts (Simuler -> Vérifier -> Annuler),
-    // nous assumons que la pierre EST DÉJÀ PLACÉE sur le pointeur de plateau passé.
-    
+    // Note : On assume ici que la pierre est déjà virtuellement sur le plateau
+    // car 'isFreeThree' analyse les motifs existants.
     int freeThreeCount = 0;
     for (int i = 0; i < 4; i++) {
         if (isFreeThree(board, row, col, AXES[i], player)) {
@@ -180,52 +160,46 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
     return freeThreeCount >= 2;
 }
 
-// --- Logique de Victoire ---
+// --- Helpers pour Double-Trois ---
 
-bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    if (line.size() < 2) return false;
+std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
+    Player player = static_cast<Player>(playerInt);
+    std::string line = "";
+    // Scanner une fenêtre de -5 à +5 autour du point
+    for (int i = -5; i <= 5; i++) {
+        int r = row + i * dir.r;
+        int c = col + i * dir.c;
+
+        if (!isOnBoard(r, c)) {
+            line += 'O'; // Mur/Adversaire (Bloquant)
+        } else {
+            Player p = getPlayerAt(board, r, c);
+            if (p == player) line += 'P';
+            else if (p == NONE) line += '_';
+            else line += 'O'; // Adversaire (Bloquant)
+        }
+    }
+    return line;
+}
+
+bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
+    std::string line = getLinePattern(board, row, col, dir, player);
     
-    Player opponent = static_cast<Player>(opponentInt);
-
-    // Direction de la ligne
-    Direction dir = { line[1].r - line[0].r, line[1].c - line[0].c };
-
-    // Scanner les paires
-    for (size_t i = 0; i < line.size() - 1; i++) {
-        Point s1 = line[i];
-        Point s2 = line[i+1];
-
-        // Flancs
-        Point before = { s1.r - dir.r, s1.c - dir.c };
-        Point after  = { s2.r + dir.r, s2.c + dir.c };
-
-        Player pBefore = getPlayerAt(board, before.r, before.c);
-        Player pAfter  = getPlayerAt(board, after.r, after.c);
-
-        Point captureMove = {-1, -1};
-
-        // Scénario 1 : O A A _
-        if (pBefore == opponent && pAfter == NONE) {
-            captureMove = after;
-        }
-        // Scénario 2 : _ A A O
-        else if (pBefore == NONE && pAfter == opponent) {
-            captureMove = before;
-        }
-
-        if (captureMove.r != -1) {
-            // L'adversaire peut-il jouer là ?
-            // Vérifier validité de base + Suicide
-            // Note : Nous ne vérifions pas Double-Trois pour le DÉFENSEUR habituellement,
-            // mais les règles strictes pourraient. Restons sur validité de base + suicide pour l'instant.
-            if (isEmptyCell(board, captureMove.r, captureMove.c) && 
-                !isSuicideMove(board, captureMove.r, captureMove.c, opponent)) {
-                return true;
-            }
-        }
+    // Motifs de Free-Three (Trois libres)
+    // _PPP_  : Classique
+    // _P_PP_ : Troué 1
+    // _PP_P_ : Troué 2
+    const char* patterns[] = {"_PPP_", "_P_PP_", "_PP_P_"};
+    
+    for (int i = 0; i < 3; i++) {
+        if (line.find(patterns[i]) != std::string::npos) return true;
     }
     return false;
 }
+
+// =================================================================================
+//                              5. CONDITIONS DE VICTOIRE
+// =================================================================================
 
 bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
     Player player = static_cast<Player>(playerInt);
@@ -238,7 +212,7 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
         
         int count = 1;
 
-        // Direction positive
+        // Scanner direction positive
         int r = row + dir.r;
         int c = col + dir.c;
         while (getPlayerAt(board, r, c) == player) {
@@ -247,7 +221,7 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
             r += dir.r; c += dir.c;
         }
 
-        // Direction négative (insérer au début pour garder l'ordre)
+        // Scanner direction négative (insérer au début)
         r = row - dir.r;
         c = col - dir.c;
         while (getPlayerAt(board, r, c) == player) {
@@ -257,8 +231,54 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
         }
 
         if (count >= 5) {
+            // Si 5 alignés, vérifier si c'est cassable par une capture adverse
             if (!isLineBreakableByCapture(board, currentLine, opponent)) {
                 return true;
+            }
+        }
+    }
+    return false;
+}
+
+// --- Helpers pour Victoire ---
+
+bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
+    if (line.size() < 2) return false;
+    
+    Player opponent = static_cast<Player>(opponentInt);
+
+    // Déduire la direction de la ligne
+    Direction dir = { line[1].r - line[0].r, line[1].c - line[0].c };
+
+    // Scanner chaque paire de pierres dans la ligne
+    for (size_t i = 0; i < line.size() - 1; i++) {
+        Point s1 = line[i];
+        Point s2 = line[i+1];
+
+        // Positions flanquantes
+        Point before = { s1.r - dir.r, s1.c - dir.c };
+        Point after  = { s2.r + dir.r, s2.c + dir.c };
+
+        Player pBefore = getPlayerAt(board, before.r, before.c);
+        Player pAfter  = getPlayerAt(board, after.r, after.c);
+
+        Point captureMove = {-1, -1};
+
+        // Scénario 1 : O A A _ (Adversaire, Ami, Ami, Vide)
+        if (pBefore == opponent && pAfter == NONE) {
+            captureMove = after;
+        }
+        // Scénario 2 : _ A A O (Vide, Ami, Ami, Adversaire)
+        else if (pBefore == NONE && pAfter == opponent) {
+            captureMove = before;
+        }
+
+        // Si une position de capture existe
+        if (captureMove.r != -1) {
+            // L'adversaire peut-il jouer là ? (Validité de base + Suicide)
+            if (isEmptyCell(board, captureMove.r, captureMove.c) && 
+                !isSuicideMove(board, captureMove.r, captureMove.c, opponent)) {
+                return true; // La ligne est cassable
             }
         }
     }

@@ -9,122 +9,129 @@
 #include <vector>
 #include <string>
 
-// Constantes du Jeu
+// =================================================================================
+//                              CONSTANTES & ENUMS
+// =================================================================================
+
 const int BOARD_SIZE = 19;
 
-// Enums typés pour la sécurité et la clarté
+// Représentation des joueurs
 enum Player {
     NONE = 0,
     BLACK = 1,
     WHITE = 2
 };
 
-// Vecteurs de direction pour les Captures (8 directions)
-struct Direction {
-    int r, c;
+// Statuts de validation d'un coup
+enum MoveStatus {
+    VALID = 0,
+    INVALID_BOUNDS = 1,     // Hors plateau
+    INVALID_OCCUPIED = 2,   // Case déjà prise
+    INVALID_SUICIDE = 3,    // Coup suicidaire (interdit sauf si capture)
+    INVALID_DOUBLE_THREE = 4 // Double-trois (interdit sauf si capture)
 };
 
-// Utilisé pour les Axes (4 directions : Horizontal, Vertical, Diag1, Diag2)
-const Direction AXES[4] = {
-    {0, 1},  // Horizontal
-    {1, 0},  // Vertical
-    {1, 1},  // Diagonal Backslash
-    {1, -1}  // Diagonal Slash
-};
-
-const Direction CAPTURE_DIRECTIONS[8] = {
-    {0, 1}, {0, -1},   // Horizontal
-    {1, 0}, {-1, 0},   // Vertical
-    {1, 1}, {-1, -1},  // Diagonal Backslash
-    {1, -1}, {-1, 1}   // Diagonal Slash
-};
-
+// Structures géométriques
 struct Point {
     int r, c;
 };
 
-// Status codes for move validation
-enum MoveStatus {
-    VALID = 0,
-    INVALID_BOUNDS = 1,
-    INVALID_OCCUPIED = 2,
-    INVALID_SUICIDE = 3,
-    INVALID_DOUBLE_THREE = 4
+struct Direction {
+    int r, c;
 };
+
+// Axes de vérification (4 directions : Horizontal, Vertical, Diag1, Diag2)
+const Direction AXES[4] = {
+    {0, 1}, {1, 0}, {1, 1}, {1, -1}
+};
+
+// Directions de capture (8 directions autour de la pierre)
+const Direction CAPTURE_DIRECTIONS[8] = {
+    {0, 1}, {0, -1}, {1, 0}, {-1, 0},
+    {1, 1}, {-1, -1}, {1, -1}, {-1, 1}
+};
+
+// =================================================================================
+//                              CLASSE DE RÈGLES
+// =================================================================================
 
 class GomokuRules {
 public:
-    // --- Master Validation Function ---
+    // ============================================================
+    // 1. VALIDATION MAÎTRE (Point d'entrée principal)
+    // ============================================================
+    
     /**
-     * Performs a full validation of a move, including simulation of captures
-     * to resolve edge cases (e.g., suicide allowed if it captures).
+     * Effectue une validation complète d'un coup.
+     * Simule le coup et les captures pour résoudre les cas limites
+     * (ex: Suicide autorisé s'il capture, Double-Trois autorisé s'il capture).
      * 
-     * @return MoveStatus (VALID=0 if allowed)
+     * @return MoveStatus (VALID=0 si autorisé)
      */
     static MoveStatus validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
-    // --- Vérifications de Base ---
-    /**
-     * Checks if coordinates are within board bounds (0-18).
-     */
+    // ============================================================
+    // 2. UTILITAIRES DE BASE (Lecture seule)
+    // ============================================================
+    
+    // Vérifie si les coordonnées sont dans le plateau (0-18)
     static bool isOnBoard(int row, int col);
-    /**
-     * Checks if a cell is physically available (on board AND empty).
-     * Does NOT check complex rules like Suicide or Double-Three.
-     */
+    
+    // Vérifie si une case est physiquement libre (sans règle complexe)
     static bool isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
-    /**
-     * Obtient le joueur à une position donnée.
-     */
+    
+    // Récupère le joueur à une position (Safe check)
     static Player getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
 
-    // --- Mécanismes de Base ---
-    
-    /**
-     * Vérifie les captures effectuées en plaçant une pierre à (row, col).
-     * 
-     * @param board Le plateau actuel.
-     * @param row La ligne de la nouvelle pierre.
-     * @param col La colonne de la nouvelle pierre.
-     * @param player Le joueur plaçant la pierre.
-     * @param capturedStonesOut Tableau pour stocker les positions capturées [max 16][2].
-     * @return Le nombre de captures effectuées (nombre de paires * 2).
-     */
-    static int checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2] = nullptr);
+    // ============================================================
+    // 3. MÉCANIQUE DE JEU (Physique & Captures)
+    // ============================================================
 
-    // --- State Management (Physics) ---
     /**
-     * Applies a move: places stone, calculates captures, removes captured stones.
-     * @return Number of captures (pairs * 2).
+     * Applique un coup sur le plateau :
+     * 1. Pose la pierre.
+     * 2. Calcule et retire les pierres capturées.
+     * 
+     * @param capturedStonesOut Buffer de sortie pour stocker les coords capturées.
+     * @return Nombre de pierres capturées (paires * 2).
      */
     static int applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]);
 
     /**
-     * Reverts a move: restores captured stones, removes played stone.
+     * Annule un coup (Rollback) :
+     * 1. Restaure les pierres capturées.
+     * 2. Retire la pierre jouée.
      */
     static void undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount);
 
-    // --- Règles Complexes ---
-    
     /**
-     * Vérifie si un mouvement est un "Suicide" interdit (complète un motif de capture de l'adversaire).
+     * Calcule les captures potentielles SANS modifier le plateau.
+     * @param capturedStonesOut (Optionnel) Buffer pour stocker les résultats.
      */
+    static int checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2] = nullptr);
+
+    // ============================================================
+    // 4. RÈGLES COMPLEXES (Interdictions)
+    // ============================================================
+
+    // Vérifie si le coup est un "Suicide" (complète un motif de capture adverse)
     static bool isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
-    /**
-     * Vérifie si un mouvement crée deux "Free Threes" simultanément.
-     */
+    // Vérifie si le coup crée deux "Free Threes" simultanés
     static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
-    // --- Conditions de Victoire ---
-    
-    /**
-     * Vérifie si 5 pierres sont alignées ET non cassables par capture.
-     */
+    // ============================================================
+    // 5. CONDITIONS DE VICTOIRE
+    // ============================================================
+
+    // Vérifie si 5 pierres sont alignées ET incassables par capture
     static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
 private:
-    // Aides pour les règles complexes
+    // ============================================================
+    // 6. HELPERS INTERNES
+    // ============================================================
+    
     static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
