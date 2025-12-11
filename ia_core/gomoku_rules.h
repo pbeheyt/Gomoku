@@ -137,4 +137,23 @@ private:
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
 };
 
+// =================================================================================
+//                              RAII HELPER
+// =================================================================================
+
+/**
+ * ScopedMove (RAII Pattern)
+ * Applique un coup à la construction et l'annule automatiquement à la destruction.
+ * Sécurise la gestion de l'état du plateau lors des simulations.
+ */
+struct ScopedMove {
+    int (*board)[BOARD_SIZE];
+    int row, col, player;
+    int captured[16][2];
+    int numCaptured;
+
+    ScopedMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+    ~ScopedMove();
+};
+
 #endif // GOMOKU_RULES_H

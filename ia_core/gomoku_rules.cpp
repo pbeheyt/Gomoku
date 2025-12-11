@@ -6,6 +6,20 @@
 #include <algorithm>
 
 // =================================================================================
+//                              RAII HELPER IMPLEMENTATION
+// =================================================================================
+
+ScopedMove::ScopedMove(int b[BOARD_SIZE][BOARD_SIZE], int r, int c, int p) 
+    : board(b), row(r), col(c), player(p) 
+{
+    numCaptured = GomokuRules::applyMove(board, row, col, player, captured);
+}
+
+ScopedMove::~ScopedMove() {
+    GomokuRules::undoMove(board, row, col, player, captured, numCaptured);
+}
+
+// =================================================================================
 //                              1. VALIDATION MAÎTRE
 // =================================================================================
 
@@ -14,28 +28,23 @@ MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row,
     if (!isOnBoard(row, col)) return INVALID_BOUNDS;
     if (board[row][col] != NONE) return INVALID_OCCUPIED;
 
-    // 2. Simulation du coup (Physique)
-    // On place la pierre et on retire les captures potentielles pour analyser l'état résultant.
-    int captured[16][2];
-    int numCaptured = applyMove(board, row, col, player, captured);
+    // 2. Simulation RAII (Apply automatique)
+    {
+        ScopedMove move(board, row, col, player);
 
-    // 3. Vérification Suicide
-    // Se fait sur le plateau "nettoyé" après captures.
-    bool suicide = isSuicideMove(board, row, col, player);
+        // 3. Vérification Suicide (sur plateau modifié)
+        if (isSuicideMove(board, row, col, player)) {
+            return INVALID_SUICIDE; // Undo automatique ici
+        }
 
-    // 4. Vérification Double-Trois
-    // La règle précise : Le Double-Trois est interdit SAUF s'il provoque une capture.
-    bool doubleThree = false;
-    if (numCaptured == 0 && !suicide) {
-        doubleThree = checkDoubleThree(board, row, col, player);
-    }
-
-    // 5. Restauration de l'état (Rollback)
-    undoMove(board, row, col, player, captured, numCaptured);
-
-    // 6. Verdict final
-    if (suicide) return INVALID_SUICIDE;
-    if (doubleThree) return INVALID_DOUBLE_THREE;
+        // 4. Vérification Double-Trois
+        // Interdit SAUF si capture
+        if (move.numCaptured == 0) {
+            if (checkDoubleThree(board, row, col, player)) {
+                return INVALID_DOUBLE_THREE; // Undo automatique ici
+            }
+        }
+    } // 5. Undo automatique ici (Fin du scope)
 
     return VALID;
 }

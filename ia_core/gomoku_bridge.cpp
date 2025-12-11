@@ -102,19 +102,11 @@ int rules_checkWin(int row, int col, int player) {
 
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
 
-    // 1. Simulation complète (Pose + Captures) via applyMove
-    // C'est plus robuste que de simplement poser la pierre, car cela reflète
-    // l'état réel du plateau après le coup (pierres adverses retirées).
-    int captured[16][2];
-    int count = GomokuRules::applyMove(board, row, col, player, captured);
+    // Simulation RAII
+    ScopedMove move(board, row, col, player);
 
-    // 2. Vérification de la victoire
-    bool result = GomokuRules::checkWin(board, row, col, player);
-
-    // 3. Annulation complète (Restauration + Retrait) via undoMove
-    GomokuRules::undoMove(board, row, col, player, captured, count);
-    
-    return result;
+    // Vérification de la victoire sur l'état simulé
+    return GomokuRules::checkWin(board, row, col, player);
 }
 
 /**
@@ -132,21 +124,19 @@ int* rules_checkCaptures(int row, int col, int player) {
 
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
 
-    // Simulation physique (Pose + Captures)
-    int tempCaptures[16][2];
-    int count = GomokuRules::applyMove(board, row, col, player, tempCaptures);
-    
-    // Annulation physique immédiate
-    GomokuRules::undoMove(board, row, col, player, tempCaptures, count);
-    
-    // Écriture du résultat dans le buffer statique
-    BRIDGE_CAPTURE_BUFFER[0] = count;
+    // Scope RAII pour la simulation
+    {
+        ScopedMove move(board, row, col, player);
+        
+        // Écriture du résultat dans le buffer statique
+        BRIDGE_CAPTURE_BUFFER[0] = move.numCaptured;
 
-    // Aplatissement des coordonnées
-    for (int i = 0; i < count; i++) {
-        BRIDGE_CAPTURE_BUFFER[1 + (i * 2)] = tempCaptures[i][0];     // Row
-        BRIDGE_CAPTURE_BUFFER[1 + (i * 2) + 1] = tempCaptures[i][1]; // Col
-    }
+        // Aplatissement des coordonnées
+        for (int i = 0; i < move.numCaptured; i++) {
+            BRIDGE_CAPTURE_BUFFER[1 + (i * 2)] = move.captured[i][0];     // Row
+            BRIDGE_CAPTURE_BUFFER[1 + (i * 2) + 1] = move.captured[i][1]; // Col
+        }
+    } // Undo automatique ici
 
     return BRIDGE_CAPTURE_BUFFER;
 }
