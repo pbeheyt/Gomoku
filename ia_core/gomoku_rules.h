@@ -92,6 +92,18 @@ public:
      */
     static int checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2] = nullptr);
 
+    // --- State Management (Physics) ---
+    /**
+     * Applies a move: places stone, calculates captures, removes captured stones.
+     * @return Number of captures (pairs * 2).
+     */
+    static int applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]);
+
+    /**
+     * Reverts a move: restores captured stones, removes played stone.
+     */
+    static void undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount);
+
     // --- Règles Complexes ---
     
     /**
