@@ -109,16 +109,13 @@ int* rules_checkCaptures(int row, int col, int player) {
     
     if (ai == nullptr) return BRIDGE_CAPTURE_BUFFER;
 
-    // Simulate move locally
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
-    board[row][col] = player;
 
-    // We use a temporary buffer for the logic engine
     int tempCaptures[16][2];
-    int count = GomokuRules::checkCaptures(board, row, col, player, tempCaptures);
+    int count = GomokuRules::applyMove(board, row, col, player, tempCaptures);
     
-    // Revert
-    board[row][col] = 0; // NONE
+    // Revert immediately
+    GomokuRules::undoMove(board, row, col, player, tempCaptures, count);
     
     // Write count at index 0
     BRIDGE_CAPTURE_BUFFER[0] = count;
