@@ -91,8 +91,8 @@ export class WasmAI {
         this.worker?.postMessage({ type: 'initAI', payload: { aiPlayer } });
     }
 
-    public setBoard(flatBoard: number[]): Promise<void> {
-        return this.sendQuery('setBoard', 'setBoard_done', { flatBoard });
+    public setBoard(flatBoard: number[], blackCaptures: number, whiteCaptures: number): Promise<void> {
+        return this.sendQuery('setBoard', 'setBoard_done', { flatBoard, blackCaptures, whiteCaptures });
     }
 
     public makeMove(row: number, col: number, player: Player): Promise<void> {

@@ -54,12 +54,14 @@ void GomokuAI::clearBoard() {
     }
 }
 
-void GomokuAI::setBoard(const int* flatBoard) {
+void GomokuAI::setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures) {
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
             board[i][j] = flatBoard[i * BOARD_SIZE + j];
         }
     }
+    gameState.capturedByBlack = blackCaptures;
+    gameState.capturedByWhite = whiteCaptures;
 }
 
 void GomokuAI::makeMove(int row, int col, int player) {
@@ -346,10 +348,13 @@ bool GomokuAI::createsFreeThree(int row, int col, int direction, int player) {
 }
 
 bool GomokuAI::hasPlayerWon(int player) {
+    int captures = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
+    if (captures >= 10) return true;
+
     for (int row = 0; row < BOARD_SIZE; row++) {
         for (int col = 0; col < BOARD_SIZE; col++) {
             if (board[row][col] == player) {
-                if (GomokuRules::checkWin(board, row, col, player)) return true;
+                if (GomokuRules::checkWin(board, row, col, player, captures)) return true;
             }
         }
     }

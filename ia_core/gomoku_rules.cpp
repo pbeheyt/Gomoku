@@ -210,7 +210,10 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 //                              5. CONDITIONS DE VICTOIRE
 // =================================================================================
 
-bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
+bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones) {
+    // 0. Victoire immédiate par capture
+    if (capturedStones >= 10) return true;
+
     Player player = static_cast<Player>(playerInt);
     int opponent = (player == BLACK) ? WHITE : BLACK;
 

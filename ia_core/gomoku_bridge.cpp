@@ -40,10 +40,10 @@ void initAI(int aiPlayer) {
     new GomokuAI(aiPlayer);
 }
 
-void setBoard(const int* flatBoard) {
+void setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures) {
     GomokuAI* ai = getGlobalAI();
     if (ai != nullptr) {
-        ai->setBoard(flatBoard);
+        ai->setBoard(flatBoard, blackCaptures, whiteCaptures);
     }
 }
 
@@ -105,8 +105,12 @@ int rules_checkWin(int row, int col, int player) {
     // Simulation RAII
     ScopedMove move(board, row, col, player);
 
+    // Calcul du nombre total de captures après ce coup simulé
+    int currentCaptures = ai->getCaptures(player);
+    int totalCaptures = currentCaptures + move.numCaptured;
+
     // Vérification de la victoire sur l'état simulé
-    return GomokuRules::checkWin(board, row, col, player);
+    return GomokuRules::checkWin(board, row, col, player, totalCaptures);
 }
 
 /**

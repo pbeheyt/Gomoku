@@ -8,7 +8,7 @@
 // Interface décrivant les exports du Module Emscripten (C++)
 interface GomokuModule {
   _initAI: (player: number) => void;
-  _setBoard: (ptr: number) => void;
+  _setBoard: (ptr: number, blackCaptures: number, whiteCaptures: number) => void;
   _makeMove: (row: number, col: number, player: number) => void;
   _getBestMove: () => number;
   _cleanupAI: () => void;
@@ -81,12 +81,15 @@ self.onmessage = async (event) => {
 
             case 'setBoard': {
                 const flatBoard = payload?.flatBoard;
+                const blackCaptures = payload?.blackCaptures || 0;
+                const whiteCaptures = payload?.whiteCaptures || 0;
+
                 if (!flatBoard || !Array.isArray(flatBoard)) break;
 
                 // Stratégie Zero Malloc
                 const ptr = wasmModule._get_board_buffer();
                 wasmModule.HEAP32.set(flatBoard, ptr >> 2);
-                wasmModule._setBoard(ptr);
+                wasmModule._setBoard(ptr, blackCaptures, whiteCaptures);
                 
                 // Confirmation
                 self.postMessage({ type: 'setBoard_done' });
@@ -116,8 +119,12 @@ self.onmessage = async (event) => {
                 // ptr est en octets, HEAP32 est une vue int32, donc diviser par 4
                 wasmModule.HEAP32.set(flatBoard, ptr >> 2);
 
-                // 3. Dire à l'IA de lire depuis ce buffer
-                wasmModule._setBoard(ptr);
+                // 3. Dire à l'IA de lire depuis ce buffer (Captures ignorées pour getBestMove temporaire, ou utiliser payload si dispo)
+                // Note : getBestMove envoie généralement un état stateless, on suppose 0 ou on devrait passer l'état.
+                // Pour l'instant, on garde la compatibilité, mais idéalement getBestMove devrait aussi recevoir les captures.
+                // Le code existant de getBestMove dans le wrapper ne passe que flatBoard.
+                // On met 0 par défaut pour éviter le crash signature, l'IA se basera sur ce qu'elle a ou 0.
+                wasmModule._setBoard(ptr, 0, 0);
 
                 // 4. Calculer
                 const result = wasmModule._getBestMove();

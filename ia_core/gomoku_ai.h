@@ -84,13 +84,14 @@ private:
 public:
     GomokuAI(int aiPlayerColor);
     void clearBoard();
-    void setBoard(const int* flatBoard);
+    void setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures);
     void makeMove(int row, int col, int player);
     bool isValidMove(int row, int col);
     void getBestMove(int& bestRow, int& bestCol);
     
     // Accessor for the Rules Engine Bridge
     const int (*getBoard() const)[BOARD_SIZE] { return board; }
+    int getCaptures(int player) const { return (player == 1) ? gameState.capturedByBlack : gameState.capturedByWhite; }
 };
 
 #endif // GOMOKU_AI_H

@@ -78,18 +78,21 @@ export class GomokuGame {
     this.applyMoveMechanics(row, col, this.currentPlayer, move.captures);
 
     // 5. Synchro État Wasm (CRITIQUE)
-    // On envoie l'état COMPLET du plateau pour garantir que le C++ est parfaitement synchro avec le JS (y compris les captures)
-    await this.wasmAI.setBoard(this.board.getBoardState().flat());
+    // On envoie l'état COMPLET du plateau et des SCORES pour garantir que le C++ est parfaitement synchro
+    await this.wasmAI.setBoard(
+        this.board.getBoardState().flat(),
+        this.blackCaptures,
+        this.whiteCaptures
+    );
 
     // Événements
     emitMoveMade(move);
     move.captures.forEach(capture => emitCaptureMade(capture));
 
-    // 6. Vérification Victoire (Wasm Async)
+    // 6. Vérification Victoire (Wasm Async - Inclut désormais la victoire par capture)
     const isWin = await this.wasmAI.checkWin(row, col, this.currentPlayer);
-    const isCaptureWin = this.getCaptures(this.currentPlayer) >= WIN_CAPTURES;
 
-    if (isWin || isCaptureWin) {
+    if (isWin) {
       this.winner = this.currentPlayer;
       emitGameWon(this.currentPlayer);
       return { isValid: true };
@@ -121,8 +124,12 @@ export class GomokuGame {
 
     // STRATÉGIE : Délégation totale au C++
     // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).
-    // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses.
-    await this.wasmAI.setBoard(this.board.getBoardState().flat());
+    // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses et les SCORES.
+    await this.wasmAI.setBoard(
+        this.board.getBoardState().flat(),
+        this.blackCaptures,
+        this.whiteCaptures
+    );
 
     // 1. Validation Unifiée (Single Source of Truth)
     // Le C++ gère maintenant toutes les priorités (Capture > Suicide, Capture > DoubleTrois)
@@ -187,7 +194,7 @@ export class GomokuGame {
     
     // Synchro Wasm
     if (this.wasmAI) {
-        this.wasmAI.setBoard(this.board.getBoardState().flat());
+        this.wasmAI.setBoard(this.board.getBoardState().flat(), 0, 0);
     }
   }
 
@@ -210,10 +217,13 @@ export class GomokuGame {
       // Re-vérification condition de victoire sur le dernier coup du saut
       if (i === index - 1) {
          if (this.wasmAI) {
-             await this.wasmAI.setBoard(this.board.getBoardState().flat());
+             await this.wasmAI.setBoard(
+                 this.board.getBoardState().flat(),
+                 this.blackCaptures,
+                 this.whiteCaptures
+             );
              const isWin = await this.wasmAI.checkWin(move.position.row, move.position.col, move.player);
-             const isCaptureWin = this.getCaptures(move.player) >= WIN_CAPTURES;
-             if (isWin || isCaptureWin) this.winner = move.player;
+             if (isWin) this.winner = move.player;
          }
       }
     }
@@ -221,7 +231,11 @@ export class GomokuGame {
     
     // Synchro Finale
     if (this.wasmAI) {
-        await this.wasmAI.setBoard(this.board.getBoardState().flat());
+        await this.wasmAI.setBoard(
+            this.board.getBoardState().flat(),
+            this.blackCaptures,
+            this.whiteCaptures
+        );
     }
   }
 

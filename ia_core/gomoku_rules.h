@@ -124,8 +124,8 @@ public:
     // 5. CONDITIONS DE VICTOIRE
     // ============================================================
 
-    // Vérifie si 5 pierres sont alignées ET incassables par capture
-    static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+    // Vérifie si 5 pierres sont alignées ET incassables par capture, OU si 10 pierres sont capturées.
+    static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStones);
 
 private:
     // ============================================================
