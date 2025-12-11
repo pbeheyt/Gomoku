@@ -14,9 +14,7 @@ interface GomokuModule {
   _cleanupAI: () => void;
 
   // Exports du moteur de règles
-  _rules_isValidMove: (row: number, col: number) => number;
-  _rules_isSuicide: (row: number, col: number, player: number) => number;
-  _rules_checkDoubleThree: (row: number, col: number, player: number) => number;
+  _rules_validateMove: (row: number, col: number, player: number) => number;
   _rules_checkWin: (row: number, col: number, player: number) => number;
   // Retourne un pointeur vers un tableau d'entiers statique. Index 0 = nombre, puis l, c, l, c...
   _rules_checkCaptures: (row: number, col: number, player: number) => number; 
@@ -132,24 +130,10 @@ self.onmessage = async (event) => {
 
             // --- REQUÊTES DE RÈGLES ---
 
-            case 'rules_isValidMove':
+            case 'rules_validateMove':
                 self.postMessage({ 
-                    type: 'rules_isValidMove_result', 
-                    payload: wasmModule._rules_isValidMove(payload.row, payload.col) === 1 
-                });
-                break;
-
-            case 'rules_isSuicide':
-                self.postMessage({ 
-                    type: 'rules_isSuicide_result', 
-                    payload: wasmModule._rules_isSuicide(payload.row, payload.col, payload.player) === 1 
-                });
-                break;
-
-            case 'rules_checkDoubleThree':
-                self.postMessage({ 
-                    type: 'rules_checkDoubleThree_result', 
-                    payload: wasmModule._rules_checkDoubleThree(payload.row, payload.col, payload.player) === 1 
+                    type: 'rules_validateMove_result', 
+                    payload: wasmModule._rules_validateMove(payload.row, payload.col, payload.player)
                 });
                 break;
 

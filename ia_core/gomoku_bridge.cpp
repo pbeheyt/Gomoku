@@ -65,40 +65,16 @@ void cleanupAI() {
 
 // --- RULES ENGINE EXPORTS ---
 
-int rules_isValidMove(int row, int col) {
+// Master Validation Function exposed to JS
+// Returns: 0=VALID, 1=BOUNDS, 2=OCCUPIED, 3=SUICIDE, 4=DOUBLE_THREE
+int rules_validateMove(int row, int col, int player) {
     GomokuAI* ai = getGlobalAI();
-    if (ai == nullptr) return 0;
-    return GomokuRules::isValidMove(ai->getBoard(), row, col);
-}
+    if (ai == nullptr) return 1; // Error
 
-int rules_isSuicide(int row, int col, int player) {
-    GomokuAI* ai = getGlobalAI();
-    if (ai == nullptr) return 0;
-    
-    // Simulate move locally
+    // We need a writable board for simulation
     auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
-    board[row][col] = player;
     
-    bool result = GomokuRules::isSuicideMove(board, row, col, player);
-    
-    // Revert
-    board[row][col] = 0; // NONE
-    return result;
-}
-
-int rules_checkDoubleThree(int row, int col, int player) {
-    GomokuAI* ai = getGlobalAI();
-    if (ai == nullptr) return 0;
-
-    // Simulate move locally
-    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
-    board[row][col] = player;
-
-    bool result = GomokuRules::checkDoubleThree(board, row, col, player);
-
-    // Revert
-    board[row][col] = 0; // NONE
-    return result;
+    return (int)GomokuRules::validateMove(board, row, col, player);
 }
 
 int rules_checkWin(int row, int col, int player) {

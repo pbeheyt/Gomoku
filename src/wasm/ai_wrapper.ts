@@ -55,9 +55,7 @@ export class WasmAI {
                         break;
 
                     // --- RULES RESPONSES ---
-                    case 'rules_isValidMove_result':
-                    case 'rules_isSuicide_result':
-                    case 'rules_checkDoubleThree_result':
+                    case 'rules_validateMove_result':
                     case 'rules_checkWin_result':
                     case 'rules_checkCaptures_result':
                         this.resolveQuery(type, payload);
@@ -119,16 +117,11 @@ export class WasmAI {
 
     // --- RULES API ---
 
-    public async isValidMove(row: number, col: number): Promise<boolean> {
-        return this.sendQuery('rules_isValidMove', 'rules_isValidMove_result', { row, col });
-    }
-
-    public async isSuicide(row: number, col: number, player: Player): Promise<boolean> {
-        return this.sendQuery('rules_isSuicide', 'rules_isSuicide_result', { row, col, player });
-    }
-
-    public async checkDoubleThree(row: number, col: number, player: Player): Promise<boolean> {
-        return this.sendQuery('rules_checkDoubleThree', 'rules_checkDoubleThree_result', { row, col, player });
+    /**
+     * Returns 0 if valid, or an error code > 0.
+     */
+    public async validateMove(row: number, col: number, player: Player): Promise<number> {
+        return this.sendQuery('rules_validateMove', 'rules_validateMove_result', { row, col, player });
     }
 
     public async checkWin(row: number, col: number, player: Player): Promise<boolean> {

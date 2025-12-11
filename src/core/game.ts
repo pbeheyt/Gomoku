@@ -124,19 +124,19 @@ export class GomokuGame {
     // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses.
     await this.wasmAI.setBoard(this.board.getBoardState().flat());
 
-    // Vérification Règles via Wasm
-    const suicide = await this.wasmAI.isSuicide(row, col, player);
-    const doubleThree = await this.wasmAI.checkDoubleThree(row, col, player);
-    const rawCaptures = await this.wasmAI.checkCaptures(row, col, player);
+    // 1. Validation Unifiée (Single Source of Truth)
+    // Le C++ gère maintenant toutes les priorités (Capture > Suicide, Capture > DoubleTrois)
+    const status = await this.wasmAI.validateMove(row, col, player);
 
-    // 6. Verdict
-    if (suicide) return { isValid: false, reason: 'Suicide interdit' };
-    
-    const captureCount = rawCaptures.length;
-    // Exception : Double-Trois autorisé s'il capture
-    if (doubleThree && captureCount === 0) {
-        return { isValid: false, reason: 'Double-Trois interdit' };
+    if (status !== 0) {
+        let reason = 'Coup invalide';
+        if (status === 3) reason = 'Suicide interdit';
+        if (status === 4) reason = 'Double-Trois interdit';
+        return { isValid: false, reason };
     }
+
+    // 2. Si valide, on récupère les détails des captures pour l'UI
+    const rawCaptures = await this.wasmAI.checkCaptures(row, col, player);
 
     // Formatage des captures pour le JS
     const captures: CaptureResult[] = rawCaptures.map((c: any) => ({

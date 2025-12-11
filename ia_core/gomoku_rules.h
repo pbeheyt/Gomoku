@@ -43,8 +43,26 @@ struct Point {
     int r, c;
 };
 
+// Status codes for move validation
+enum MoveStatus {
+    VALID = 0,
+    INVALID_BOUNDS = 1,
+    INVALID_OCCUPIED = 2,
+    INVALID_SUICIDE = 3,
+    INVALID_DOUBLE_THREE = 4
+};
+
 class GomokuRules {
 public:
+    // --- Master Validation Function ---
+    /**
+     * Performs a full validation of a move, including simulation of captures
+     * to resolve edge cases (e.g., suicide allowed if it captures).
+     * 
+     * @return MoveStatus (VALID=0 if allowed)
+     */
+    static MoveStatus validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+
     // --- Vérifications de Base ---
     /**
      * Vérifie si une position est dans les limites du plateau.

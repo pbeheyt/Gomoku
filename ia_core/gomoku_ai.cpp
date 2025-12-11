@@ -69,7 +69,9 @@ void GomokuAI::makeMove(int row, int col, int player) {
 }
 
 bool GomokuAI::isValidMove(int row, int col) {
-    return GomokuRules::isValidMove(board, row, col);
+    // We use the strict validator to ensure AI respects Suicide/DoubleThree rules
+    // AND sees the "Capture saves Suicide" exceptions.
+    return GomokuRules::validateMove(board, row, col, aiPlayer) == VALID;
 }
 
 void GomokuAI::getBestMove(int& bestRow, int& bestCol) {

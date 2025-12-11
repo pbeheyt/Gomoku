@@ -13,6 +13,49 @@ bool GomokuRules::isValidMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
     return isValidPosition(row, col) && board[row][col] == NONE;
 }
 
+MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
+    // 1. Basic Checks
+    if (!isValidPosition(row, col)) return INVALID_BOUNDS;
+    if (board[row][col] != NONE) return INVALID_OCCUPIED;
+
+    // 2. Simulate Move
+    board[row][col] = player;
+
+    // 3. Simulate Captures (Survival Logic)
+    int captured[16][2];
+    int numCaptured = checkCaptures(board, row, col, player, captured);
+    
+    // Remove captured stones temporarily
+    for (int i = 0; i < numCaptured; i++) {
+        board[captured[i][0]][captured[i][1]] = NONE;
+    }
+
+    // 4. Check Suicide (on cleaned board)
+    bool suicide = isSuicideMove(board, row, col, player);
+
+    // 5. Check Double-Three (Only if NO capture)
+    // The rule says: Double-three is forbidden UNLESS it captures.
+    bool doubleThree = false;
+    if (numCaptured == 0 && !suicide) {
+        doubleThree = checkDoubleThree(board, row, col, player);
+    }
+
+    // 6. Rollback (Strict Order)
+    int opponent = (player == BLACK) ? WHITE : BLACK;
+    // Put captured stones back
+    for (int i = 0; i < numCaptured; i++) {
+        board[captured[i][0]][captured[i][1]] = opponent;
+    }
+    // Remove placed stone
+    board[row][col] = NONE;
+
+    // 7. Verdict
+    if (suicide) return INVALID_SUICIDE;
+    if (doubleThree) return INVALID_DOUBLE_THREE;
+
+    return VALID;
+}
+
 Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
     if (!isValidPosition(row, col)) return NONE;
     return static_cast<Player>(board[row][col]);
