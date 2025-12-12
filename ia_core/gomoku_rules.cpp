@@ -116,6 +116,29 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 //                              3. ANALYSE DE MOTIFS (PATTERNS)
 // =================================================================================
 
+std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
+    std::vector<Point> line;
+    line.reserve(9); // Optimisation : évite les réallocations pour une ligne max de 9
+    line.push_back({row, col});
+
+    // Scanner direction positive
+    int r = row + dir.r;
+    int c = col + dir.c;
+    while (getPlayerAt(board, r, c) == static_cast<Player>(player)) {
+        line.push_back({r, c});
+        r += dir.r; c += dir.c;
+    }
+
+    // Scanner direction négative (insérer au début pour garder l'ordre)
+    r = row - dir.r;
+    c = col - dir.c;
+    while (getPlayerAt(board, r, c) == static_cast<Player>(player)) {
+        line.insert(line.begin(), {r, c});
+        r -= dir.r; c -= dir.c;
+    }
+    return line;
+}
+
 std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
     Player player = static_cast<Player>(playerInt);
     std::string line = "";
@@ -253,24 +276,10 @@ bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int
     return scanNeighborPairs(board, row, col, subjectPlayer, isPairSandwiched);
 }
 
-bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    if (line.size() < 5) return false;
-
-    // 1. Identification des pierres menacées (Atomicité)
-    std::vector<bool> isRemoved(line.size(), false);
-    
-    for (size_t i = 0; i < line.size(); i++) {
-        // Pour chaque pierre de la ligne, on regarde si elle peut être capturée
-        // (peu importe la direction de la capture, même perpendiculaire à la ligne)
-        if (isStoneCapturable(board, line[i].r, line[i].c, opponentInt)) {
-            isRemoved[i] = true;
-        }
-    }
-
-    // 2. Vérification de la survie (Continuité)
-    // On cherche la plus longue séquence de pierres NON supprimées
+int GomokuRules::getLongestSegment(const std::vector<bool>& isRemoved) {
     int currentRun = 0;
     int maxRun = 0;
+    
     for (bool removed : isRemoved) {
         if (!removed) {
             currentRun++;
@@ -279,10 +288,23 @@ bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZ
             currentRun = 0;
         }
     }
-    maxRun = std::max(maxRun, currentRun);
+    return std::max(maxRun, currentRun);
+}
 
-    // Si le plus grand fragment restant est inférieur à 5, la victoire est brisée.
-    return maxRun < 5;
+bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
+    if (line.size() < 5) return false;
+
+    // 1. Identification des pierres menacées (Atomicité)
+    std::vector<bool> isRemoved(line.size(), false);
+    
+    for (size_t i = 0; i < line.size(); i++) {
+        if (isStoneCapturable(board, line[i].r, line[i].c, opponentInt)) {
+            isRemoved[i] = true;
+        }
+    }
+
+    // 2. Vérification de la survie : Si le plus grand fragment restant est < 5, la victoire est brisée.
+    return getLongestSegment(isRemoved) < 5;
 }
 
 bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones) {
@@ -293,31 +315,10 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
     int opponent = (player == BLACK) ? WHITE : BLACK;
 
     for (int i = 0; i < 4; i++) {
-        Direction dir = AXES[i];
-        std::vector<Point> currentLine;
-        currentLine.push_back({row, col});
-        
-        int count = 1;
+        // Récupération de la ligne complète (pierre posée + voisins consécutifs)
+        std::vector<Point> currentLine = getConsecutiveLine(board, row, col, AXES[i], playerInt);
 
-        // Scanner direction positive
-        int r = row + dir.r;
-        int c = col + dir.c;
-        while (getPlayerAt(board, r, c) == player) {
-            currentLine.push_back({r, c});
-            count++;
-            r += dir.r; c += dir.c;
-        }
-
-        // Scanner direction négative (insérer au début)
-        r = row - dir.r;
-        c = col - dir.c;
-        while (getPlayerAt(board, r, c) == player) {
-            currentLine.insert(currentLine.begin(), {r, c});
-            count++;
-            r -= dir.r; c -= dir.c;
-        }
-
-        if (count >= 5) {
+        if (currentLine.size() >= 5) {
             // Si 5 alignés, vérifier si c'est cassable par une capture adverse
             if (!isLineBreakableByCapture(board, currentLine, opponent)) {
                 return true;
