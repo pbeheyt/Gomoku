@@ -127,6 +127,9 @@ public:
     // Vérifie si 5 pierres sont alignées ET incassables par capture, OU si 10 pierres sont capturées.
     static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStones);
 
+    // Vérifie si le joueur actuel ne peut jouer aucun coup valide (Pat).
+    static bool checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player);
+
 private:
     // ============================================================
     // 6. HELPERS INTERNES

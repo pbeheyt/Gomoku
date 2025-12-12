@@ -17,7 +17,8 @@ interface GomokuModule {
   _rules_validateMove: (row: number, col: number, player: number) => number;
   _rules_checkWin: (row: number, col: number, player: number) => number;
   // Retourne un pointeur vers un tableau d'entiers statique. Index 0 = nombre, puis l, c, l, c...
-  _rules_checkCaptures: (row: number, col: number, player: number) => number; 
+  _rules_checkCaptures: (row: number, col: number, player: number) => number;
+  _rules_checkStalemate: (player: number) => number;
 
   _get_board_buffer: () => number; // Retourne un pointeur vers le buffer statique du board
   HEAP32: Int32Array;
@@ -144,14 +145,19 @@ self.onmessage = async (event) => {
                 });
                 break;
 
-            case 'rules_checkWin':
-                self.postMessage({ 
-                    type: 'rules_checkWin_result', 
-                    payload: wasmModule._rules_checkWin(payload.row, payload.col, payload.player) === 1 
-                });
-                break;
+                    case 'rules_checkWin':
+                        self.postMessage({ 
+                            type: 'rules_checkWin_result', 
+                            payload: wasmModule._rules_checkWin(payload.row, payload.col, payload.player) === 1 
+                        });
+                        break;
 
-            case 'rules_checkCaptures': {
+                    case 'rules_checkStalemate':
+                        self.postMessage({
+                            type: 'rules_checkStalemate_result',
+                            payload: wasmModule._rules_checkStalemate(payload.player) === 1
+                        });
+                        break;            case 'rules_checkCaptures': {
 
                 // Appel au C++ : Récupération du pointeur vers le buffer statique
                 const ptr = wasmModule._rules_checkCaptures(payload.row, payload.col, payload.player);

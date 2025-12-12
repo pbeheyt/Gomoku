@@ -261,7 +261,8 @@ export class GomokuGame {
    * Vérifie si le joueur est en situation de Pat (aucun coup légal possible).
    */
   private async checkStalemate(player: Player): Promise<boolean> {
-    // 1. Optimisation : On ne vérifie que s'il reste peu de place (<= 30 cases)
+    // 1. Optimisation : On ne vérifie que s'il reste peu de place (<= 20 cases)
+    // Note : STALEMATE_THRESHOLD est défini en haut du fichier (20)
     const emptyCells = this.board.getEmptyCount();
     if (emptyCells > STALEMATE_THRESHOLD) return false;
 
@@ -274,21 +275,8 @@ export class GomokuGame {
         this.whiteCaptures
     );
 
-    // 3. Scan complet des cases vides restantes
-    // Si on trouve UN SEUL coup valide, la partie continue.
-    const boardState = this.board.getBoardState();
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (boardState[r][c] === Player.NONE) {
-                const status = await this.wasmAI.validateMove(r, c, player);
-                if (status === 0) {
-                    return false; // Ce coup est jouable, pas de Pat.
-                }
-            }
-        }
-    }
-
-    // Aucun coup valide trouvé -> Match Nul
-    return true;
+    // 3. Délégation au moteur C++
+    // Le C++ va scanner toutes les cases vides beaucoup plus vite qu'une boucle JS.
+    return await this.wasmAI.checkStalemate(player);
   }
 }

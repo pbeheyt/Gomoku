@@ -296,3 +296,19 @@ bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZ
     }
     return false;
 }
+
+bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player) {
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            // Si la case est vide
+            if (board[r][c] == NONE) {
+                // Si au moins un coup est valide, ce n'est pas un Pat
+                if (validateMove(const_cast<int(*)[BOARD_SIZE]>(board), r, c, player) == VALID) {
+                    return false;
+                }
+            }
+        }
+    }
+    // Aucun coup valide trouvé
+    return true;
+}

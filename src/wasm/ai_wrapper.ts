@@ -132,6 +132,10 @@ export class WasmAI {
         return this.sendQuery('rules_checkCaptures', 'rules_checkCaptures_result', { row, col, player });
     }
 
+    public async checkStalemate(player: Player): Promise<boolean> {
+        return this.sendQuery('rules_checkStalemate', 'rules_checkStalemate_result', { player });
+    }
+
     // --- INTERNAL HELPERS ---
 
     private sendQuery(requestType: string, responseType: string, payload: any): Promise<any> {

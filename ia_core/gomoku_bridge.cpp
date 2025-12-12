@@ -113,6 +113,14 @@ int rules_checkWin(int row, int col, int player) {
     return GomokuRules::checkWin(board, row, col, player, totalCaptures);
 }
 
+int rules_checkStalemate(int player) {
+    GomokuAI* ai = getGlobalAI();
+    if (ai == nullptr) return 0; // Pas d'IA = Pas de Pat (par sécurité)
+
+    auto board = const_cast<int(*)[BOARD_SIZE]>(ai->getBoard());
+    return GomokuRules::checkStalemate(board, player) ? 1 : 0;
+}
+
 /**
  * Retourne un pointeur vers le buffer de captures statique.
  * Structure du buffer :
