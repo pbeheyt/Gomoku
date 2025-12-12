@@ -194,13 +194,14 @@ std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE],
 bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
     std::string line = getLinePattern(board, row, col, dir, player);
     
-    // Motifs de Free-Three (Trois libres)
-    // _PPP_  : Classique
-    // _P_PP_ : Troué 1
-    // _PP_P_ : Troué 2
-    const char* patterns[] = {"_PPP_", "_P_PP_", "_PP_P_"};
+    // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
+    // 1. __PPP_ : Espace suffisant pour étendre
+    // 2. _PPP__ : Miroir
+    // 3. _P_PP_ : Troué (devient _PPPP_ si comblé)
+    // 4. _PP_P_ : Miroir
+    const char* patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
     
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         if (line.find(patterns[i]) != std::string::npos) return true;
     }
     return false;
