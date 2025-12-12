@@ -6,9 +6,11 @@
  */
 
 import { Player, Position, Move, GameState, CaptureResult, ValidationResult, GameMode } from './types.js';
-import { GameBoard } from './board.js';
+import { GameBoard, BOARD_SIZE } from './board.js';
 import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged, emitGameDraw } from './events.js';
 import { WasmAI } from '../wasm/ai_wrapper.js';
+
+const STALEMATE_THRESHOLD = 20; // On vérifie le Pat si <= 20 cases vides
 
 export class GomokuGame {
   private board: GameBoard;
@@ -100,11 +102,12 @@ export class GomokuGame {
     this.currentPlayer = this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
     emitPlayerChanged(this.currentPlayer);
 
-    // 8. Vérification Match Nul (Plateau Plein)
-    if (this.board.isFull()) {
+    // 8. Vérification Avancée de Match Nul (Pat / Stalemate)
+    // On vérifie si le nouveau joueur est bloqué (aucun coup légal restant)
+    // uniquement si le plateau est presque plein.
+    if (await this.checkStalemate(this.currentPlayer)) {
       this.winner = Player.NONE;
       emitGameDraw();
-      return { isValid: true };
     }
 
     return { isValid: true };
@@ -255,7 +258,38 @@ export class GomokuGame {
   getLastMove(): Position | null { return this.lastMove; }
   getBoard(): GameBoard { return this.board; }
 
-  private getCaptures(player: Player): number {
-    return player === Player.BLACK ? this.blackCaptures : this.whiteCaptures;
+  /**
+   * Vérifie si le joueur est en situation de Pat (aucun coup légal possible).
+   */
+  private async checkStalemate(player: Player): Promise<boolean> {
+    // 1. Optimisation : On ne vérifie que s'il reste peu de place (<= 30 cases)
+    const emptyCells = this.board.getEmptyCount();
+    if (emptyCells > STALEMATE_THRESHOLD) return false;
+
+    if (!this.wasmAI) return false;
+
+    // 2. Synchro État Wasm
+    await this.wasmAI.setBoard(
+        this.board.getBoardState().flat(),
+        this.blackCaptures,
+        this.whiteCaptures
+    );
+
+    // 3. Scan complet des cases vides restantes
+    // Si on trouve UN SEUL coup valide, la partie continue.
+    const boardState = this.board.getBoardState();
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (boardState[r][c] === Player.NONE) {
+                const status = await this.wasmAI.validateMove(r, c, player);
+                if (status === 0) {
+                    return false; // Ce coup est jouable, pas de Pat.
+                }
+            }
+        }
+    }
+
+    // Aucun coup valide trouvé -> Match Nul
+    return true;
   }
 }
