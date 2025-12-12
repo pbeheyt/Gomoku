@@ -6,6 +6,34 @@
 #include "gomoku_rules.h"
 #include <algorithm>
 
+// --- Template Helper ---
+// Factorise la boucle des 8 directions pour la détection de paires.
+// Predicate signature: bool(board, p1, p2, opponent)
+template <typename Predicate>
+static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int subjectPlayer, Predicate predicate) {
+    int opponent = (subjectPlayer == BLACK) ? WHITE : BLACK;
+    
+    for (int i = 0; i < 8; i++) {
+        Direction dir = CAPTURE_DIRECTIONS[i];
+        int rAdj = row + dir.r;
+        int cAdj = col + dir.c;
+
+        if (!GomokuRules::isOnBoard(rAdj, cAdj)) continue;
+
+        // Si le voisin est un allié, on a une paire potentielle
+        if (GomokuRules::getPlayerAt(board, rAdj, cAdj) == static_cast<Player>(subjectPlayer)) {
+            Point p1 = {row, col};
+            Point p2 = {rAdj, cAdj};
+            
+            // On délègue la vérification spécifique (Sandwich ou Surround)
+            if (predicate(board, p1, p2, opponent)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // =================================================================================
 //                              1. PRIMITIVES & UTILITAIRES
 // =================================================================================
@@ -129,29 +157,8 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 // =================================================================================
 
 bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
-    Player player = static_cast<Player>(playerInt);
-    Player opponent = (player == BLACK) ? WHITE : BLACK;
-
-    for (int i = 0; i < 4; i++) {
-        Direction dir = AXES[i];
-
-        // Cas A : O P [X] O (Complété depuis la droite)
-        // Vérifier -2, -1, +1
-        Player p1 = getPlayerAt(board, row - 2 * dir.r, col - 2 * dir.c);
-        Player p2 = getPlayerAt(board, row - 1 * dir.r, col - 1 * dir.c);
-        Player p3 = getPlayerAt(board, row + 1 * dir.r, col + 1 * dir.c);
-
-        if (p1 == opponent && p2 == player && p3 == opponent) return true;
-
-        // Cas B : O [X] P O (Complété depuis la gauche)
-        // Vérifier -1, +1, +2
-        Player p4 = getPlayerAt(board, row - 1 * dir.r, col - 1 * dir.c);
-        Player p5 = getPlayerAt(board, row + 1 * dir.r, col + 1 * dir.c);
-        Player p6 = getPlayerAt(board, row + 2 * dir.r, col + 2 * dir.c);
-
-        if (p4 == opponent && p5 == player && p6 == opponent) return true;
-    }
-    return false;
+    // Règle Suicide : Interdit de créer le motif [O X X O]
+    return scanNeighborPairs(board, row, col, playerInt, isPairSurrounded);
 }
 
 bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
@@ -215,25 +222,35 @@ bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Poin
     return false;
 }
 
-bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent) {
-    // On vérifie les 8 directions autour de la pierre pour voir si elle forme une paire menacée
-    for (int i = 0; i < 8; i++) {
-        Direction dir = CAPTURE_DIRECTIONS[i];
-        int rAdj = row + dir.r;
-        int cAdj = col + dir.c;
-        if (!isOnBoard(rAdj, cAdj)) continue;
+/**
+ * Vérifie si une paire est STRICTEMENT entourée par l'adversaire : [O P P O]
+ * Utilisé pour la règle du Suicide.
+ */
+bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
+    // Calcul des extrémités (Flancs)
+    int dr = p2.r - p1.r;
+    int dc = p2.c - p1.c;
 
-        // Si le voisin est un allié, on a une paire potentielle
-        if (getPlayerAt(board, rAdj, cAdj) == getPlayerAt(board, row, col)) {
-            Point p1 = {row, col};
-            Point p2 = {rAdj, cAdj};
-            // Si cette paire est prise en sandwich par l'adversaire (et que le coup est légal)
-            if (isPairSandwiched(board, p1, p2, opponent)) {
-                return true;
-            }
-        }
-    }
-    return false;
+    // Arrière (côté P1)
+    int rBack = p1.r - dr;
+    int cBack = p1.c - dc;
+
+    // Avant (côté P2)
+    int rFront = p2.r + dr;
+    int cFront = p2.c + dc;
+
+    Player opp = static_cast<Player>(opponent);
+
+    // Motif strict : [O P P O]
+    return getPlayerAt(board, rBack, cBack) == opp && 
+           getPlayerAt(board, rFront, cFront) == opp;
+}
+
+bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent) {
+    // Le sujet est la pierre à (row, col), son adversaire est 'opponent'.
+    // Donc la couleur du sujet est l'inverse de l'opponent.
+    int subjectPlayer = (opponent == BLACK) ? WHITE : BLACK;
+    return scanNeighborPairs(board, row, col, subjectPlayer, isPairSandwiched);
 }
 
 bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {

@@ -100,6 +100,7 @@ private:
     // Helpers d'Arbitrage (Victoire Cassable)
     static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
     static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
+    static bool isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
     static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
     static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
 };
