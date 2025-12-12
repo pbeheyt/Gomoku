@@ -81,6 +81,7 @@ export interface GameEvents {
   'move:made': (move: Move) => void;
   'capture:made': (capture: CaptureResult) => void;
   'game:won': (winner: Player) => void;
+  'game:draw': () => void;
   'game:reset': () => void;
   'player:changed': (player: Player) => void;
   'ai:thinking': (isThinking: boolean) => void;

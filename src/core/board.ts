@@ -94,5 +94,12 @@ export class GameBoard {
   getSize(): number {
     return BOARD_SIZE;
   }
+
+  /**
+   * Vérifie si le plateau est complètement rempli.
+   */
+  isFull(): boolean {
+    return this.board.every(row => row.every(cell => cell !== Player.NONE));
+  }
 }
  

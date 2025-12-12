@@ -7,10 +7,8 @@
 
 import { Player, Position, Move, GameState, CaptureResult, ValidationResult, GameMode } from './types.js';
 import { GameBoard } from './board.js';
-import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged } from './events.js';
+import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged, emitGameDraw } from './events.js';
 import { WasmAI } from '../wasm/ai_wrapper.js';
-
-const WIN_CAPTURES = 10;
 
 export class GomokuGame {
   private board: GameBoard;
@@ -101,6 +99,13 @@ export class GomokuGame {
     // 7. Changement de Joueur
     this.currentPlayer = this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
     emitPlayerChanged(this.currentPlayer);
+
+    // 8. Vérification Match Nul (Plateau Plein)
+    if (this.board.isFull()) {
+      this.winner = Player.NONE;
+      emitGameDraw();
+      return { isValid: true };
+    }
 
     return { isValid: true };
   }

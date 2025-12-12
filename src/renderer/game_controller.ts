@@ -186,7 +186,15 @@ class GameController {
       this.soundManager.playCapture(); // Son "Tchick"
     });
 
-    // 3. Fin de partie (Victoire)
+    // 3. Fin de partie (Victoire ou Nul)
+    gameEvents.on('game:draw', () => {
+      this.stopGlobalTimer();
+      this.ui.setWinnerMessage(Player.NONE);
+      this.showView('GAME_OVER');
+      this.updateUI();
+      this.soundManager.playWin(false); // Son neutre/défaite
+    });
+
     gameEvents.on('game:won', (winner) => {
       this.stopGlobalTimer(); // Arrêt immédiat du chrono
       this.ui.setWinnerMessage(winner);

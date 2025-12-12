@@ -71,6 +71,10 @@ export function emitGameWon(winner: Player): void {
   gameEvents.emit('game:won', winner);
 }
 
+export function emitGameDraw(): void {
+  gameEvents.emit('game:draw');
+}
+
 export function emitGameReset(): void {
   gameEvents.emit('game:reset');
 }

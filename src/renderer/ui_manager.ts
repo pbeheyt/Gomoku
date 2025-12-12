@@ -225,7 +225,13 @@ export class UIManager {
 
   public setWinnerMessage(winner: Player): void {
     if (this.winnerMessageEl) {
-      this.winnerMessageEl.textContent = `${winner === Player.BLACK ? 'Noir' : 'Blanc'} a gagné !`;
+      if (winner === Player.NONE) {
+        this.winnerMessageEl.textContent = "Match Nul !";
+        this.winnerMessageEl.style.color = "#a0a0a0";
+      } else {
+        this.winnerMessageEl.textContent = `${winner === Player.BLACK ? 'Noir' : 'Blanc'} a gagné !`;
+        this.winnerMessageEl.style.color = "var(--active-glow)";
+      }
     }
   }
 

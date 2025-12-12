@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Player, Position } from '../core/types.js';
-import { GameBoard } from '../core/board.js';
+import { GameBoard, BOARD_SIZE } from '../core/board.js';
 
 /**
  * Moteur de Rendu 3D (Three.js).
@@ -36,7 +36,7 @@ export class ThreeRenderer {
   private matWhite!: THREE.MeshPhysicalMaterial;
 
   // Constantes de Monde (World Units)
-  private readonly BOARD_SIZE = 19;
+  private readonly BOARD_SIZE = BOARD_SIZE;
   private readonly CELL_SIZE = 2.0; 
   private readonly DROP_HEIGHT = 8.0; // Hauteur de chute pour l'animation
   private readonly GRAVITY = 0.8;
