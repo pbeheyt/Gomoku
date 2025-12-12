@@ -1,56 +1,13 @@
 /**
  * Moteur de Règles Gomoku - Implémentation
+ * Organisation : Bottom-Up (Primitives -> Physique -> Règles -> Arbitrage -> Validation)
  */
 
 #include "gomoku_rules.h"
 #include <algorithm>
 
 // =================================================================================
-//                              RAII HELPER IMPLEMENTATION
-// =================================================================================
-
-ScopedMove::ScopedMove(int b[BOARD_SIZE][BOARD_SIZE], int r, int c, int p) 
-    : board(b), row(r), col(c), player(p) 
-{
-    numCaptured = GomokuRules::applyMove(board, row, col, player, captured);
-}
-
-ScopedMove::~ScopedMove() {
-    GomokuRules::undoMove(board, row, col, player, captured, numCaptured);
-}
-
-// =================================================================================
-//                              1. VALIDATION MAÎTRE
-// =================================================================================
-
-MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
-    // 1. Contrôles basiques
-    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
-    if (board[row][col] != NONE) return INVALID_OCCUPIED;
-
-    // 2. Simulation RAII (Apply automatique)
-    {
-        ScopedMove move(board, row, col, player);
-
-        // 3. Vérification Suicide (sur plateau modifié)
-        if (isSuicideMove(board, row, col, player)) {
-            return INVALID_SUICIDE; // Undo automatique ici
-        }
-
-        // 4. Vérification Double-Trois
-        // Interdit SAUF si capture
-        if (move.numCaptured == 0) {
-            if (checkDoubleThree(board, row, col, player)) {
-                return INVALID_DOUBLE_THREE; // Undo automatique ici
-            }
-        }
-    } // 5. Undo automatique ici (Fin du scope)
-
-    return VALID;
-}
-
-// =================================================================================
-//                              2. UTILITAIRES DE BASE
+//                              1. PRIMITIVES & UTILITAIRES
 // =================================================================================
 
 bool GomokuRules::isOnBoard(int row, int col) {
@@ -67,33 +24,8 @@ Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row
 }
 
 // =================================================================================
-//                              3. MÉCANIQUE DE JEU
+//                              2. PHYSIQUE DU JEU (CAPTURES)
 // =================================================================================
-
-int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]) {
-    // 1. Pose de la pierre
-    board[row][col] = player;
-
-    // 2. Calcul des captures
-    int numCaptured = checkCaptures(board, row, col, player, capturedStonesOut);
-    
-    // 3. Retrait des pierres capturées
-    for (int i = 0; i < numCaptured; i++) {
-        board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = NONE;
-    }
-    return numCaptured;
-}
-
-void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount) {
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-
-    // 1. Restauration des pierres capturées (remises à l'adversaire)
-    for (int i = 0; i < captureCount; i++) {
-        board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = opponent;
-    }
-    // 2. Retrait de la pierre jouée
-    board[row][col] = NONE;
-}
 
 int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStonesOut[][2]) {
     Player player = static_cast<Player>(playerInt);
@@ -127,8 +59,73 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
     return captureCount;
 }
 
+int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]) {
+    // 1. Pose de la pierre
+    board[row][col] = player;
+
+    // 2. Calcul des captures
+    int numCaptured = checkCaptures(board, row, col, player, capturedStonesOut);
+    
+    // 3. Retrait des pierres capturées
+    for (int i = 0; i < numCaptured; i++) {
+        board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = NONE;
+    }
+    return numCaptured;
+}
+
+void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount) {
+    int opponent = (player == BLACK) ? WHITE : BLACK;
+
+    // 1. Restauration des pierres capturées (remises à l'adversaire)
+    for (int i = 0; i < captureCount; i++) {
+        board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = opponent;
+    }
+    // 2. Retrait de la pierre jouée
+    board[row][col] = NONE;
+}
+
 // =================================================================================
-//                              4. RÈGLES COMPLEXES
+//                              3. ANALYSE DE MOTIFS (PATTERNS)
+// =================================================================================
+
+std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
+    Player player = static_cast<Player>(playerInt);
+    std::string line = "";
+    // Scanner une fenêtre de -5 à +5 autour du point
+    for (int i = -5; i <= 5; i++) {
+        int r = row + i * dir.r;
+        int c = col + i * dir.c;
+
+        if (!isOnBoard(r, c)) {
+            line += 'O'; // Mur/Adversaire (Bloquant)
+        } else {
+            Player p = getPlayerAt(board, r, c);
+            if (p == player) line += 'P';
+            else if (p == NONE) line += '_';
+            else line += 'O'; // Adversaire (Bloquant)
+        }
+    }
+    return line;
+}
+
+bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
+    std::string line = getLinePattern(board, row, col, dir, player);
+    
+    // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
+    // 1. __PPP_ : Espace suffisant pour étendre
+    // 2. _PPP__ : Miroir
+    // 3. _P_PP_ : Troué (devient _PPPP_ si comblé)
+    // 4. _PP_P_ : Miroir
+    const char* patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
+    
+    for (int i = 0; i < 4; i++) {
+        if (line.find(patterns[i]) != std::string::npos) return true;
+    }
+    return false;
+}
+
+// =================================================================================
+//                              4. RÈGLES COMPLEXES (INTERDICTIONS)
 // =================================================================================
 
 bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
@@ -169,47 +166,96 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
     return freeThreeCount >= 2;
 }
 
-// --- Helpers pour Double-Trois ---
+// =================================================================================
+//                              5. ARBITRAGE (VICTOIRE & PAT)
+// =================================================================================
 
-std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
-    Player player = static_cast<Player>(playerInt);
-    std::string line = "";
-    // Scanner une fenêtre de -5 à +5 autour du point
-    for (int i = -5; i <= 5; i++) {
-        int r = row + i * dir.r;
-        int c = col + i * dir.c;
+/**
+ * Vérifie si l'adversaire peut légalement jouer à la position (r, c) pour effectuer une capture.
+ */
+bool GomokuRules::tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent) {
+    // 1. La case doit être vide
+    if (!isEmptyCell(board, r, c)) return false;
 
-        if (!isOnBoard(r, c)) {
-            line += 'O'; // Mur/Adversaire (Bloquant)
-        } else {
-            Player p = getPlayerAt(board, r, c);
-            if (p == player) line += 'P';
-            else if (p == NONE) line += '_';
-            else line += 'O'; // Adversaire (Bloquant)
-        }
-    }
-    return line;
+    // 2. Le coup doit être légal (pas de suicide, etc.)
+    // Note : On doit cast le board car validateMove a besoin d'un pointeur non-const pour simuler
+    auto mutableBoard = const_cast<int(*)[BOARD_SIZE]>(board);
+    return validateMove(mutableBoard, r, c, opponent) == VALID;
 }
 
-bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
-    std::string line = getLinePattern(board, row, col, dir, player);
-    
-    // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
-    // 1. __PPP_ : Espace suffisant pour étendre
-    // 2. _PPP__ : Miroir
-    // 3. _P_PP_ : Troué (devient _PPPP_ si comblé)
-    // 4. _PP_P_ : Miroir
-    const char* patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
-    
-    for (int i = 0; i < 4; i++) {
-        if (line.find(patterns[i]) != std::string::npos) return true;
+/**
+ * Analyse une paire de pierres alliées (p1, p2) et regarde si elle est "prenable".
+ * Patterns recherchés : [O P P _] ou [_ P P O]
+ */
+bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
+    // Calcul des extrémités (Flancs)
+    int dr = p2.r - p1.r;
+    int dc = p2.c - p1.c;
+
+    // Flanc côté P1 (Arrière)
+    int rBack = p1.r - dr;
+    int cBack = p1.c - dc;
+
+    // Flanc côté P2 (Avant)
+    int rFront = p2.r + dr;
+    int cFront = p2.c + dc;
+
+    Player opp = static_cast<Player>(opponent);
+
+    // Cas A : [O P P _] -> Adversaire derrière, Trou devant
+    if (getPlayerAt(board, rBack, cBack) == opp) {
+        if (tryCaptureAt(board, rFront, cFront, opponent)) return true;
     }
+
+    // Cas B : [_ P P O] -> Trou derrière, Adversaire devant
+    if (getPlayerAt(board, rFront, cFront) == opp) {
+        if (tryCaptureAt(board, rBack, cBack, opponent)) return true;
+    }
+
     return false;
 }
 
-// =================================================================================
-//                              5. CONDITIONS DE VICTOIRE
-// =================================================================================
+bool GomokuRules::doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2) {
+    // On s'assure que idx1 est le plus petit
+    if (removeIdx1 > removeIdx2) std::swap(removeIdx1, removeIdx2);
+
+    // Calcul des segments restants après la suppression de la paire [idx1, idx2]
+    // Segment 1 : Tout ce qui est avant la première pierre supprimée (0 à idx1-1)
+    int segment1Length = removeIdx1;
+
+    // Segment 2 : Tout ce qui est après la deuxième pierre supprimée (idx2+1 à fin)
+    int segment2Length = lineLength - 1 - removeIdx2;
+
+    // Si au moins un des segments restants est suffisant pour gagner (>= 5),
+    // alors la capture NE CASSE PAS la victoire.
+    if (segment1Length >= 5 || segment2Length >= 5) {
+        return false;
+    }
+
+    // Sinon, la ligne est brisée en morceaux trop petits -> Victoire annulée.
+    return true;
+}
+
+bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
+    // Une ligne de moins de 5 pierres n'est pas une victoire, donc pas "cassable" au sens de la règle
+    if (line.size() < 5) return false;
+    
+    // Règle : "Break this line by capturing a pair WITHIN IT"
+    // On parcourt les paires adjacentes DANS la ligne victorieuse.
+    for (size_t i = 0; i < line.size() - 1; i++) {
+        Point p1 = line[i];
+        Point p2 = line[i+1];
+
+        // Vérifie si cette paire spécifique (qui appartient à la ligne) est prenable
+        if (isPairSandwiched(board, p1, p2, opponentInt)) {
+            // Si elle est prenable, est-ce que ça suffit à empêcher la victoire ?
+            if (doesCaptureBreakWin((int)line.size(), (int)i, (int)i+1)) {
+                return true; // Victoire invalidée
+            }
+        }
+    }
+    return false;
+}
 
 bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones) {
     // 0. Victoire immédiate par capture
@@ -253,105 +299,6 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
     return false;
 }
 
-// --- Helpers pour Victoire ---
-
-/**
- * Vérifie si l'adversaire peut légalement jouer à la position (r, c) pour effectuer une capture.
- */
-static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent) {
-    // 1. La case doit être vide
-    if (!GomokuRules::isEmptyCell(board, r, c)) return false;
-
-    // 2. Le coup doit être légal (pas de suicide, etc.)
-    // Note : On doit cast le board car validateMove a besoin d'un pointeur non-const pour simuler
-    auto mutableBoard = const_cast<int(*)[BOARD_SIZE]>(board);
-    return GomokuRules::validateMove(mutableBoard, r, c, opponent) == VALID;
-}
-
-/**
- * Analyse une paire de pierres alliées (p1, p2) et regarde si elle est "prenable".
- * Patterns recherchés : [O P P _] ou [_ P P O]
- */
-static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
-    // Calcul des extrémités (Flancs)
-    int dr = p2.r - p1.r;
-    int dc = p2.c - p1.c;
-
-    // Flanc côté P1 (Arrière)
-    int rBack = p1.r - dr;
-    int cBack = p1.c - dc;
-
-    // Flanc côté P2 (Avant)
-    int rFront = p2.r + dr;
-    int cFront = p2.c + dc;
-
-    Player opp = static_cast<Player>(opponent);
-
-    // Cas A : [O P P _] -> Adversaire derrière, Trou devant
-    if (GomokuRules::getPlayerAt(board, rBack, cBack) == opp) {
-        if (tryCaptureAt(board, rFront, cFront, opponent)) return true;
-    }
-
-    // Cas B : [_ P P O] -> Trou derrière, Adversaire devant
-    if (GomokuRules::getPlayerAt(board, rFront, cFront) == opp) {
-        if (tryCaptureAt(board, rBack, cBack, opponent)) return true;
-    }
-
-    return false;
-}
-
-// --- FONCTION PRINCIPALE ---
-
-bool GomokuRules::doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2) {
-    // On s'assure que idx1 est le plus petit
-    if (removeIdx1 > removeIdx2) std::swap(removeIdx1, removeIdx2);
-
-    // Calcul des segments restants après la suppression de la paire [idx1, idx2]
-    // Segment 1 : Tout ce qui est avant la première pierre supprimée (0 à idx1-1)
-    int segment1Length = removeIdx1;
-
-    // Segment 2 : Tout ce qui est après la deuxième pierre supprimée (idx2+1 à fin)
-    int segment2Length = lineLength - 1 - removeIdx2;
-
-    // Si au moins un des segments restants est suffisant pour gagner (>= 5),
-    // alors la capture NE CASSE PAS la victoire.
-    if (segment1Length >= 5 || segment2Length >= 5) {
-        return false;
-    }
-
-    // Sinon, la ligne est brisée en morceaux trop petits -> Victoire annulée.
-    return true;
-}
-
-bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    // Une ligne de moins de 5 pierres n'est pas une victoire, donc pas "cassable" au sens de la règle
-    if (line.size() < 5) return false;
-    
-    // Règle : "Break this line by capturing a pair WITHIN IT"
-    // On parcourt les paires adjacentes DANS la ligne victorieuse.
-    // Comme le vecteur 'line' est trié spatialement (construit par scan directionnel),
-    // line[i] et line[i+1] sont forcément voisins sur le plateau.
-    
-    for (size_t i = 0; i < line.size() - 1; i++) {
-        Point p1 = line[i];
-        Point p2 = line[i+1];
-
-        // Vérifie si cette paire spécifique (qui appartient à la ligne) est prenable
-        if (isPairSandwiched(board, p1, p2, opponentInt)) {
-            
-            // Si elle est prenable, est-ce que ça suffit à empêcher la victoire ?
-            // Cas concret : Ligne de 7 pierres. On capture les 2 du bout. Il en reste 5.
-            // -> doesCaptureBreakWin renverra FALSE (la victoire persiste).
-            if (doesCaptureBreakWin((int)line.size(), (int)i, (int)i+1)) {
-                return true; // Victoire invalidée
-            }
-            // Sinon, on continue de chercher une AUTRE capture qui, elle, casserait tout.
-        }
-    }
-
-    return false;
-}
-
 bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player) {
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
@@ -366,4 +313,54 @@ bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int pl
     }
     // Aucun coup valide trouvé
     return true;
+}
+
+// =================================================================================
+//                              6. VALIDATION MAÎTRE (POINT D'ENTRÉE)
+// =================================================================================
+
+MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
+    // 1. Contrôles basiques
+    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
+    if (board[row][col] != NONE) return INVALID_OCCUPIED;
+
+    // 2. Simulation RAII (Apply automatique)
+    // Le ScopedMove applique le coup et le retire automatiquement à la fin du bloc
+    {
+        ScopedMove move(board, row, col, player);
+
+        // 3. Vérification Suicide (sur plateau modifié)
+        // Règle : Interdit de jouer un coup qui complète une capture adverse...
+        // ...SAUF si ce coup capture lui-même des pierres.
+        if (move.numCaptured == 0) {
+            if (isSuicideMove(board, row, col, player)) {
+                return INVALID_SUICIDE; 
+            }
+        }
+
+        // 4. Vérification Double-Trois
+        // Règle : Interdit de créer deux "Free-Three" simultanés...
+        // ...SAUF si ce coup capture des pierres.
+        if (move.numCaptured == 0) {
+            if (checkDoubleThree(board, row, col, player)) {
+                return INVALID_DOUBLE_THREE; 
+            }
+        }
+    } // 5. Undo automatique ici (Destructeur ScopedMove)
+
+    return VALID;
+}
+
+// =================================================================================
+//                              7. RAII HELPER IMPLEMENTATION
+// =================================================================================
+
+ScopedMove::ScopedMove(int b[BOARD_SIZE][BOARD_SIZE], int r, int c, int p) 
+    : board(b), row(r), col(c), player(p) 
+{
+    numCaptured = GomokuRules::applyMove(board, row, col, player, captured);
+}
+
+ScopedMove::~ScopedMove() {
+    GomokuRules::undoMove(board, row, col, player, captured, numCaptured);
 }

@@ -58,90 +58,50 @@ const Direction CAPTURE_DIRECTIONS[8] = {
 class GomokuRules {
 public:
     // ============================================================
-    // 1. VALIDATION MAÎTRE (Point d'entrée principal)
+    // SECTION PUBLIQUE : API DU MOTEUR
+    // (Seules ces fonctions doivent être appelées depuis l'extérieur)
     // ============================================================
     
     /**
+     * VALIDATION MAÎTRE (Point d'entrée principal)
      * Effectue une validation complète d'un coup.
-     * Simule le coup et les captures pour résoudre les cas limites
-     * (ex: Suicide autorisé s'il capture, Double-Trois autorisé s'il capture).
-     * 
-     * @return MoveStatus (VALID=0 si autorisé)
+     * Simule le coup et les captures pour résoudre les cas limites.
      */
     static MoveStatus validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
-    // ============================================================
-    // 2. UTILITAIRES DE BASE (Lecture seule)
-    // ============================================================
-    
-    // Vérifie si les coordonnées sont dans le plateau (0-18)
+    // --- Primitives (Lecture Seule) ---
     static bool isOnBoard(int row, int col);
-    
-    // Vérifie si une case est physiquement libre (sans règle complexe)
     static bool isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
-    
-    // Récupère le joueur à une position (Safe check)
     static Player getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col);
 
-    // ============================================================
-    // 3. MÉCANIQUE DE JEU (Physique & Captures)
-    // ============================================================
-
-    /**
-     * Applique un coup sur le plateau :
-     * 1. Pose la pierre.
-     * 2. Calcule et retire les pierres capturées.
-     * 
-     * @param capturedStonesOut Buffer de sortie pour stocker les coords capturées.
-     * @return Nombre de pierres capturées (paires * 2).
-     */
+    // --- Physique du Jeu (Modification du Plateau) ---
     static int applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]);
-
-    /**
-     * Annule un coup (Rollback) :
-     * 1. Restaure les pierres capturées.
-     * 2. Retire la pierre jouée.
-     */
     static void undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount);
-
-    /**
-     * Calcule les captures potentielles SANS modifier le plateau.
-     * @param capturedStonesOut (Optionnel) Buffer pour stocker les résultats.
-     */
+    
+    // --- Simulation ---
     static int checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2] = nullptr);
-
-    // ============================================================
-    // 4. RÈGLES COMPLEXES (Interdictions)
-    // ============================================================
-
-    // Vérifie si le coup est un "Suicide" (complète un motif de capture adverse)
-    static bool isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
-
-    // Vérifie si le coup crée deux "Free Threes" simultanés
-    static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
-
-    // ============================================================
-    // 5. CONDITIONS DE VICTOIRE
-    // ============================================================
-
-    // Vérifie si 5 pierres sont alignées ET incassables par capture, OU si 10 pierres sont capturées.
     static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStones);
-
-    // Vérifie si le joueur actuel ne peut jouer aucun coup valide (Pat).
     static bool checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player);
+
+    // --- Helpers Complexes (Accessibles si besoin spécifique) ---
+    static bool isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+    static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
 private:
     // ============================================================
-    // 6. HELPERS INTERNES
+    // SECTION PRIVÉE : CUISINE INTERNE
+    // (Helpers utilisés uniquement pour les calculs internes)
     // ============================================================
     
-    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
-    
-    // Helper pour vérifier si une capture casse réellement la condition de victoire (reste < 5 pierres)
-    static bool doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2);
-
+    // Helpers de Motifs (Pattern Matching)
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
+    
+    // Helpers d'Arbitrage (Victoire Cassable)
+    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
+    static bool doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2);
+    static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
+    static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
 };
 
 // =================================================================================

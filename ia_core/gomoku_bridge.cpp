@@ -2,13 +2,19 @@
  * Gomoku Bridge
  * Expose la logique C++ vers JavaScript via WebAssembly.
  * Ne contient AUCUNE logique de jeu, uniquement du code d'interface.
+ * 
+ * Organisation :
+ * 1. Gestion Mémoire (Buffers)
+ * 2. Cycle de Vie IA
+ * 3. Actions de Jeu (IA)
+ * 4. Moteur de Règles (Exports)
  */
 
 #include "gomoku_ai.h"
 #include "gomoku_rules.h"
 
 // =================================================================================
-//                            GESTION MÉMOIRE (BUFFERS)
+//                            1. GESTION MÉMOIRE (BUFFERS)
 // =================================================================================
 
 // Buffer statique pour le Plateau (19x19)
@@ -22,13 +28,13 @@ static int BRIDGE_CAPTURE_BUFFER[64];
 
 extern "C" {
 
-// Helper pour obtenir l'adresse du buffer plateau
+// Helper pour obtenir l'adresse du buffer plateau depuis JS
 int* get_board_buffer() {
     return BRIDGE_BOARD_BUFFER;
 }
 
 // =================================================================================
-//                            CYCLE DE VIE DE L'IA
+//                            2. CYCLE DE VIE DE L'IA
 // =================================================================================
 
 void initAI(int aiPlayer) {
@@ -56,7 +62,7 @@ void cleanupAI() {
 }
 
 // =================================================================================
-//                            ACTIONS DE JEU (IA)
+//                            3. ACTIONS DE JEU (IA)
 // =================================================================================
 
 void makeMove(int row, int col, int player) {
@@ -81,7 +87,7 @@ int getBestMove() {
 }
 
 // =================================================================================
-//                            MOTEUR DE RÈGLES (EXPORTS)
+//                            4. MOTEUR DE RÈGLES (EXPORTS)
 // =================================================================================
 
 // Fonction de Validation Maître exposée au JS
