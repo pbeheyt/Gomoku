@@ -302,40 +302,53 @@ static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, 
 
 // --- FONCTION PRINCIPALE ---
 
+bool GomokuRules::doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2) {
+    // On s'assure que idx1 est le plus petit
+    if (removeIdx1 > removeIdx2) std::swap(removeIdx1, removeIdx2);
+
+    // Calcul des segments restants après la suppression de la paire [idx1, idx2]
+    // Segment 1 : Tout ce qui est avant la première pierre supprimée (0 à idx1-1)
+    int segment1Length = removeIdx1;
+
+    // Segment 2 : Tout ce qui est après la deuxième pierre supprimée (idx2+1 à fin)
+    int segment2Length = lineLength - 1 - removeIdx2;
+
+    // Si au moins un des segments restants est suffisant pour gagner (>= 5),
+    // alors la capture NE CASSE PAS la victoire.
+    if (segment1Length >= 5 || segment2Length >= 5) {
+        return false;
+    }
+
+    // Sinon, la ligne est brisée en morceaux trop petits -> Victoire annulée.
+    return true;
+}
+
 bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    if (line.size() < 2) return false;
+    // Une ligne de moins de 5 pierres n'est pas une victoire, donc pas "cassable" au sens de la règle
+    if (line.size() < 5) return false;
     
-    Player opponent = static_cast<Player>(opponentInt);
-    Player player = (opponent == BLACK) ? WHITE : BLACK;
+    // Règle : "Break this line by capturing a pair WITHIN IT"
+    // On parcourt les paires adjacentes DANS la ligne victorieuse.
+    // Comme le vecteur 'line' est trié spatialement (construit par scan directionnel),
+    // line[i] et line[i+1] sont forcément voisins sur le plateau.
+    
+    for (size_t i = 0; i < line.size() - 1; i++) {
+        Point p1 = line[i];
+        Point p2 = line[i+1];
 
-    // On parcourt chaque pierre de la ligne gagnante
-    for (const Point& stone : line) {
-        
-        // Pour chaque pierre, on scanne les 4 axes pour voir si elle est attaquée de flanc
-        for (int i = 0; i < 4; i++) {
-            Direction dir = AXES[i];
-
-            // On regarde les voisins directs pour trouver une paire (Stone + Voisin)
+        // Vérifie si cette paire spécifique (qui appartient à la ligne) est prenable
+        if (isPairSandwiched(board, p1, p2, opponentInt)) {
             
-            // Voisin 1 (Direction +)
-            int rNext = stone.r + dir.r;
-            int cNext = stone.c + dir.c;
-            
-            if (getPlayerAt(board, rNext, cNext) == player) {
-                // On a trouvé une paire ! Est-elle en danger ?
-                if (isPairSandwiched(board, stone, {rNext, cNext}, opponentInt)) return true;
+            // Si elle est prenable, est-ce que ça suffit à empêcher la victoire ?
+            // Cas concret : Ligne de 7 pierres. On capture les 2 du bout. Il en reste 5.
+            // -> doesCaptureBreakWin renverra FALSE (la victoire persiste).
+            if (doesCaptureBreakWin((int)line.size(), (int)i, (int)i+1)) {
+                return true; // Victoire invalidée
             }
-
-            // Voisin 2 (Direction -)
-            int rPrev = stone.r - dir.r;
-            int cPrev = stone.c - dir.c;
-            
-            if (getPlayerAt(board, rPrev, cPrev) == player) {
-                // On a trouvé une paire ! Est-elle en danger ?
-                if (isPairSandwiched(board, {rPrev, cPrev}, stone, opponentInt)) return true;
-            }
+            // Sinon, on continue de chercher une AUTRE capture qui, elle, casserait tout.
         }
     }
+
     return false;
 }
 

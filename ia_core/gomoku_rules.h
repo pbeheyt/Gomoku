@@ -136,6 +136,10 @@ private:
     // ============================================================
     
     static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
+    
+    // Helper pour vérifier si une capture casse réellement la condition de victoire (reste < 5 pierres)
+    static bool doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2);
+
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
 };
