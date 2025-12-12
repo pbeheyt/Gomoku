@@ -8,7 +8,7 @@
 
 import { Player } from './types.js';
 
-export const BOARD_SIZE = 6;
+export const BOARD_SIZE = 19;
 
 export class GameBoard {
   private board: Player[][];
@@ -27,7 +27,7 @@ export class GameBoard {
    * Cela simplifie énormément les algos de détection dans game.ts qui n'ont pas besoin de vérifier les   bords à chaque étape.
    */
   getPiece(row: number, col: number): Player {
-    if (!this.isValidPosition(row, col)) {
+    if (!this.isOnBoard(row, col)) {
       return Player.NONE;
     }
     return this.board[row][col];
@@ -38,26 +38,23 @@ export class GameBoard {
    * Ignore silencieusement les coordonnées invalides pour éviter les crashs.
    */
   setPiece(row: number, col: number, player: Player): void {
-    if (this.isValidPosition(row, col)) {
+    if (this.isOnBoard(row, col)) {
       this.board[row][col] = player;
     }
   }
 
   /**
-   * Vérifie si on peut jouer ici (Règles physiques de base).
-   * 1. Est-ce dans le plateau ?
-   * 2. Est-ce que la case est vide ?
-   * (Les règles complexes comme le Suicide sont gérées dans game.ts)
+   * Vérifie si la case est physiquement libre.
+   * Ne vérifie PAS les règles du jeu (Suicide, Double-3), seulement l'occupation.
    */
-  isValidMove(row: number, col: number): boolean {
-    return this.isValidPosition(row, col) && this.board[row][col] === Player.NONE;
+  isCellEmpty(row: number, col: number): boolean {
+    return this.isOnBoard(row, col) && this.board[row][col] === Player.NONE;
   }
 
   /**
    * Vérifie simplement si les coordonnées sont dans la grille (0-18).
-   * Empêche les erreurs "Index out of bounds".
    */
-  isValidPosition(row: number, col: number): boolean {
+  isOnBoard(row: number, col: number): boolean {
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
   }
 

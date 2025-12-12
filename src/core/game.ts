@@ -126,9 +126,6 @@ export class GomokuGame {
    */
   private async analyzeMove(row: number, col: number, player: Player): Promise<ValidationResult & { captures?: CaptureResult[] }> {
     if (!this.wasmAI) return { isValid: false, reason: 'IA non prête' };
-    if (!this.board.isValidMove(row, col)) {
-      return { isValid: false, reason: 'Position invalide ou occupée' };
-    }
 
     // STRATÉGIE : Délégation totale au C++
     // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).

@@ -456,7 +456,7 @@ class GameController {
         // turnGameId ne correspondra plus à this.game.getGameId().
         if (this.game.getGameId() !== turnGameId) return;
 
-        if (aiMove && this.game.getBoard().isValidMove(aiMove.row, aiMove.col)) {
+        if (aiMove && this.game.getBoard().isCellEmpty(aiMove.row, aiMove.col)) {
             this.makeMove(aiMove.row, aiMove.col);
         } else {
             this.ui.showMessage("L'IA a retourné un coup invalide.", 'error');
@@ -510,7 +510,7 @@ class GameController {
       const llmMove = result.position;
       this.ui.setReasoning(result.reasoning || "Aucun raisonnement disponible.");
 
-      if (llmMove && this.game.getBoard().isValidMove(llmMove.row, llmMove.col)) {
+      if (llmMove && this.game.getBoard().isCellEmpty(llmMove.row, llmMove.col)) {
         await new Promise(resolve => setTimeout(resolve, 300)); // Petit délai UX
         
         if (this.game.getGameId() === turnGameId) {
@@ -779,8 +779,8 @@ class GameController {
     
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     
-    // On affiche le fantôme SEULEMENT si la case est valide
-    this.hoverPosition = (pos && this.game.getBoard().isValidMove(pos.row, pos.col)) ? pos : null;
+    // On affiche le fantôme SEULEMENT si la case est physiquement vide
+    this.hoverPosition = (pos && this.game.getBoard().isCellEmpty(pos.row, pos.col)) ? pos : null;
     
     this.redraw();
   }
