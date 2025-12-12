@@ -367,6 +367,10 @@ class GameController {
         
         // Si coup invalide (règle violée)
         if (!result.isValid) {
+          // UX : On ignore silencieusement les clics sur des cases occupées pour éviter le spam visuel
+          if (result.reason === 'Case occupée') {
+            return;
+          }
           this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
           return;
         }
