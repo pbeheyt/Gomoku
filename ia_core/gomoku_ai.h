@@ -77,7 +77,7 @@ private:
     int positionCoordinateToIndex(int row, int col);
     int indexToRowCoordinate(int index);
     int indexToColCoordinate(int index);
-    void sortMovesByScore(std::vector<Move>& moves, int player);
+    void sortMovesByScore(std::vector<Move> &moves, int player);
 
     // Pattern Helpers
     PatternInfo analyzePattern(int row, int col, int direction, int player, bool visited[BOARD_SIZE][BOARD_SIZE][4]);
@@ -92,7 +92,7 @@ private:
 public:
     GomokuAI(int aiPlayerColor);
     void clearBoard();
-    void setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures);
+    void setBoard(const int *flatBoard, int blackCaptures, int whiteCaptures);
     void makeMove(int row, int col, int player);
     bool isValidMove(int row, int col);
     void getBestMove(int &bestRow, int &bestCol);
