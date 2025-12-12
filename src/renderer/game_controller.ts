@@ -176,6 +176,7 @@ class GameController {
   private setupGameEvents(): void {
     // 1. Un coup a été validé
     gameEvents.on('move:made', (move) => {
+        this.ui.clearMessage(); // Nettoyage immédiat des notifications (ex: erreurs précédentes)
         this.redraw(); // Met à jour la 3D
         this.soundManager.playStoneDrop(); // Son "Clack"
     });
