@@ -93,18 +93,20 @@ private:
     // (Helpers utilisés uniquement pour les calculs internes)
     // ============================================================
     
-    // Helpers de Motifs (Pattern Matching)
+    // --- 1. Analyse de Motifs (Patterns) ---
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::vector<Point> getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     
-    // Helpers d'Arbitrage (Victoire Cassable)
-    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
+    // --- 2. Logique de Paires (Sandwich/Surround) ---
+    static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
     static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
     static bool isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
-    static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
+    
+    // --- 3. Validation de Victoire (Capture Breaks Win) ---
     static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
     static int getLongestSegment(const std::vector<bool>& isRemoved);
+    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
 };
 
 // =================================================================================
