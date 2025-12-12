@@ -98,18 +98,5 @@ export class GameBoard {
   isFull(): boolean {
     return this.board.every(row => row.every(cell => cell !== Player.NONE));
   }
-
-  /**
-   * Compte le nombre exact de cases vides sur le plateau.
-   */
-  getEmptyCount(): number {
-    let count = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (this.board[r][c] === Player.NONE) count++;
-      }
-    }
-    return count;
-  }
 }
  

@@ -261,9 +261,12 @@ export class GomokuGame {
    * Vérifie si le joueur est en situation de Pat (aucun coup légal possible).
    */
   private async checkStalemate(player: Player): Promise<boolean> {
-    // 1. Optimisation : On ne vérifie que s'il reste peu de place (<= 20 cases)
-    // Note : STALEMATE_THRESHOLD est défini en haut du fichier (20)
-    const emptyCells = this.board.getEmptyCount();
+    // 1. Optimisation Mathématique O(1)
+    // On calcule les cases vides sans parcourir le tableau : Total - (Posées - Capturées)
+    const stonesOnBoard = this.moveHistory.length - (this.blackCaptures + this.whiteCaptures);
+    const emptyCells = (BOARD_SIZE * BOARD_SIZE) - stonesOnBoard;
+
+    // On ne vérifie le Pat que si le plateau est presque plein (<= 20 cases vides)
     if (emptyCells > STALEMATE_THRESHOLD) return false;
 
     if (!this.wasmAI) return false;
