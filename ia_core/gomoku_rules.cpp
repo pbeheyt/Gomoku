@@ -255,43 +255,84 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
 
 // --- Helpers pour Victoire ---
 
+/**
+ * Vérifie si l'adversaire peut légalement jouer à la position (r, c) pour effectuer une capture.
+ */
+static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent) {
+    // 1. La case doit être vide
+    if (!GomokuRules::isEmptyCell(board, r, c)) return false;
+
+    // 2. Le coup doit être légal (pas de suicide, etc.)
+    // Note : On doit cast le board car validateMove a besoin d'un pointeur non-const pour simuler
+    auto mutableBoard = const_cast<int(*)[BOARD_SIZE]>(board);
+    return GomokuRules::validateMove(mutableBoard, r, c, opponent) == VALID;
+}
+
+/**
+ * Analyse une paire de pierres alliées (p1, p2) et regarde si elle est "prenable".
+ * Patterns recherchés : [O P P _] ou [_ P P O]
+ */
+static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
+    // Calcul des extrémités (Flancs)
+    int dr = p2.r - p1.r;
+    int dc = p2.c - p1.c;
+
+    // Flanc côté P1 (Arrière)
+    int rBack = p1.r - dr;
+    int cBack = p1.c - dc;
+
+    // Flanc côté P2 (Avant)
+    int rFront = p2.r + dr;
+    int cFront = p2.c + dc;
+
+    Player opp = static_cast<Player>(opponent);
+
+    // Cas A : [O P P _] -> Adversaire derrière, Trou devant
+    if (GomokuRules::getPlayerAt(board, rBack, cBack) == opp) {
+        if (tryCaptureAt(board, rFront, cFront, opponent)) return true;
+    }
+
+    // Cas B : [_ P P O] -> Trou derrière, Adversaire devant
+    if (GomokuRules::getPlayerAt(board, rFront, cFront) == opp) {
+        if (tryCaptureAt(board, rBack, cBack, opponent)) return true;
+    }
+
+    return false;
+}
+
+// --- FONCTION PRINCIPALE ---
+
 bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
     if (line.size() < 2) return false;
     
     Player opponent = static_cast<Player>(opponentInt);
+    Player player = (opponent == BLACK) ? WHITE : BLACK;
 
-    // Déduire la direction de la ligne
-    Direction dir = { line[1].r - line[0].r, line[1].c - line[0].c };
+    // On parcourt chaque pierre de la ligne gagnante
+    for (const Point& stone : line) {
+        
+        // Pour chaque pierre, on scanne les 4 axes pour voir si elle est attaquée de flanc
+        for (int i = 0; i < 4; i++) {
+            Direction dir = AXES[i];
 
-    // Scanner chaque paire de pierres dans la ligne
-    for (size_t i = 0; i < line.size() - 1; i++) {
-        Point s1 = line[i];
-        Point s2 = line[i+1];
+            // On regarde les voisins directs pour trouver une paire (Stone + Voisin)
+            
+            // Voisin 1 (Direction +)
+            int rNext = stone.r + dir.r;
+            int cNext = stone.c + dir.c;
+            
+            if (getPlayerAt(board, rNext, cNext) == player) {
+                // On a trouvé une paire ! Est-elle en danger ?
+                if (isPairSandwiched(board, stone, {rNext, cNext}, opponentInt)) return true;
+            }
 
-        // Positions flanquantes
-        Point before = { s1.r - dir.r, s1.c - dir.c };
-        Point after  = { s2.r + dir.r, s2.c + dir.c };
-
-        Player pBefore = getPlayerAt(board, before.r, before.c);
-        Player pAfter  = getPlayerAt(board, after.r, after.c);
-
-        Point captureMove = {-1, -1};
-
-        // Scénario 1 : O A A _ (Adversaire, Ami, Ami, Vide)
-        if (pBefore == opponent && pAfter == NONE) {
-            captureMove = after;
-        }
-        // Scénario 2 : _ A A O (Vide, Ami, Ami, Adversaire)
-        else if (pBefore == NONE && pAfter == opponent) {
-            captureMove = before;
-        }
-
-        // Si une position de capture existe
-        if (captureMove.r != -1) {
-            // L'adversaire peut-il jouer là ? (Validité de base + Suicide)
-            if (isEmptyCell(board, captureMove.r, captureMove.c) && 
-                !isSuicideMove(board, captureMove.r, captureMove.c, opponent)) {
-                return true; // La ligne est cassable
+            // Voisin 2 (Direction -)
+            int rPrev = stone.r - dir.r;
+            int cPrev = stone.c - dir.c;
+            
+            if (getPlayerAt(board, rPrev, cPrev) == player) {
+                // On a trouvé une paire ! Est-elle en danger ?
+                if (isPairSandwiched(board, {rPrev, cPrev}, stone, opponentInt)) return true;
             }
         }
     }
