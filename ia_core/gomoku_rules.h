@@ -13,7 +13,7 @@
 //                              CONSTANTES & ENUMS
 // =================================================================================
 
-const int BOARD_SIZE = 19;
+const int BOARD_SIZE = 6;
 
 // Représentation des joueurs
 enum Player {

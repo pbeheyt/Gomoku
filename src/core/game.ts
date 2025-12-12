@@ -145,6 +145,8 @@ export class GomokuGame {
 
     if (status !== 0) {
         let reason = 'Coup invalide';
+        if (status === 1) reason = 'Hors limites';
+        if (status === 2) reason = 'Case occupée';
         if (status === 3) reason = 'Suicide interdit';
         if (status === 4) reason = 'Double-Trois interdit';
         return { isValid: false, reason };
