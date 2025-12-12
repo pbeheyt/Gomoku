@@ -215,46 +215,57 @@ bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Poin
     return false;
 }
 
-bool GomokuRules::doesCaptureBreakWin(int lineLength, int removeIdx1, int removeIdx2) {
-    // On s'assure que idx1 est le plus petit
-    if (removeIdx1 > removeIdx2) std::swap(removeIdx1, removeIdx2);
+bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent) {
+    // On vérifie les 8 directions autour de la pierre pour voir si elle forme une paire menacée
+    for (int i = 0; i < 8; i++) {
+        Direction dir = CAPTURE_DIRECTIONS[i];
+        int rAdj = row + dir.r;
+        int cAdj = col + dir.c;
+        if (!isOnBoard(rAdj, cAdj)) continue;
 
-    // Calcul des segments restants après la suppression de la paire [idx1, idx2]
-    // Segment 1 : Tout ce qui est avant la première pierre supprimée (0 à idx1-1)
-    int segment1Length = removeIdx1;
-
-    // Segment 2 : Tout ce qui est après la deuxième pierre supprimée (idx2+1 à fin)
-    int segment2Length = lineLength - 1 - removeIdx2;
-
-    // Si au moins un des segments restants est suffisant pour gagner (>= 5),
-    // alors la capture NE CASSE PAS la victoire.
-    if (segment1Length >= 5 || segment2Length >= 5) {
-        return false;
-    }
-
-    // Sinon, la ligne est brisée en morceaux trop petits -> Victoire annulée.
-    return true;
-}
-
-bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    // Une ligne de moins de 5 pierres n'est pas une victoire, donc pas "cassable" au sens de la règle
-    if (line.size() < 5) return false;
-    
-    // Règle : "Break this line by capturing a pair WITHIN IT"
-    // On parcourt les paires adjacentes DANS la ligne victorieuse.
-    for (size_t i = 0; i < line.size() - 1; i++) {
-        Point p1 = line[i];
-        Point p2 = line[i+1];
-
-        // Vérifie si cette paire spécifique (qui appartient à la ligne) est prenable
-        if (isPairSandwiched(board, p1, p2, opponentInt)) {
-            // Si elle est prenable, est-ce que ça suffit à empêcher la victoire ?
-            if (doesCaptureBreakWin((int)line.size(), (int)i, (int)i+1)) {
-                return true; // Victoire invalidée
+        // Si le voisin est un allié, on a une paire potentielle
+        if (getPlayerAt(board, rAdj, cAdj) == getPlayerAt(board, row, col)) {
+            Point p1 = {row, col};
+            Point p2 = {rAdj, cAdj};
+            // Si cette paire est prise en sandwich par l'adversaire (et que le coup est légal)
+            if (isPairSandwiched(board, p1, p2, opponent)) {
+                return true;
             }
         }
     }
     return false;
+}
+
+bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
+    if (line.size() < 5) return false;
+
+    // 1. Identification des pierres menacées (Atomicité)
+    std::vector<bool> isRemoved(line.size(), false);
+    
+    for (size_t i = 0; i < line.size(); i++) {
+        // Pour chaque pierre de la ligne, on regarde si elle peut être capturée
+        // (peu importe la direction de la capture, même perpendiculaire à la ligne)
+        if (isStoneCapturable(board, line[i].r, line[i].c, opponentInt)) {
+            isRemoved[i] = true;
+        }
+    }
+
+    // 2. Vérification de la survie (Continuité)
+    // On cherche la plus longue séquence de pierres NON supprimées
+    int currentRun = 0;
+    int maxRun = 0;
+    for (bool removed : isRemoved) {
+        if (!removed) {
+            currentRun++;
+        } else {
+            maxRun = std::max(maxRun, currentRun);
+            currentRun = 0;
+        }
+    }
+    maxRun = std::max(maxRun, currentRun);
+
+    // Si le plus grand fragment restant est inférieur à 5, la victoire est brisée.
+    return maxRun < 5;
 }
 
 bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones) {
