@@ -16,52 +16,54 @@
 const int BOARD_SIZE = 19;
 
 // Représentation des joueurs
-enum Player {
+enum Player
+{
     NONE = 0,
     BLACK = 1,
     WHITE = 2
 };
 
 // Statuts de validation d'un coup
-enum MoveStatus {
+enum MoveStatus
+{
     VALID = 0,
-    INVALID_BOUNDS = 1,     // Hors plateau
-    INVALID_OCCUPIED = 2,   // Case déjà prise
-    INVALID_SUICIDE = 3,    // Coup suicidaire (interdit sauf si capture)
+    INVALID_BOUNDS = 1,      // Hors plateau
+    INVALID_OCCUPIED = 2,    // Case déjà prise
+    INVALID_SUICIDE = 3,     // Coup suicidaire (interdit sauf si capture)
     INVALID_DOUBLE_THREE = 4 // Double-trois (interdit sauf si capture)
 };
 
 // Structures géométriques
-struct Point {
+struct Point
+{
     int r, c;
 };
 
-struct Direction {
+struct Direction
+{
     int r, c;
 };
 
 // Axes de vérification (4 directions : Horizontal, Vertical, Diag1, Diag2)
 const Direction AXES[4] = {
-    {0, 1}, {1, 0}, {1, 1}, {1, -1}
-};
+    {0, 1}, {1, 0}, {1, 1}, {1, -1}};
 
 // Directions de capture (8 directions autour de la pierre)
 const Direction CAPTURE_DIRECTIONS[8] = {
-    {0, 1}, {0, -1}, {1, 0}, {-1, 0},
-    {1, 1}, {-1, -1}, {1, -1}, {-1, 1}
-};
+    {0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}};
 
 // =================================================================================
 //                              CLASSE DE RÈGLES
 // =================================================================================
 
-class GomokuRules {
+class GomokuRules
+{
 public:
     // ============================================================
     // SECTION PUBLIQUE : API DU MOTEUR
     // (Seules ces fonctions doivent être appelées depuis l'extérieur)
     // ============================================================
-    
+
     /**
      * VALIDATION MAÎTRE (Point d'entrée principal)
      * Effectue une validation complète d'un coup.
@@ -86,6 +88,8 @@ public:
     // --- Helpers Complexes (Accessibles si besoin spécifique) ---
     static bool isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
     static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+    // Vérifie si 5 pierres sont alignées ET incassables par capture
+    static bool checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
 private:
     // ============================================================
@@ -118,7 +122,8 @@ private:
  * Applique un coup à la construction et l'annule automatiquement à la destruction.
  * Sécurise la gestion de l'état du plateau lors des simulations.
  */
-struct ScopedMove {
+struct ScopedMove
+{
     int (*board)[BOARD_SIZE];
     int row, col, player;
     int captured[16][2];

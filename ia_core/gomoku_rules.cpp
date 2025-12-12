@@ -41,16 +41,20 @@ static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 //                              1. PRIMITIVES & UTILITAIRES
 // =================================================================================
 
-bool GomokuRules::isOnBoard(int row, int col) {
+bool GomokuRules::isOnBoard(int row, int col)
+{
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
-bool GomokuRules::isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
+bool GomokuRules::isEmptyCell(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col)
+{
     return isOnBoard(row, col) && board[row][col] == NONE;
 }
 
-Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col) {
-    if (!isOnBoard(row, col)) return NONE;
+Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col)
+{
+    if (!isOnBoard(row, col))
+        return NONE;
     return static_cast<Player>(board[row][col]);
 }
 
@@ -63,22 +67,29 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
     int captureCount = 0;
     Player opponent = (player == BLACK) ? WHITE : BLACK;
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         Direction dir = CAPTURE_DIRECTIONS[i];
-        
-        // Coordonnées des 3 pierres suivantes dans la direction
-        int r1 = row + dir.r;     int c1 = col + dir.c;
-        int r2 = row + 2 * dir.r; int c2 = col + 2 * dir.c;
-        int r3 = row + 3 * dir.r; int c3 = col + 3 * dir.c;
 
-        if (!isOnBoard(r1, c1) || !isOnBoard(r2, c2) || !isOnBoard(r3, c3)) continue;
+        // Coordonnées des 3 pierres suivantes dans la direction
+        int r1 = row + dir.r;
+        int c1 = col + dir.c;
+        int r2 = row + 2 * dir.r;
+        int c2 = col + 2 * dir.c;
+        int r3 = row + 3 * dir.r;
+        int c3 = col + 3 * dir.c;
+
+        if (!isOnBoard(r1, c1) || !isOnBoard(r2, c2) || !isOnBoard(r3, c3))
+            continue;
 
         // Motif de capture : [NOUS] [EUX] [EUX] [NOUS]
         if (getPlayerAt(board, r1, c1) == opponent &&
             getPlayerAt(board, r2, c2) == opponent &&
-            getPlayerAt(board, r3, c3) == player) {
+            getPlayerAt(board, r3, c3) == player)
+        {
 
-            if (capturedStonesOut != nullptr) {
+            if (capturedStonesOut != nullptr)
+            {
                 capturedStonesOut[captureCount][0] = r1;
                 capturedStonesOut[captureCount][1] = c1;
                 capturedStonesOut[captureCount + 1][0] = r2;
@@ -142,27 +153,36 @@ std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][B
     return line;
 }
 
-std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt) {
+std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt)
+{
     Player player = static_cast<Player>(playerInt);
     std::string line = "";
     // Scanner une fenêtre de -5 à +5 autour du point
-    for (int i = -5; i <= 5; i++) {
+    for (int i = -5; i <= 5; i++)
+    {
         int r = row + i * dir.r;
         int c = col + i * dir.c;
 
-        if (!isOnBoard(r, c)) {
+        if (!isOnBoard(r, c))
+        {
             line += 'O'; // Mur/Adversaire (Bloquant)
-        } else {
+        }
+        else
+        {
             Player p = getPlayerAt(board, r, c);
-            if (p == player) line += 'P';
-            else if (p == NONE) line += '_';
-            else line += 'O'; // Adversaire (Bloquant)
+            if (p == player)
+                line += 'P';
+            else if (p == NONE)
+                line += '_';
+            else
+                line += 'O'; // Adversaire (Bloquant)
         }
     }
     return line;
 }
 
-bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
+bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
+{
     std::string line = getLinePattern(board, row, col, dir, player);
     
     // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
@@ -171,6 +191,19 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
     for (int i = 0; i < 4; i++) {
         if (line.find(patterns[i]) != std::string::npos) return true;
     }
+    return false;
+}
+
+bool GomokuRules::checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player)
+{
+    for (Direction axeDirection : AXES)
+    {
+        if (isFreeThree(board, row, col, axeDirection, player))
+        {
+            return true;
+        }
+    }
+
     return false;
 }
 

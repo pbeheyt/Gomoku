@@ -14,17 +14,19 @@
 class GomokuAI;
 
 // Access to the singleton instance for the Bridge
-GomokuAI* getGlobalAI();
+GomokuAI *getGlobalAI();
 
 // --- Data Structures ---
 
-struct Move {
+struct Move
+{
     int row, col, score;
     Move() : row(-1), col(-1), score(0) {}
     Move(int r, int c, int s = 0) : row(r), col(c), score(s) {}
 };
 
-struct MoveHistory {
+struct MoveHistory
+{
     int row, col, player;
     int capturedStones[4][2];
     int numCaptured;
@@ -32,12 +34,14 @@ struct MoveHistory {
     MoveHistory() : row(-1), col(-1), player(0), numCaptured(0), capturedByBlack(0), capturedByWhite(0) {}
 };
 
-struct GameState {
+struct GameState
+{
     int capturedByBlack, capturedByWhite;
     GameState() : capturedByBlack(0), capturedByWhite(0) {}
 };
 
-struct PatternInfo {
+struct PatternInfo
+{
     int length, openEnds;
     bool blockedLeft, blockedRight;
     int startRow, startCol, endRow, endCol;
@@ -46,7 +50,8 @@ struct PatternInfo {
 
 // --- AI Class Definition ---
 
-class GomokuAI {
+class GomokuAI
+{
 private:
     int board[BOARD_SIZE][BOARD_SIZE];
     int aiPlayer;
@@ -55,7 +60,7 @@ private:
     std::stack<MoveHistory> moveHistory;
 
     // Internal Helpers (Minimax & Heuristics)
-    int minimax(int depth, int alpha, int beta, bool isMaximizing);
+    int minimax(int depth, int alpha, int beta, int player);
     int quickEvaluate(int row, int col, int player);
     int evaluateBoard(int player);
     int evaluateAlignments(int player);
@@ -69,11 +74,14 @@ private:
     void makeMoveWithCaptures(int row, int col, int player);
     int checkAndPerformCaptures(int row, int col, int player);
     void undoMove();
-    
+    int positionCoordinateToIndex(int row, int col);
+    int indexToRowCoordinate(int index);
+    int indexToColCoordinate(int index);
+    void sortMovesByScore(std::vector<Move>& moves, int player);
+
     // Pattern Helpers
     PatternInfo analyzePattern(int row, int col, int direction, int player, bool visited[BOARD_SIZE][BOARD_SIZE][4]);
-    int evaluatePatternScore(const PatternInfo& pattern);
-    int evaluatePattern(int row, int col, int direction, int player);
+    int evaluatePatternScore(const PatternInfo &pattern);
     PatternInfo getPatternInfo(int row, int col, int direction, int player);
     bool wouldBlockThreat(int row, int col, int player, int opponent);
     bool detectDoubleFreeThree(int row, int col, int player);
@@ -87,8 +95,8 @@ public:
     void setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures);
     void makeMove(int row, int col, int player);
     bool isValidMove(int row, int col);
-    void getBestMove(int& bestRow, int& bestCol);
-    
+    void getBestMove(int &bestRow, int &bestCol);
+
     // Accessor for the Rules Engine Bridge
     const int (*getBoard() const)[BOARD_SIZE] { return board; }
     int getCaptures(int player) const { return (player == 1) ? gameState.capturedByBlack : gameState.capturedByWhite; }
