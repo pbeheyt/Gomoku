@@ -162,19 +162,27 @@ self.onmessage = async (event) => {
         });
         break;
 
-                    case 'rules_checkWin':
-                        self.postMessage({ 
-                            type: 'rules_checkWin_result', 
-                            payload: wasmModule._rules_checkWin(payload.row, payload.col, payload.player) === 1 
-                        });
-                        break;
+      case "rules_checkWin":
+        self.postMessage({
+          type: "rules_checkWin_result",
+          payload:
+            wasmModule._rules_checkWin(
+              payload.row,
+              payload.col,
+              payload.player
+            ) === 1,
+        });
+        break;
 
-                    case 'rules_checkStalemate':
-                        self.postMessage({
-                            type: 'rules_checkStalemate_result',
-                            payload: wasmModule._rules_checkStalemate(payload.player) === 1
-                        });
-                        break;            case 'rules_checkCaptures': {
+      case "rules_checkStalemate":
+        self.postMessage({
+          type: "rules_checkStalemate_result",
+          payload: wasmModule._rules_checkStalemate(payload.player) === 1,
+        });
+        break;
+
+      case "rules_checkCaptures": {
+        const ptr = wasmModule._get_board_buffer();
 
         // Conversion Pointeur (octets) -> Index (int32)
         const startIdx = ptr >> 2;

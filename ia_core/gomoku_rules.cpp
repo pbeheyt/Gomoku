@@ -5,6 +5,7 @@
 
 #include "gomoku_rules.h"
 #include <algorithm>
+#include <iostream>
 
 // =================================================================================
 //                              0. TEMPLATE HELPERS (INTERNE)
@@ -13,23 +14,28 @@
 // Factorise la boucle des 8 directions pour la détection de paires.
 // Predicate signature: bool(board, p1, p2, opponent)
 template <typename Predicate>
-static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int subjectPlayer, Predicate predicate) {
+static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int subjectPlayer, Predicate predicate)
+{
     int opponent = (subjectPlayer == BLACK) ? WHITE : BLACK;
-    
-    for (int i = 0; i < 8; i++) {
+
+    for (int i = 0; i < 8; i++)
+    {
         Direction dir = CAPTURE_DIRECTIONS[i];
         int rAdj = row + dir.r;
         int cAdj = col + dir.c;
 
-        if (!GomokuRules::isOnBoard(rAdj, cAdj)) continue;
+        if (!GomokuRules::isOnBoard(rAdj, cAdj))
+            continue;
 
         // Si le voisin est un allié, on a une paire potentielle
-        if (GomokuRules::getPlayerAt(board, rAdj, cAdj) == static_cast<Player>(subjectPlayer)) {
+        if (GomokuRules::getPlayerAt(board, rAdj, cAdj) == static_cast<Player>(subjectPlayer))
+        {
             Point p1 = {row, col};
             Point p2 = {rAdj, cAdj};
-            
+
             // On délègue la vérification spécifique (Sandwich ou Surround)
-            if (predicate(board, p1, p2, opponent)) {
+            if (predicate(board, p1, p2, opponent))
+            {
                 return true;
             }
         }
@@ -43,6 +49,8 @@ static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 
 bool GomokuRules::isOnBoard(int row, int col)
 {
+    std::cout << "row: " << row << " col: " << col << std::endl;
+
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
@@ -62,7 +70,8 @@ Player GomokuRules::getPlayerAt(const int board[BOARD_SIZE][BOARD_SIZE], int row
 //                              2. PHYSIQUE DU JEU (CAPTURES)
 // =================================================================================
 
-int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStonesOut[][2]) {
+int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStonesOut[][2])
+{
     Player player = static_cast<Player>(playerInt);
     int captureCount = 0;
     Player opponent = (player == BLACK) ? WHITE : BLACK;
@@ -101,25 +110,29 @@ int GomokuRules::checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row,
     return captureCount;
 }
 
-int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]) {
+int GomokuRules::applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2])
+{
     // 1. Pose de la pierre
     board[row][col] = player;
 
     // 2. Calcul des captures
     int numCaptured = checkCaptures(board, row, col, player, capturedStonesOut);
-    
+
     // 3. Retrait des pierres capturées
-    for (int i = 0; i < numCaptured; i++) {
+    for (int i = 0; i < numCaptured; i++)
+    {
         board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = NONE;
     }
     return numCaptured;
 }
 
-void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount) {
+void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount)
+{
     int opponent = (player == BLACK) ? WHITE : BLACK;
 
     // 1. Restauration des pierres capturées (remises à l'adversaire)
-    for (int i = 0; i < captureCount; i++) {
+    for (int i = 0; i < captureCount; i++)
+    {
         board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = opponent;
     }
     // 2. Retrait de la pierre jouée
@@ -130,7 +143,8 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 //                              3. ANALYSE DE MOTIFS (PATTERNS)
 // =================================================================================
 
-std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player) {
+std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
+{
     std::vector<Point> line;
     line.reserve(9); // Optimisation : évite les réallocations pour une ligne max de 9
     line.push_back({row, col});
@@ -138,17 +152,21 @@ std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][B
     // Scanner direction positive
     int r = row + dir.r;
     int c = col + dir.c;
-    while (getPlayerAt(board, r, c) == static_cast<Player>(player)) {
+    while (getPlayerAt(board, r, c) == static_cast<Player>(player))
+    {
         line.push_back({r, c});
-        r += dir.r; c += dir.c;
+        r += dir.r;
+        c += dir.c;
     }
 
     // Scanner direction négative (insérer au début pour garder l'ordre)
     r = row - dir.r;
     c = col - dir.c;
-    while (getPlayerAt(board, r, c) == static_cast<Player>(player)) {
+    while (getPlayerAt(board, r, c) == static_cast<Player>(player))
+    {
         line.insert(line.begin(), {r, c});
-        r -= dir.r; c -= dir.c;
+        r -= dir.r;
+        c -= dir.c;
     }
     return line;
 }
@@ -184,12 +202,14 @@ std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE],
 bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
 {
     std::string line = getLinePattern(board, row, col, dir, player);
-    
+
     // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
-    const char* patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
-    
-    for (int i = 0; i < 4; i++) {
-        if (line.find(patterns[i]) != std::string::npos) return true;
+    const char *patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (line.find(patterns[i]) != std::string::npos)
+            return true;
     }
     return false;
 }
@@ -214,17 +234,20 @@ bool GomokuRules::checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int ro
 /**
  * Vérifie si l'adversaire peut légalement jouer à la position (r, c).
  */
-bool GomokuRules::tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent) {
-    if (!isEmptyCell(board, r, c)) return false;
+bool GomokuRules::tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent)
+{
+    if (!isEmptyCell(board, r, c))
+        return false;
     // On doit cast le board car validateMove a besoin d'un pointeur non-const pour simuler
-    auto mutableBoard = const_cast<int(*)[BOARD_SIZE]>(board);
+    auto mutableBoard = const_cast<int (*)[BOARD_SIZE]>(board);
     return validateMove(mutableBoard, r, c, opponent) == VALID;
 }
 
 /**
  * Motif [O P P _] ou [_ P P O] -> Capture Potentielle
  */
-bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
+bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent)
+{
     int dr = p2.r - p1.r;
     int dc = p2.c - p1.c;
 
@@ -239,12 +262,16 @@ bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Poin
     Player opp = static_cast<Player>(opponent);
 
     // Cas A : [O P P _]
-    if (getPlayerAt(board, rBack, cBack) == opp) {
-        if (tryCaptureAt(board, rFront, cFront, opponent)) return true;
+    if (getPlayerAt(board, rBack, cBack) == opp)
+    {
+        if (tryCaptureAt(board, rFront, cFront, opponent))
+            return true;
     }
     // Cas B : [_ P P O]
-    if (getPlayerAt(board, rFront, cFront) == opp) {
-        if (tryCaptureAt(board, rBack, cBack, opponent)) return true;
+    if (getPlayerAt(board, rFront, cFront) == opp)
+    {
+        if (tryCaptureAt(board, rBack, cBack, opponent))
+            return true;
     }
     return false;
 }
@@ -252,7 +279,8 @@ bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Poin
 /**
  * Motif [O P P O] -> Suicide / Capture Immédiate
  */
-bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent) {
+bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent)
+{
     int dr = p2.r - p1.r;
     int dc = p2.c - p1.c;
 
@@ -263,7 +291,7 @@ bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Poin
 
     Player opp = static_cast<Player>(opponent);
 
-    return getPlayerAt(board, rBack, cBack) == opp && 
+    return getPlayerAt(board, rBack, cBack) == opp &&
            getPlayerAt(board, rFront, cFront) == opp;
 }
 
@@ -271,18 +299,23 @@ bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Poin
 //                              5. VALIDATION DE VICTOIRE (HELPERS)
 // =================================================================================
 
-bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent) {
+bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent)
+{
     // Le sujet est la pierre à (row, col), son adversaire est 'opponent'.
     int subjectPlayer = (opponent == BLACK) ? WHITE : BLACK;
     return scanNeighborPairs(board, row, col, subjectPlayer, isPairSandwiched);
 }
 
-int GomokuRules::getLongestSegment(const std::vector<bool>& isRemoved) {
+int GomokuRules::getLongestSegment(const std::vector<bool> &isRemoved)
+{
     int currentRun = 0;
     int maxRun = 0;
-    for (bool removed : isRemoved) {
-        if (!removed) currentRun++;
-        else {
+    for (bool removed : isRemoved)
+    {
+        if (!removed)
+            currentRun++;
+        else
+        {
             maxRun = std::max(maxRun, currentRun);
             currentRun = 0;
         }
@@ -290,13 +323,17 @@ int GomokuRules::getLongestSegment(const std::vector<bool>& isRemoved) {
     return std::max(maxRun, currentRun);
 }
 
-bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponentInt) {
-    if (line.size() < 5) return false;
+bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point> &line, int opponentInt)
+{
+    if (line.size() < 5)
+        return false;
 
     std::vector<bool> isRemoved(line.size(), false);
-    
-    for (size_t i = 0; i < line.size(); i++) {
-        if (isStoneCapturable(board, line[i].r, line[i].c, opponentInt)) {
+
+    for (size_t i = 0; i < line.size(); i++)
+    {
+        if (isStoneCapturable(board, line[i].r, line[i].c, opponentInt))
+        {
             isRemoved[i] = true;
         }
     }
@@ -307,15 +344,19 @@ bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZ
 //                              6. RÈGLES COMPLEXES
 // =================================================================================
 
-bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt) {
+bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt)
+{
     // Règle Suicide : Interdit de créer le motif [O X X O]
     return scanNeighborPairs(board, row, col, playerInt, isPairSurrounded);
 }
 
-bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
+bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player)
+{
     int freeThreeCount = 0;
-    for (int i = 0; i < 4; i++) {
-        if (isFreeThree(board, row, col, AXES[i], player)) {
+    for (int i = 0; i < 4; i++)
+    {
+        if (isFreeThree(board, row, col, AXES[i], player))
+        {
             freeThreeCount++;
         }
     }
@@ -326,17 +367,22 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
 //                              7. ARBITRAGE (WIN & STALEMATE)
 // =================================================================================
 
-bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones) {
-    if (capturedStones >= 10) return true;
+bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones)
+{
+    if (capturedStones >= 10)
+        return true;
 
     Player player = static_cast<Player>(playerInt);
     int opponent = (player == BLACK) ? WHITE : BLACK;
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
         std::vector<Point> currentLine = getConsecutiveLine(board, row, col, AXES[i], playerInt);
 
-        if (currentLine.size() >= 5) {
-            if (!isLineBreakableByCapture(board, currentLine, opponent)) {
+        if (currentLine.size() >= 5)
+        {
+            if (!isLineBreakableByCapture(board, currentLine, opponent))
+            {
                 return true;
             }
         }
@@ -344,11 +390,16 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
     return false;
 }
 
-bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player) {
-    for (int r = 0; r < BOARD_SIZE; r++) {
-        for (int c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] == NONE) {
-                if (validateMove(const_cast<int(*)[BOARD_SIZE]>(board), r, c, player) == VALID) {
+bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player)
+{
+    for (int r = 0; r < BOARD_SIZE; r++)
+    {
+        for (int c = 0; c < BOARD_SIZE; c++)
+        {
+            if (board[r][c] == NONE)
+            {
+                if (validateMove(const_cast<int (*)[BOARD_SIZE]>(board), r, c, player) == VALID)
+                {
                     return false;
                 }
             }
@@ -361,19 +412,25 @@ bool GomokuRules::checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int pl
 //                              8. VALIDATION MAÎTRE
 // =================================================================================
 
-MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player) {
-    if (!isOnBoard(row, col)) return INVALID_BOUNDS;
-    if (board[row][col] != NONE) return INVALID_OCCUPIED;
+MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player)
+{
+    if (!isOnBoard(row, col))
+        return INVALID_BOUNDS;
+    if (board[row][col] != NONE)
+        return INVALID_OCCUPIED;
 
     {
         ScopedMove move(board, row, col, player);
 
         // Si le coup ne capture rien, on vérifie les interdictions
-        if (move.numCaptured == 0) {
-            if (isSuicideMove(board, row, col, player)) return INVALID_SUICIDE; 
-            if (checkDoubleThree(board, row, col, player)) return INVALID_DOUBLE_THREE; 
+        if (move.numCaptured == 0)
+        {
+            if (isSuicideMove(board, row, col, player))
+                return INVALID_SUICIDE;
+            if (checkDoubleThree(board, row, col, player))
+                return INVALID_DOUBLE_THREE;
         }
-    } 
+    }
 
     return VALID;
 }
@@ -382,12 +439,13 @@ MoveStatus GomokuRules::validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row,
 //                              9. RAII HELPER
 // =================================================================================
 
-ScopedMove::ScopedMove(int b[BOARD_SIZE][BOARD_SIZE], int r, int c, int p) 
-    : board(b), row(r), col(c), player(p) 
+ScopedMove::ScopedMove(int b[BOARD_SIZE][BOARD_SIZE], int r, int c, int p)
+    : board(b), row(r), col(c), player(p)
 {
     numCaptured = GomokuRules::applyMove(board, row, col, player, captured);
 }
 
-ScopedMove::~ScopedMove() {
+ScopedMove::~ScopedMove()
+{
     GomokuRules::undoMove(board, row, col, player, captured, numCaptured);
 }

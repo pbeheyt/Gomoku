@@ -1,17 +1,15 @@
-/**
- * Gomoku AI Implementation
- */
-
 #include "gomoku_ai.h"
 #include <algorithm>
 #include <climits>
-#include <cstring>
-#include <unordered_map>
-#include <stack>
 #include <iostream>
-#include <set>
 
-// Global Instance
+#define H_WIN 1000000000
+#define H_OPEN_FOUR 50000000
+#define H_FOUR 10000000
+#define H_OPEN_THREE 1000000
+#define H_THREE 100000
+#define H_CAPTURE_PAIR 5000000
+
 static GomokuAI *globalAI = nullptr;
 
 GomokuAI *getGlobalAI()
@@ -19,57 +17,11 @@ GomokuAI *getGlobalAI()
     return globalAI;
 }
 
-// Direction vectors
-const int DX[] = {0, 1, 1, 1, 0, -1, -1, -1};
-const int DY[] = {1, 1, 0, -1, -1, -1, 0, 1};
-
-// Minimax constants
-const int MAX_DEPTH = 10;
-const int INITIAL_DEPTH = 6;
-
-const int INF = INT_MAX;
-const int WIN_SCORE = 2000000000;
-const int CAPTURE_STONES_TO_WIN = 10;
-
-const int UNDEFENDABLE_OPEN_FOUR = 100000000;
-const int FOUR_THREAT = 1000000;
-const int FREE_THREE = 100000;
-const int CLOSE_THREE = 10000;
-const int TWO_OPEN = 1000;
-const int H_POSITION_ADV = 10;
-
-const int INITIAL_ALPHA = INT_MIN;
-const int INITIAL_BETA = INT_MAX;
-
-const int OPPONENT_CRISIS = -10000000;
-const int CAPTURE_PAIR_WEIGHT = 5000000;
-
-// --- Implementation ---
-
-GomokuAI::GomokuAI(int aiPlayerColor)
+GomokuAI::GomokuAI(int aiPlayerColor) : aiPlayer(aiPlayerColor)
 {
-    this->aiPlayer = aiPlayerColor;
-    this->humanPlayer = (aiPlayerColor == BLACK) ? WHITE : BLACK;
+    humanPlayer = getOpponent(aiPlayerColor);
+    initZobrist();
     clearBoard();
-
-    // Set global instance
-    globalAI = this;
-}
-
-void GomokuAI::clearBoard()
-{
-    for (int i = 0; i < BOARD_SIZE; i++)
-    {
-        for (int j = 0; j < BOARD_SIZE; j++)
-        {
-            board[i][j] = NONE;
-        }
-    }
-    gameState = GameState();
-    while (!moveHistory.empty())
-    {
-        moveHistory.pop();
-    }
 }
 
 void GomokuAI::setBoard(const int *flatBoard, int blackCaptures, int whiteCaptures)
@@ -85,652 +37,355 @@ void GomokuAI::setBoard(const int *flatBoard, int blackCaptures, int whiteCaptur
     gameState.capturedByWhite = whiteCaptures;
 }
 
-void GomokuAI::makeMove(int row, int col, int player)
+void GomokuAI::initZobrist()
 {
-    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE)
-    {
-        board[row][col] = player;
-    }
+    std::mt19937_64 rng(12345);
+    for (int i = 0; i < BOARD_SIZE; i++)
+        for (int j = 0; j < BOARD_SIZE; j++)
+            for (int k = 0; k < 3; k++)
+                zobristTable[i][j][k] = rng();
 }
 
-bool GomokuAI::isValidMove(int row, int col)
+void GomokuAI::updateHash(int r, int c, int piece)
 {
-    return GomokuRules::validateMove(board, row, col, aiPlayer) == VALID || GomokuRules::validateMove(board, row, col, humanPlayer) == VALID;
+    currentHash ^= zobristTable[r][c][piece];
 }
 
-void GomokuAI::sortMovesByScore(std::vector<Move> &moves, int player)
+void GomokuAI::clearBoard()
 {
-
-    for (Move &move : moves)
-    {
-        int score = quickEvaluate(move.row, move.col, player);
-        move.score = score;
-    }
-
-    std::sort(moves.begin(), moves.end(), [](const Move &a, const Move &b)
-              { return a.score > b.score; });
+    for (int i = 0; i < BOARD_SIZE; i++)
+        for (int j = 0; j < BOARD_SIZE; j++)
+            board[i][j] = NONE;
+    gameState = GameState();
+    currentHash = 0;
+    for (int i = 0; i < BOARD_SIZE; i++)
+        for (int j = 0; j < BOARD_SIZE; j++)
+            currentHash ^= zobristTable[i][j][NONE];
+    transpositionTable.clear();
 }
+
+// ============================================================================
+// SEARCH & DECISION
+// ============================================================================
 
 void GomokuAI::getBestMove(int &bestRow, int &bestCol)
 {
-    int player = aiPlayer;
-    int opponent = humanPlayer;
+    std::vector<Move> candidates = getCandidateMoves(aiPlayer);
+    orderMoves(candidates, aiPlayer);
 
-    std::vector<Move> candidateMoves = getCandidateMoves();
+    int alpha = -H_WIN * 2;
+    int beta = H_WIN * 2;
 
-    sortMovesByScore(candidateMoves, player);
-
-    int bestMoveIndex = -1;
-    int maxScore = INT_MIN;
-
-    int alpha = INITIAL_ALPHA;
-    int beta = INITIAL_BETA;
-
-    int depth = MAX_DEPTH;
-
-    for (Move move : candidateMoves)
+    // Iterative Deepening to reach Depth 10 safely
+    for (int d = 1; d <= 10; d++)
     {
+        int currentBestRow = -1, currentBestCol = -1;
+        int bestScore = -H_WIN * 2;
 
-        makeMove(move.row, move.col, player);
-        int capturedStones = player == BLACK ? gameState.capturedByBlack : gameState.capturedByWhite;
-
-        if (GomokuRules::checkWin(board, move.row, move.col, player, capturedStones))
+        for (const auto &m : candidates)
         {
-            bestRow = move.row;
-            bestCol = move.col;
+            makeMoveInternal(m.row, m.col, aiPlayer);
+            int score = -minimax(d - 1, -beta, -alpha, humanPlayer, false);
             undoMove();
-            std::cout << "what ??" << std::endl;
-            return;
-        }
 
-        std::cout << "not won yet" << std::endl;
-        int score = -minimax(depth - 1, -beta, -alpha, opponent);
-        std::cout << "score after minimax : " << score << std::endl;
-        undoMove();
-
-        if (score > maxScore)
-        {
-            maxScore = score;
-            bestMoveIndex = positionCoordinateToIndex(move.row, move.col);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                currentBestRow = m.row;
+                currentBestCol = m.col;
+            }
+            alpha = std::max(alpha, bestScore);
         }
+        bestRow = currentBestRow;
+        bestCol = currentBestCol;
 
-        if (maxScore > alpha)
-        {
-            alpha = maxScore;
-        }
+        // If we found a forced win, stop searching deeper
+        if (bestScore >= H_OPEN_FOUR)
+            break;
     }
-
-    std::cout << "-----------------STOP HERE-------------" << std::endl;
-
-    if (bestMoveIndex == -1)
-    {
-        std::cerr << "ERROR: No legal move found by AI.\n";
-    }
-
-    bestRow = indexToRowCoordinate(bestMoveIndex);
-    bestCol = indexToColCoordinate(bestMoveIndex);
 }
 
-int GomokuAI::minimax(int depth, int alpha, int beta, int player)
+int GomokuAI::minimax(int depth, int alpha, int beta, int player, bool isMaximizing)
 {
-
-    if (depth == 0)
+    if (transpositionTable.count(currentHash))
     {
-        return evaluateBoard(player);
+        TTEntry &entry = transpositionTable[currentHash];
+        if (entry.depth >= depth)
+            return entry.score;
     }
 
-    int opponent = (player == BLACK) ? WHITE : BLACK;
+    int opponent = getOpponent(player);
+    if (checkWin(opponent))
+        return -H_WIN + (10 - depth);
+    if (getCaptures(opponent) >= 10)
+        return -H_WIN;
+    if (depth <= 0)
+        return evaluateBoard(aiPlayer);
 
-    std::vector<Move> candidateMoves = getCandidateMoves();
+    std::vector<Move> moves = getCandidateMoves(player);
+    orderMoves(moves, player);
 
-    sortMovesByScore(candidateMoves, player);
-
-    int bestScore = INT_MIN;
-
-    for (Move move : candidateMoves)
+    int bestScore = -H_WIN * 2;
+    for (const auto &m : moves)
     {
-        makeMove(move.row, move.col, player);
-
-        if (move.score == WIN_SCORE)
-        {
-            undoMove();
-            return WIN_SCORE;
-        }
-
-        int score = -minimax(depth - 1, -beta, -alpha, opponent);
+        makeMoveInternal(m.row, m.col, player);
+        int score = -minimax(depth - 1, -beta, -alpha, opponent, !isMaximizing);
         undoMove();
 
         bestScore = std::max(bestScore, score);
-        alpha = std::max(bestScore, score);
-
+        alpha = std::max(alpha, bestScore);
         if (alpha >= beta)
-        {
             break;
-        }
     }
 
+    transpositionTable[currentHash] = {bestScore, depth};
     return bestScore;
 }
 
-int GomokuAI::quickEvaluate(int row, int col, int player)
+// ============================================================================
+// PATTERN ANALYSIS (WINDOW SLIDE)
+// ============================================================================
+
+LineInfo GomokuAI::analyzeLine(int row, int col, int player, int dirIdx)
 {
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-    int score = 0;
+    LineInfo best;
+    int opponent = getOpponent(player);
 
-    makeMove(row, col, player);
-
-    int capturedCount = GomokuRules::checkCaptures(board, row, col, player, nullptr);
-    score += capturedCount * CAPTURE_PAIR_WEIGHT;
-
-    int capturedStones = player == BLACK ? gameState.capturedByBlack : gameState.capturedByWhite;
-    if (GomokuRules::checkWin(board, row, col, player, capturedStones))
+    for (int offset = -4; offset <= 0; ++offset)
     {
-        undoMove();
-        return WIN_SCORE;
-    }
+        int rs = row + offset * dy[dirIdx], cs = col + offset * dx[dirIdx];
+        int re = rs + 4 * dy[dirIdx], ce = cs + 4 * dx[dirIdx];
 
-    if (GomokuRules::checkFreeThree(board, row, col, player))
-    {
-        score += FREE_THREE;
-    }
+        if (!isInBounds(rs, cs) || !isInBounds(re, ce))
+            continue;
 
-    undoMove();
-    return score;
-}
-
-int GomokuAI::evaluateBoard(int player)
-{
-    long long totalScore = 0;
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-    int stonesCapturedByPlayer = player == BLACK ? gameState.capturedByBlack : gameState.capturedByWhite;
-    int stonesCapturedByOpponent = player == BLACK ? gameState.capturedByWhite : gameState.capturedByBlack;
-
-    if (stonesCapturedByPlayer >= CAPTURE_STONES_TO_WIN)
-    {
-        return WIN_SCORE;
-    }
-
-    if (stonesCapturedByOpponent >= CAPTURE_STONES_TO_WIN)
-    {
-        return -WIN_SCORE;
-    }
-
-    totalScore += (stonesCapturedByPlayer - stonesCapturedByOpponent) * CAPTURE_PAIR_WEIGHT;
-
-    if (stonesCapturedByOpponent + 2 == CAPTURE_STONES_TO_WIN)
-    {
-        totalScore += OPPONENT_CRISIS;
-    }
-
-    // Threats
-    totalScore += evaluateImmediateThreats(player);
-    totalScore += -evaluateImmediateThreats(opponent);
-
-    if (totalScore > WIN_SCORE)
-    {
-        return WIN_SCORE - 1;
-    }
-
-    if (totalScore < -WIN_SCORE)
-    {
-        return -WIN_SCORE + 1;
-    }
-
-    return (int)totalScore;
-}
-
-PatternInfo GomokuAI::analyzePattern(int row, int col, int direction, int player, bool visited[BOARD_SIZE][BOARD_SIZE][4])
-{
-    PatternInfo info;
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-    visited[row][col][direction] = true;
-
-    info.startRow = row;
-    info.startCol = col;
-    info.endRow = row;
-    info.endCol = col;
-    info.length = 1;
-
-    // Positive
-    int r = row + DX[direction];
-    int c = col + DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
+        int pCount = 0;
+        bool blocked = false;
+        for (int i = 0; i < 5; ++i)
         {
-            info.length++;
-            info.endRow = r;
-            info.endCol = c;
-            visited[r][c][direction] = true;
-        }
-        else if (board[r][c] == opponent)
-        {
-            info.blockedRight = true;
-            break;
-        }
-        else
-            break;
-        r += DX[direction];
-        c += DY[direction];
-    }
-
-    // Negative
-    r = row - DX[direction];
-    c = col - DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
-        {
-            info.length++;
-            info.startRow = r;
-            info.startCol = c;
-            visited[r][c][direction] = true;
-        }
-        else if (board[r][c] == opponent)
-        {
-            info.blockedLeft = true;
-            break;
-        }
-        else
-            break;
-        r -= DX[direction];
-        c -= DY[direction];
-    }
-
-    if (!info.blockedLeft)
-        info.openEnds++;
-    if (!info.blockedRight)
-        info.openEnds++;
-    return info;
-}
-
-// int GomokuAI::evaluatePatternScore(const PatternInfo &pattern)
-// {
-//     if (pattern.length >= 5)
-//         return WIN_SCORE;
-//     if (pattern.length == 4)
-//         return (pattern.openEnds == 2) ? UNDEFENDABLE_OPEN_FOUR : ;
-//     if (pattern.length == 3)
-//         return (pattern.openEnds == 2) ? FREE_THREE : (pattern.openEnds == 1 ? BLOCK_FREE_THREE : 0);
-//     if (pattern.length == 2)
-//         return (pattern.openEnds == 2) ? TWO_OPEN : (pattern.openEnds == 1 ? BLOCK_TWO_OPEN : 0);
-//     return 0;
-// }
-
-int GomokuAI::evaluateAlignments(int player)
-{
-    int score = 0;
-    bool visited[BOARD_SIZE][BOARD_SIZE][4] = {false};
-    for (int row = 0; row < BOARD_SIZE; row++)
-    {
-        for (int col = 0; col < BOARD_SIZE; col++)
-        {
-            if (board[row][col] != player)
-                continue;
-            for (int dir = 0; dir < 4; dir++)
+            int curR = rs + i * dy[dirIdx], curC = cs + i * dx[dirIdx];
+            if (board[curR][curC] == opponent)
             {
-                if (!visited[row][col][dir])
-                {
-                    PatternInfo pattern = analyzePattern(row, col, dir, player, visited);
-                    score += evaluatePatternScore(pattern);
-                }
+                blocked = true;
+                break;
             }
+            if (board[curR][curC] == player)
+                pCount++;
         }
-    }
-    return score;
-}
 
-int GomokuAI::evaluateCaptures(int player)
-{
-    if ((player == BLACK && gameState.capturedByBlack >= 10) ||
-        (player == WHITE && gameState.capturedByWhite >= 10))
-        return WIN_SCORE;
-    return (player == BLACK ? gameState.capturedByBlack : gameState.capturedByWhite) * CAPTURE_PAIR_WEIGHT;
-}
-
-int GomokuAI::evaluateImmediateThreats(int player)
-{
-    int score = 0;
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-    bool opponentHasOpenFour = false;
-
-    for (int row = 0; row < BOARD_SIZE; row++)
-    {
-        for (int col = 0; col < BOARD_SIZE; col++)
+        if (!blocked)
         {
-            if (board[row][col] != opponent)
-                continue;
-            for (int dir = 0; dir < 4; dir++)
-            {
-                PatternInfo pattern = getPatternInfo(row, col, dir, opponent);
-                if (pattern.length == 4 && pattern.openEnds == 2)
-                {
-                    opponentHasOpenFour = true;
-                    score -= FOUR_THREAT;
-                }
-                if (pattern.length == 3 && pattern.openEnds == 2)
-                    score -= FREE_THREE;
-            }
+            LineInfo cur;
+            cur.count = pCount;
+            if (isInBounds(rs - dy[dirIdx], cs - dx[dirIdx]) && board[rs - dy[dirIdx]][cs - dx[dirIdx]] == NONE)
+                cur.openEnds++;
+            if (isInBounds(re + dy[dirIdx], ce + dx[dirIdx]) && board[re + dy[dirIdx]][ce + dx[dirIdx]] == NONE)
+                cur.openEnds++;
+            if (cur.count > best.count)
+                best = cur;
         }
     }
-
-    if (opponentHasOpenFour)
-    {
-        for (int row = 0; row < BOARD_SIZE; row++)
-        {
-            for (int col = 0; col < BOARD_SIZE; col++)
-            {
-                if (!isValidMove(row, col))
-                    continue;
-                if (wouldBlockThreat(row, col, player, opponent))
-                {
-                    score += FREE_THREE;
-                }
-            }
-        }
-    }
-
-    return score;
+    return best;
 }
 
-bool GomokuAI::wouldBlockThreat(int row, int col, int player, int opponent)
+// ============================================================================
+// MOVE MANAGEMENT (WITH HASHING)
+// ============================================================================
+
+void GomokuAI::makeMoveInternal(int row, int col, int player)
 {
-    saveState();
+    MoveRecord record(Move(row, col));
+    stateHistory.push_back(gameState);
+
+    updateHash(row, col, NONE);   // XOR out empty
+    updateHash(row, col, player); // XOR in player
     board[row][col] = player;
-    bool blocksThreat = false;
+
+    int opponent = getOpponent(player);
     for (int dir = 0; dir < 4; dir++)
     {
-        PatternInfo pattern = getPatternInfo(row, col, dir, opponent);
-        if (pattern.length >= 3 && pattern.openEnds < 2)
+        int r1 = row + dy[dir], c1 = col + dx[dir];
+        int r2 = row + 2 * dy[dir], c2 = col + 2 * dx[dir];
+        int r3 = row + 3 * dy[dir], c3 = col + 3 * dx[dir];
+
+        if (isInBounds(r3, c3) && board[r1][c1] == opponent && board[r2][c2] == opponent && board[r3][c3] == player)
         {
-            blocksThreat = true;
-            break;
+            record.capturedStones.push_back(CaptureInfo(r1, c1, opponent));
+            record.capturedStones.push_back(CaptureInfo(r2, c2, opponent));
+
+            // Sync Hash with removal
+            updateHash(r1, c1, opponent);
+            updateHash(r1, c1, NONE);
+            updateHash(r2, c2, opponent);
+            updateHash(r2, c2, NONE);
+
+            board[r1][c1] = NONE;
+            board[r2][c2] = NONE;
+            if (player == BLACK)
+                gameState.capturedByBlack += 2;
+            else
+                gameState.capturedByWhite += 2;
         }
     }
-    undoMove();
-    return blocksThreat;
-}
-
-PatternInfo GomokuAI::getPatternInfo(int row, int col, int direction, int player)
-{
-    PatternInfo info;
-    int opponent = (player == BLACK) ? WHITE : BLACK;
-    info.startRow = row;
-    info.startCol = col;
-    info.endRow = row;
-    info.endCol = col;
-    info.length = 1;
-
-    int r = row + DX[direction];
-    int c = col + DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
-        {
-            info.length++;
-            info.endRow = r;
-            info.endCol = c;
-        }
-        else if (board[r][c] == opponent)
-        {
-            info.blockedRight = true;
-            break;
-        }
-        else
-            break;
-        r += DX[direction];
-        c += DY[direction];
-    }
-
-    r = row - DX[direction];
-    c = col - DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
-        {
-            info.length++;
-            info.startRow = r;
-            info.startCol = c;
-        }
-        else if (board[r][c] == opponent)
-        {
-            info.blockedLeft = true;
-            break;
-        }
-        else
-            break;
-        r -= DX[direction];
-        c -= DY[direction];
-    }
-
-    if (!info.blockedLeft)
-        info.openEnds++;
-    if (!info.blockedRight)
-        info.openEnds++;
-    return info;
-}
-
-int GomokuAI::evaluatePatterns(int player)
-{
-    int score = 0;
-    for (int row = 0; row < BOARD_SIZE; row++)
-    {
-        for (int col = 0; col < BOARD_SIZE; col++)
-        {
-            if (board[row][col] != player)
-                continue;
-            score += detectAdvancedPatterns(row, col, player);
-        }
-    }
-    return score;
-}
-
-int GomokuAI::detectAdvancedPatterns(int row, int col, int player)
-{
-    int score = 0;
-    if (detectDoubleFreeThree(row, col, player))
-        score += 8000;
-    if (detectFourPlusThree(row, col, player))
-        score += 20000;
-    return score;
-}
-
-bool GomokuAI::detectDoubleFreeThree(int row, int col, int player)
-{
-    return GomokuRules::checkDoubleThree(board, row, col, player);
-}
-
-bool GomokuAI::detectFourPlusThree(int row, int col, int player)
-{
-    return false;
-}
-
-bool GomokuAI::createsFreeThree(int row, int col, int direction, int player)
-{
-    return false;
-}
-
-bool GomokuAI::hasPlayerWon(int player)
-{
-    int captures = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
-    if (captures >= 10)
-        return true;
-
-    for (int row = 0; row < BOARD_SIZE; row++)
-    {
-        for (int col = 0; col < BOARD_SIZE; col++)
-        {
-            if (board[row][col] == player)
-            {
-                if (GomokuRules::checkWin(board, row, col, player, captures))
-                    return true;
-            }
-        }
-    }
-    return false;
-}
-
-int GomokuAI::countConsecutive(int row, int col, int direction, int player)
-{
-    int count = 1;
-    int r = row + DX[direction];
-    int c = col + DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
-            count++;
-        else
-            break;
-        r += DX[direction];
-        c += DY[direction];
-    }
-    r = row - DX[direction];
-    c = col - DY[direction];
-    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE)
-    {
-        if (board[r][c] == player)
-            count++;
-        else
-            break;
-        r -= DX[direction];
-        c -= DY[direction];
-    }
-    return count;
-}
-
-std::vector<Move> GomokuAI::getCandidateMoves()
-{
-    std::set<int> candidatesIndices;
-
-    const int RADIUS = 2;
-
-    for (int col = 0; col < BOARD_SIZE; col++)
-    {
-        for (int row = 0; row < BOARD_SIZE; row++)
-        {
-            if (isValidMove(row, col))
-            {
-                continue;
-            }
-
-            for (int dcol = -RADIUS; dcol <= RADIUS; dcol++)
-            {
-                for (int drow = -RADIUS; drow <= RADIUS; drow++)
-                {
-                    if (dcol == 0 && drow == 0)
-                    {
-                        continue;
-                    }
-
-                    int nearbyRow = row + drow;
-                    int nearbyCol = col + dcol;
-
-                    if (isValidMove(nearbyRow, nearbyCol))
-                    {
-                        int nearbyIndex = positionCoordinateToIndex(nearbyRow, nearbyCol);
-                        candidatesIndices.insert(nearbyIndex);
-                    }
-                }
-            }
-        }
-    }
-
-    std::vector<Move> candidateMoves;
-
-    for (int index : candidatesIndices)
-    {
-        int row = indexToRowCoordinate(index);
-        int col = indexToColCoordinate(index);
-
-        Move move = Move(row, col);
-        candidateMoves.push_back(move);
-    }
-
-    if (candidateMoves.empty())
-    {
-        Move move = Move(BOARD_SIZE / 2, BOARD_SIZE / 2);
-        candidateMoves.push_back(move);
-    }
-
-    return candidateMoves;
-}
-
-void GomokuAI::saveState()
-{
-    MoveHistory history;
-    history.capturedByBlack = gameState.capturedByBlack;
-    history.capturedByWhite = gameState.capturedByWhite;
-    moveHistory.push(history);
-}
-
-void GomokuAI::makeMoveWithCaptures(int row, int col, int player)
-{
-    MoveHistory history;
-    history.row = row;
-    history.col = col;
-    history.player = player;
-    history.capturedByBlack = gameState.capturedByBlack;
-    history.capturedByWhite = gameState.capturedByWhite;
-
-    board[row][col] = player;
-
-    int captured[16][2];
-    int num = GomokuRules::checkCaptures(board, row, col, player, captured);
-    history.numCaptured = num;
-
-    for (int i = 0; i < num; i++)
-    {
-        int r = captured[i][0];
-        int c = captured[i][1];
-        history.capturedStones[i][0] = r;
-        history.capturedStones[i][1] = c;
-        board[r][c] = NONE;
-    }
-
-    if (player == BLACK)
-        gameState.capturedByBlack += num;
-    else
-        gameState.capturedByWhite += num;
-
-    moveHistory.push(history);
+    moveHistory.push(record);
 }
 
 void GomokuAI::undoMove()
 {
     if (moveHistory.empty())
         return;
-    MoveHistory history = moveHistory.top();
+    MoveRecord last = moveHistory.top();
     moveHistory.pop();
 
-    if (history.numCaptured > 0)
-    {
-        gameState.capturedByBlack = history.capturedByBlack;
-        gameState.capturedByWhite = history.capturedByWhite;
+    updateHash(last.move.row, last.move.col, board[last.move.row][last.move.col]);
+    updateHash(last.move.row, last.move.col, NONE);
+    board[last.move.row][last.move.col] = NONE;
 
-        for (int i = 0; i < history.numCaptured; i++)
+    for (auto &cap : last.capturedStones)
+    {
+        updateHash(cap.row, cap.col, NONE);
+        updateHash(cap.row, cap.col, cap.player);
+        board[cap.row][cap.col] = cap.player;
+    }
+    gameState = stateHistory.back();
+    stateHistory.pop_back();
+}
+
+// ============================================================================
+// EVALUATION & SORTING
+// ============================================================================
+
+void GomokuAI::orderMoves(std::vector<Move> &moves, int player)
+{
+    for (auto &m : moves)
+        m.score = quickEvaluate(m.row, m.col, player);
+    std::sort(moves.begin(), moves.end(), [](const Move &a, const Move &b)
+              { return a.score > b.score; });
+}
+
+int GomokuAI::quickEvaluate(int row, int col, int player)
+{
+    int score = 0;
+    int opponent = getOpponent(player);
+    if (checkWinAt(row, col, player))
+        return H_WIN;
+    if (checkWinAt(row, col, opponent))
+        return H_WIN / 2;
+
+    for (int dir = 0; dir < 4; dir++)
+    {
+        LineInfo my = analyzeLine(row, col, player, dir);
+        LineInfo opp = analyzeLine(row, col, opponent, dir);
+        score += evaluateLine(my.count, my.openEnds);
+        score += evaluateLine(opp.count, opp.openEnds) * 2; // Defensive bias
+    }
+    return score + (20 - manhattanDistance(row, col, BOARD_SIZE / 2, BOARD_SIZE / 2));
+}
+
+int GomokuAI::evaluateBoard(int player)
+{
+    int opponent = getOpponent(player);
+    long long score = 0;
+    for (int r = 0; r < BOARD_SIZE; r++)
+    {
+        for (int c = 0; c < BOARD_SIZE; c++)
         {
-            int r = history.capturedStones[i][0];
-            int c = history.capturedStones[i][1];
-            int opponent = (history.player == BLACK) ? WHITE : BLACK;
-            board[r][c] = opponent;
+            if (board[r][c] == NONE)
+                continue;
+            int owner = board[r][c];
+            for (int dir = 0; dir < 4; dir++)
+            {
+                LineInfo info = analyzeLine(r, c, owner, dir);
+                int val = evaluateLine(info.count, info.openEnds);
+                if (owner == player)
+                    score += val;
+                else
+                    score -= (val * 2);
+            }
         }
     }
-
-    if (history.row >= 0)
-        board[history.row][history.col] = NONE;
+    return (int)(score / 4);
 }
 
-int GomokuAI::positionCoordinateToIndex(int row, int col)
+int GomokuAI::evaluateLine(int count, int openEnds)
 {
-    return col * BOARD_SIZE + row;
+    if (count >= 5)
+        return H_WIN;
+    if (count == 4)
+        return (openEnds >= 1) ? H_FOUR : H_FOUR / 10;
+    if (count == 3)
+        return (openEnds == 2) ? H_OPEN_THREE : H_THREE;
+    return 0;
 }
 
-int GomokuAI::indexToColCoordinate(int index)
+bool GomokuAI::checkWinAt(int row, int col, int player)
 {
-    return index / BOARD_SIZE;
+    for (int dir = 0; dir < 4; dir++)
+    {
+        int count = 1;
+        for (int i = 1; i < 5; i++)
+        {
+            if (isInBounds(row + i * dy[dir], col + i * dx[dir]) && board[row + i * dy[dir]][col + i * dx[dir]] == player)
+                count++;
+            else
+                break;
+        }
+        for (int i = 1; i < 5; i++)
+        {
+            if (isInBounds(row - i * dy[dir], col - i * dx[dir]) && board[row - i * dy[dir]][col - i * dx[dir]] == player)
+                count++;
+            else
+                break;
+        }
+        if (count >= 5)
+            return true;
+    }
+    return false;
 }
 
-int GomokuAI::indexToRowCoordinate(int index)
+bool GomokuAI::checkWin(int player)
 {
-    return index % BOARD_SIZE;
+    for (int r = 0; r < BOARD_SIZE; r++)
+        for (int c = 0; c < BOARD_SIZE; c++)
+            if (board[r][c] == player && checkWinAt(r, c, player))
+                return true;
+    return false;
+}
+
+std::vector<Move> GomokuAI::getCandidateMoves(int player)
+{
+    std::vector<Move> moves;
+    bool checked[BOARD_SIZE][BOARD_SIZE] = {false};
+    for (int r = 0; r < BOARD_SIZE; r++)
+    {
+        for (int c = 0; c < BOARD_SIZE; c++)
+        {
+            if (board[r][c] != NONE)
+            {
+                for (int dr = -2; dr <= 2; dr++)
+                {
+                    for (int dc = -2; dc <= 2; dc++)
+                    {
+                        int nr = r + dr, nc = c + dc;
+                        if (isInBounds(nr, nc) && board[nr][nc] == NONE && !checked[nr][nc])
+                        {
+                            moves.push_back(Move(nr, nc));
+                            checked[nr][nc] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (moves.empty())
+        moves.push_back(Move(BOARD_SIZE / 2, BOARD_SIZE / 2));
+    return moves;
+}
+
+void GomokuAI::makeMove(int row, int col, int player)
+{
+    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE)
+    {
+        board[row][col] = player;
+    }
 }
