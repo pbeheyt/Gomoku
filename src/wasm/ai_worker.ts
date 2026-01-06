@@ -30,16 +30,6 @@ interface GomokuModule {
 
 let wasmModule: GomokuModule | null = null;
 
-const wasmModuleConfig = {
-  print: (text: string) => {
-    console.log(`[WASM STDOUT] ${text}`);
-  },
-
-  printErr: (text: string) => {
-    console.error(`[WASM STDERR] ${text}`);
-  },
-};
-
 /**
  * Charge et instancie le module WebAssembly.
  * Utilise 'importScripts' (spécifique Worker) pour charger le code de glue Emscripten.
@@ -55,7 +45,12 @@ async function loadWasmModule() {
   }
 
   // Injection des canaux de sortie pour les logs C++
-  wasmModule = await GomokuAIModule(wasmModuleConfig);
+  wasmModule = await GomokuAIModule({
+    print: (text: string) =>
+      console.log("%c[C++ LOG]", "color: cyan; font-weight: bold;", text),
+    printErr: (text: string) =>
+      console.error("%c[C++ ERR]", "color: red; font-weight: bold;", text),
+  });
 
   if (!wasmModule) {
     throw new Error(
@@ -125,6 +120,15 @@ self.onmessage = async (event) => {
         // Payload : Le board aplati (1D Array)
         const flatBoard = payload?.flatBoard;
 
+        if (!flatBoard || !Array.isArray(flatBoard)) {
+          self.postMessage({
+            type: "error",
+            payload:
+              "flatBoard invalide ou manquant dans le payload de getBestMove",
+          });
+          break;
+        }
+
         // STRATÉGIE ZÉRO MALLOC
         // 1. Obtenir le pointeur vers le buffer statique en C++
         const ptr = wasmModule._get_board_buffer();
@@ -180,9 +184,13 @@ self.onmessage = async (event) => {
           payload: wasmModule._rules_checkStalemate(payload.player) === 1,
         });
         break;
-
       case "rules_checkCaptures": {
-        const ptr = wasmModule._get_board_buffer();
+        // Appel au C++ : Récupération du pointeur vers le buffer statique
+        const ptr = wasmModule._rules_checkCaptures(
+          payload.row,
+          payload.col,
+          payload.player
+        );
 
         // Conversion Pointeur (octets) -> Index (int32)
         const startIdx = ptr >> 2;

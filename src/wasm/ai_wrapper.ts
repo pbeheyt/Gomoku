@@ -135,8 +135,6 @@ export class WasmAI {
     col: number,
     player: Player
   ): Promise<number> {
-    console.log({ row, col, player });
-
     return this.sendQuery("rules_validateMove", "rules_validateMove_result", {
       row,
       col,

@@ -49,8 +49,6 @@ static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 
 bool GomokuRules::isOnBoard(int row, int col)
 {
-    std::cout << "row: " << row << " col: " << col << std::endl;
-
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
