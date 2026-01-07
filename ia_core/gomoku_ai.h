@@ -70,10 +70,10 @@ private:
     const int dy[4] = {0, 1, 1, -1};
 
     // Minimax search with alpha-beta pruning
-    int minimax(int depth, int alpha, int beta, int player, bool isMaximizing);
+    int minimax(int depth, int alpha, int beta, int player);
 
     // Move generation and ordering
-    std::vector<Move> getCandidateMoves(int player, bool threatOnly = false);
+    std::vector<Move> getCandidateMoves(int player);
     void orderMoves(std::vector<Move> &moves, int player);
 
     // move and board evaluation
@@ -81,6 +81,7 @@ private:
     int evaluateBoard(int player);
     int evaluateLine(int player, int count, int openEnds, int gaps);
     int countPattern(int player, int opponent);
+    int checkCaptures(int row, int col, int player);
 
     LineInfo analyzeLine(int row, int col, int player, int dirIdx);
 
