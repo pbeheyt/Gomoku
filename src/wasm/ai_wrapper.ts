@@ -142,14 +142,20 @@ export class WasmAI {
     });
   }
 
-  public async checkWin(
+  public async checkWinAt(
     row: number,
     col: number,
     player: Player
   ): Promise<boolean> {
-    return this.sendQuery("rules_checkWin", "rules_checkWin_result", {
+    return this.sendQuery("rules_checkWinAt", "rules_checkWin_result", {
       row,
       col,
+      player,
+    });
+  }
+
+  public async checkWin(player: Player): Promise<boolean> {
+    return this.sendQuery("rules_checkWin", "rules_checkWin_result", {
       player,
     });
   }

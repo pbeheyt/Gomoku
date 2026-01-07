@@ -53,7 +53,7 @@ wasm:
 		-s WASM=1 \
 		-s MODULARIZE=1 \
 		-s EXPORT_NAME="GomokuAI" \
-		-s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_get_board_buffer", "_rules_validateMove", "_rules_checkWin", "_rules_checkCaptures", "_rules_checkStalemate"]' \
+		-s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_get_board_buffer", "_rules_validateMove", "_rules_checkWinAt", "_rules_checkWin" , "_rules_checkCaptures", "_rules_checkStalemate"]' \
 		-s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "intArrayFromString", "writeArrayToMemory"]' \
 		-s ALLOW_MEMORY_GROWTH=1
 

@@ -112,7 +112,7 @@ export class GomokuGame {
     move.captures.forEach((capture) => emitCaptureMade(capture));
 
     // 6. Vérification Victoire (Wasm Async - Inclut désormais la victoire par capture)
-    const isWin = await this.wasmAI.checkWin(row, col, this.currentPlayer);
+    const isWin = await this.wasmAI.checkWinAt(row, col, this.currentPlayer);
 
     if (isWin) {
       this.winner = this.currentPlayer;
@@ -120,9 +120,19 @@ export class GomokuGame {
       return { isValid: true };
     }
 
-    // 7. Changement de Joueur
-    this.currentPlayer =
+    const opponent =
       this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
+    const isWinOpponent = await this.wasmAI.checkWin(opponent);
+
+    if (isWinOpponent) {
+      this.winner = opponent;
+      emitGameWon(opponent);
+      return { isValid: true };
+    }
+
+    // 7. Changement de Joueur
+    this.currentPlayer = opponent;
+
     emitPlayerChanged(this.currentPlayer);
 
     // 8. Vérification Avancée de Match Nul (Pat / Stalemate)
@@ -271,12 +281,16 @@ export class GomokuGame {
             this.blackCaptures,
             this.whiteCaptures
           );
-          const isWin = await this.wasmAI.checkWin(
+          const isWin = await this.wasmAI.checkWinAt(
             move.position.row,
             move.position.col,
             move.player
           );
           if (isWin) this.winner = move.player;
+
+          const opponent = this.currentPlayer;
+          const isWinOpponent = await this.wasmAI.checkWin(opponent);
+          if (isWinOpponent) this.winner = opponent;
         }
       }
     }

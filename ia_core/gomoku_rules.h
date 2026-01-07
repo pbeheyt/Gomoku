@@ -79,10 +79,11 @@ public:
     // --- Physique du Jeu (Modification du Plateau) ---
     static int applyMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2]);
     static void undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2], int captureCount);
-    
+
     // --- Simulation ---
     static int checkCaptures(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStonesOut[][2] = nullptr);
-    static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int capturedStones);
+    static bool checkWinAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player, int lastMovePlayer, int capturedStones);
+    static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int player, int lastMovePlayer, int capturedStones);
     static bool checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player);
 
     // --- Helpers Complexes (Accessibles si besoin spécifique) ---
@@ -96,21 +97,21 @@ private:
     // SECTION PRIVÉE : CUISINE INTERNE
     // (Helpers utilisés uniquement pour les calculs internes)
     // ============================================================
-    
+
     // --- 1. Analyse de Motifs (Patterns) ---
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::vector<Point> getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
-    
+
     // --- 2. Logique de Paires (Sandwich/Surround) ---
     static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
     static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
     static bool isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
-    
+
     // --- 3. Validation de Victoire (Capture Breaks Win) ---
     static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
-    static int getLongestSegment(const std::vector<bool>& isRemoved);
-    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point>& line, int opponent);
+    static int getLongestSegment(const std::vector<bool> &isRemoved);
+    static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point> &line, int opponent);
 };
 
 // =================================================================================

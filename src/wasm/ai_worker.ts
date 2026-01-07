@@ -19,7 +19,8 @@ interface GomokuModule {
 
   // Exports du moteur de règles
   _rules_validateMove: (row: number, col: number, player: number) => number;
-  _rules_checkWin: (row: number, col: number, player: number) => number;
+  _rules_checkWinAt: (row: number, col: number, player: number) => number;
+  _rules_checkWin: (player: number) => number;
   // Retourne un pointeur vers un tableau d'entiers statique. Index 0 = nombre, puis l, c, l, c...
   _rules_checkCaptures: (row: number, col: number, player: number) => number;
   _rules_checkStalemate: (player: number) => number;
@@ -166,15 +167,22 @@ self.onmessage = async (event) => {
         });
         break;
 
-      case "rules_checkWin":
+      case "rules_checkWinAt":
         self.postMessage({
           type: "rules_checkWin_result",
           payload:
-            wasmModule._rules_checkWin(
+            wasmModule._rules_checkWinAt(
               payload.row,
               payload.col,
               payload.player
             ) === 1,
+        });
+        break;
+
+      case "rules_checkWin":
+        self.postMessage({
+          type: "rules_checkWin_result",
+          payload: wasmModule._rules_checkWin(payload.player) === 1,
         });
         break;
 

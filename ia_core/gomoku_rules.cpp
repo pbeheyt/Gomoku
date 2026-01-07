@@ -365,7 +365,7 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
 //                              7. ARBITRAGE (WIN & STALEMATE)
 // =================================================================================
 
-bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int capturedStones)
+bool GomokuRules::checkWinAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int lastMovePlayer, int capturedStones)
 {
     if (capturedStones >= 10)
         return true;
@@ -379,10 +379,28 @@ bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int row, int
 
         if (currentLine.size() >= 5)
         {
+            if (lastMovePlayer != player)
+            {
+                return true;
+            }
+
             if (!isLineBreakableByCapture(board, currentLine, opponent))
             {
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+bool GomokuRules::checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int player, int lastMovePlayer, int capturedStones)
+{
+    for (int r = 0; r < BOARD_SIZE; r++)
+    {
+        for (int c = 0; c < BOARD_SIZE; c++)
+        {
+            if (board[r][c] == player && checkWinAt(board, r, c, player, lastMovePlayer, capturedStones))
+                return true;
         }
     }
     return false;

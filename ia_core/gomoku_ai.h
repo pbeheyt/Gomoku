@@ -84,26 +84,14 @@ private:
 
     LineInfo analyzeLine(int row, int col, int player, int dirIdx);
 
-    bool checkWin(int player);
-    bool checkWinAt(int row, int col, int player);
-
-    int checkCaptures(int row, int col, int player);
-
     // Threat detection - finds critical moves
     std::vector<Move> findWinningMoves(int player);
     std::vector<Move> findOpenFours(int player);
     std::vector<Move> findOpenThrees(int player);
     std::vector<Move> getThreatMoves(int player);
     bool hasForcingThreat(int player);
-    int countFreeThrees(int row, int col, int player);
-    bool isDoubleFreeThree(int row, int col, int player);
 
     void undoMove();
-
-    int getOpponent(int player)
-    {
-        return (player == BLACK) ? WHITE : BLACK;
-    }
 
     void makeMoveInternal(int row, int col, int player);
 
@@ -126,6 +114,11 @@ public:
     int getCaptures(int player) const
     {
         return (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
+    }
+
+    int getOpponent(int player)
+    {
+        return (player == BLACK) ? WHITE : BLACK;
     }
 };
 
