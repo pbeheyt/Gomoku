@@ -16,6 +16,13 @@ class GomokuAI;
 // Access to the singleton instance
 GomokuAI *getGlobalAI();
 
+struct TTEntry
+{
+    int depth;
+    int score;
+    int flag; // 0: EXACT, 1: ALPHA, 2: BETA
+};
+
 struct Move
 {
     int row, col, score;
@@ -35,7 +42,9 @@ struct MoveRecord
 {
     Move move;
     std::vector<CaptureInfo> capturedStones;
-    MoveRecord(const Move &m) : move(m) {}
+    int player;
+
+    MoveRecord(const Move &m, int p = NONE) : move(m), player(p) {}
 };
 
 struct GameState
@@ -52,6 +61,7 @@ struct LineInfo
     bool isThreat;
 
     LineInfo() : count(0), openEnds(0), gaps(0), isThreat(false) {}
+    LineInfo(int c, int opEnds, int g, bool isTh) : count(c), openEnds(opEnds), gaps(g), isThreat(isTh) {}
 };
 
 class GomokuAI
@@ -59,6 +69,8 @@ class GomokuAI
 private:
     int board[BOARD_SIZE][BOARD_SIZE];
     int aiPlayer, humanPlayer;
+    int currentHash;
+
     GameState gameState;
 
     // Move history for undo - with full capture tracking
@@ -77,10 +89,11 @@ private:
     void orderMoves(std::vector<Move> &moves, int player);
 
     // move and board evaluation
-    int evaluateMove(int row, int col, int player);
     int evaluateBoard(int player);
     int evaluateLine(int player, int count, int openEnds, int gaps);
     int countPattern(int player, int opponent);
+    int evaluateMoveQuick(int row, int col, int player);
+    bool checkWinQuick(int row, int col, int player);
 
     LineInfo analyzeLine(int row, int col, int player, int dirIdx);
 
