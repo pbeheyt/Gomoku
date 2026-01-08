@@ -81,16 +81,12 @@ private:
     int evaluateBoard(int player);
     int evaluateLine(int player, int count, int openEnds, int gaps);
     int countPattern(int player, int opponent);
-    int checkCaptures(int row, int col, int player);
 
     LineInfo analyzeLine(int row, int col, int player, int dirIdx);
 
     // Threat detection - finds critical moves
-    std::vector<Move> findWinningMoves(int player);
     std::vector<Move> findOpenFours(int player);
     std::vector<Move> findOpenThrees(int player);
-    std::vector<Move> getThreatMoves(int player);
-    bool hasForcingThreat(int player);
 
     void undoMove();
 

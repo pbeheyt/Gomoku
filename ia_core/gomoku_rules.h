@@ -14,6 +14,7 @@
 // =================================================================================
 
 const int BOARD_SIZE = 19;
+const int MAX_CAPTURE_STONES = 10;
 
 // Représentation des joueurs
 enum Player

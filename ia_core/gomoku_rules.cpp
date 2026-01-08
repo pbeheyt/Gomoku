@@ -356,6 +356,10 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
         if (isFreeThree(board, row, col, AXES[i], player))
         {
             freeThreeCount++;
+            if (freeThreeCount >= 2)
+            {
+                return true;
+            }
         }
     }
     return freeThreeCount >= 2;
@@ -367,28 +371,45 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
 
 bool GomokuRules::checkWinAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int lastMovePlayer, int capturedStones)
 {
-    if (capturedStones >= 10)
+    if (capturedStones >= MAX_CAPTURE_STONES)
         return true;
 
-    Player player = static_cast<Player>(playerInt);
-    int opponent = (player == BLACK) ? WHITE : BLACK;
+    int opponent = playerInt == BLACK ? WHITE : BLACK;
+    int isBreakable = isStoneCapturable(board, row, col, opponent);
 
-    for (int i = 0; i < 4; i++)
+    for (int dir = 0; dir < 4; dir++)
     {
-        std::vector<Point> currentLine = getConsecutiveLine(board, row, col, AXES[i], playerInt);
+        int count = 1;
 
-        if (currentLine.size() >= 5)
+        int r = row + AXES[dir].r;
+        int c = col + AXES[dir].c;
+
+        while (board[r][c] == playerInt)
         {
-            if (lastMovePlayer != player)
-            {
-                return true;
-            }
+            if (!isBreakable && isStoneCapturable(board, r, c, opponent))
+                isBreakable = true;
 
-            if (!isLineBreakableByCapture(board, currentLine, opponent))
-            {
-                return true;
-            }
+            count++;
+            r += AXES[dir].r;
+            c += AXES[dir].c;
         }
+
+        r = row - AXES[dir].r;
+        c = col - AXES[dir].c;
+        while (board[r][c] == playerInt)
+        {
+            if (!isBreakable && isStoneCapturable(board, r, c, opponent))
+                isBreakable = true;
+            count++;
+            r -= AXES[dir].r;
+            c -= AXES[dir].c;
+        }
+
+        if (count >= 5 && !isBreakable)
+            return true;
+
+        if (count >= 5 && playerInt != lastMovePlayer)
+            return true;
     }
     return false;
 }
