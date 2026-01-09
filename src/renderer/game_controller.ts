@@ -200,8 +200,45 @@ class GameController {
       this.soundManager.playWin(false); // Son neutre/défaite
     });
 
-    gameEvents.on('game:won', (winner) => {
+    gameEvents.on('game:won', async (winner) => {
       this.stopGlobalTimer(); // Arrêt immédiat du chrono
+      
+      // 1. Tentative de détection de la ligne gagnante (Visuel)
+      const lastMove = this.game.getLastMove();
+      let isLineWin = false;
+      
+      if (lastMove) {
+          const line = this.findWinningLine(lastMove, winner);
+          if (line && this.renderer) {
+              this.renderer.drawWinningLine(line.start, line.end, winner);
+              isLineWin = true;
+          }
+      }
+
+      // 1b. Si ce n'est pas une ligne, c'est une victoire par Capture -> Effet Néon HUD
+      if (!isLineWin) {
+          const blackScore = this.game.getBlackCaptures();
+          const whiteScore = this.game.getWhiteCaptures();
+          
+          if ((winner === Player.BLACK && blackScore >= 10) || 
+              (winner === Player.WHITE && whiteScore >= 10)) {
+              this.ui.triggerCaptureWinEffect(winner);
+          }
+      }
+
+      // 2. Gestion Sonore
+      let isVictory = true;
+      const humanColor = this.lastGameConfig.color || Player.BLACK;
+      if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
+          isVictory = (winner === humanColor);
+      }
+      this.soundManager.playWin(isVictory);
+
+      // 3. Délai dramatique (2s) avant le popup
+      // Juste assez pour voir le flash vert, pas assez pour s'ennuyer
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 4. Affichage du Popup
       this.ui.setWinnerMessage(winner);
       this.showView('GAME_OVER');
       this.updateUI(); 
@@ -211,12 +248,8 @@ class GameController {
       // - C'est une victoire Humaine
       // - Contre l'IA C++ (Le vrai challenge)
       // - En mode Classé (Pas de retour en arrière utilisé)
-      let isVictory = true;
-      const humanColor = this.lastGameConfig.color || Player.BLACK;
       
       if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
-          isVictory = (winner === humanColor);
-
           if (isVictory && this.currentMode === GameMode.PLAYER_VS_AI) {
               if (this.isRanked) {
                   const moves = this.game.getMoveHistory().length;
@@ -230,7 +263,7 @@ class GameController {
           }
       }
       
-      this.soundManager.playWin(isVictory);
+      // Le son est déjà joué avant le délai
     });
 
     // 4. Changement de tour
@@ -654,6 +687,8 @@ class GameController {
     
     this.ui.resetAiTimer();
     this.ui.setReasoning("En attente...");
+    this.renderer?.clearWinningLine(); // Nettoyage du laser
+    this.ui.resetCaptureWinEffect();   // Nettoyage du néon capture
     this.redraw();
     this.updateUI();
     this.ui.clearMessage();
@@ -701,6 +736,9 @@ class GameController {
   private async handleHistoryAction(action: 'START' | 'PREV' | 'NEXT' | 'END'): Promise<void> {
     if (this.isProcessingMove) return;
     this.isProcessingMove = true;
+    
+    // Nettoyage visuel immédiat (Laser)
+    this.renderer?.clearWinningLine();
 
     try {
         const current = this.game.getCurrentMoveIndex();
@@ -911,6 +949,50 @@ class GameController {
         { text: 'Oui', callback: () => this.showView('MENU'), className: 'primary' },
         { text: 'Non', callback: () => {} }
     ]);
+  }
+
+  /**
+   * Helper : Trouve les coordonnées de début et fin de l'alignement gagnant.
+   * Scanne les 4 directions autour du dernier coup.
+   */
+  private findWinningLine(center: Position, player: Player): { start: Position, end: Position } | null {
+    const board = this.game.getBoard();
+    const directions = [
+        { dr: 0, dc: 1 },  // Horizontal
+        { dr: 1, dc: 0 },  // Vertical
+        { dr: 1, dc: 1 },  // Diagonale \
+        { dr: 1, dc: -1 }  // Diagonale /
+    ];
+
+    for (const { dr, dc } of directions) {
+        // On cherche l'extrémité "négative"
+        let rStart = center.row;
+        let cStart = center.col;
+        while (board.getPiece(rStart - dr, cStart - dc) === player) {
+            rStart -= dr;
+            cStart -= dc;
+        }
+
+        // On cherche l'extrémité "positive"
+        let rEnd = center.row;
+        let cEnd = center.col;
+        while (board.getPiece(rEnd + dr, cEnd + dc) === player) {
+            rEnd += dr;
+            cEnd += dc;
+        }
+
+        // Vérification de la longueur (inclusive)
+        // Calcul simple de distance en pas
+        const steps = Math.max(Math.abs(rEnd - rStart), Math.abs(cEnd - cStart)) + 1;
+        
+        if (steps >= 5) {
+            return { 
+                start: { row: rStart, col: cStart }, 
+                end: { row: rEnd, col: cEnd } 
+            };
+        }
+    }
+    return null;
   }
 }
 
