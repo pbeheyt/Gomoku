@@ -327,6 +327,7 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 .timer-section { border: 1px solid var(--accent-color); border-radius: 12px; padding: 15px !important; background: rgba(0, 170, 255, 0.05); text-align: center; }
 .timer-section h3 { margin-bottom: 10px; color: var(--accent-color); }
 .timer-display { color: var(--timer-color); font-size: 2.8rem; font-weight: bold; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0, 255, 137, 0.5); letter-spacing: 2px; }
+.timer-average { color: var(--text-secondary); font-size: 0.9rem; margin-top: 5px; font-family: 'Courier New', monospace; opacity: 0.8; }
 
 /* Player Info & Active Player Indicator */
 .player-info {
