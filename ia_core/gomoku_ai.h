@@ -1,6 +1,6 @@
 /**
  * Gomoku AI Header
- * Declarations for the AI class and structures.
+ * Strong AI with proper threat detection and evaluation
  */
 
 #ifndef GOMOKU_AI_H
@@ -8,90 +8,128 @@
 
 #include <vector>
 #include <stack>
+#include <unordered_map>
 #include "gomoku_rules.h"
 
-// Forward declaration
 class GomokuAI;
 
-// Access to the singleton instance for the Bridge
-GomokuAI* getGlobalAI();
+// Access to the singleton instance
+GomokuAI *getGlobalAI();
 
-// --- Data Structures ---
+struct TTEntry
+{
+    int depth;
+    int score;
+    int flag; // 0: EXACT, 1: ALPHA, 2: BETA
+};
 
-struct Move {
+struct Move
+{
     int row, col, score;
     Move() : row(-1), col(-1), score(0) {}
     Move(int r, int c, int s = 0) : row(r), col(c), score(s) {}
 };
 
-struct MoveHistory {
-    int row, col, player;
-    int capturedStones[4][2];
-    int numCaptured;
-    int capturedByBlack, capturedByWhite;
-    MoveHistory() : row(-1), col(-1), player(0), numCaptured(0), capturedByBlack(0), capturedByWhite(0) {}
+struct CaptureInfo
+{
+    int row, col;
+    int player;
+
+    CaptureInfo(int r = 0, int c = 0, int p = 0) : row(r), col(c), player(p) {}
 };
 
-struct GameState {
+struct MoveRecord
+{
+    Move move;
+    std::vector<CaptureInfo> capturedStones;
+    int player;
+
+    MoveRecord(const Move &m, int p = NONE) : move(m), player(p) {}
+};
+
+struct GameState
+{
     int capturedByBlack, capturedByWhite;
     GameState() : capturedByBlack(0), capturedByWhite(0) {}
 };
 
-struct PatternInfo {
-    int length, openEnds;
-    bool blockedLeft, blockedRight;
-    int startRow, startCol, endRow, endCol;
-    PatternInfo() : length(0), openEnds(0), blockedLeft(false), blockedRight(false), startRow(-1), startCol(-1), endRow(-1), endCol(-1) {}
+struct LineInfo
+{
+    int count;
+    int openEnds;
+    int gaps;
+    bool isThreat;
+
+    LineInfo() : count(0), openEnds(0), gaps(0), isThreat(false) {}
+    LineInfo(int c, int opEnds, int g, bool isTh) : count(c), openEnds(opEnds), gaps(g), isThreat(isTh) {}
 };
 
-// --- AI Class Definition ---
-
-class GomokuAI {
+class GomokuAI
+{
 private:
     int board[BOARD_SIZE][BOARD_SIZE];
-    int aiPlayer;
-    int humanPlayer;
-    GameState gameState;
-    std::stack<MoveHistory> moveHistory;
+    int aiPlayer, humanPlayer;
+    int currentHash;
 
-    // Internal Helpers (Minimax & Heuristics)
-    int minimax(int depth, int alpha, int beta, bool isMaximizing);
-    int quickEvaluate(int row, int col, int player);
+    GameState gameState;
+
+    // Move history for undo - with full capture tracking
+    std::stack<MoveRecord> moveHistory;
+    std::vector<GameState> stateHistory;
+
+    // Direction vectors: horizontal, vertical, diagonal, anti-diagonal
+    const int dx[4] = {1, 0, 1, 1};
+    const int dy[4] = {0, 1, 1, -1};
+
+    // Minimax search with alpha-beta pruning
+    int minimax(int depth, int alpha, int beta, int player);
+
+    // Move generation and ordering
+    std::vector<Move> getCandidateMoves(int player);
+    void orderMoves(std::vector<Move> &moves, int player);
+
+    // move and board evaluation
     int evaluateBoard(int player);
-    int evaluateAlignments(int player);
-    int evaluateCaptures(int player);
-    int evaluatePatterns(int player);
-    int evaluateImmediateThreats(int player);
-    int detectAdvancedPatterns(int row, int col, int player);
-    bool hasPlayerWon(int player);
-    std::vector<Move> getCandidateMoves();
-    void saveState();
-    void makeMoveWithCaptures(int row, int col, int player);
-    int checkAndPerformCaptures(int row, int col, int player);
+    int evaluateLine(int player, int count, int openEnds, int gaps);
+    int countPattern(int player, int opponent);
+    int evaluateMoveQuick(int row, int col, int player);
+    bool checkWinQuick(int row, int col, int player);
+
+    LineInfo analyzeLine(int row, int col, int player, int dirIdx);
+
+    // Threat detection - finds critical moves
+    std::vector<Move> findOpenFours(int player);
+    std::vector<Move> findOpenThrees(int player);
+
     void undoMove();
-    
-    // Pattern Helpers
-    PatternInfo analyzePattern(int row, int col, int direction, int player, bool visited[BOARD_SIZE][BOARD_SIZE][4]);
-    int evaluatePatternScore(const PatternInfo& pattern);
-    int evaluatePattern(int row, int col, int direction, int player);
-    PatternInfo getPatternInfo(int row, int col, int direction, int player);
-    bool wouldBlockThreat(int row, int col, int player, int opponent);
-    bool detectDoubleFreeThree(int row, int col, int player);
-    bool detectFourPlusThree(int row, int col, int player);
-    bool createsFreeThree(int row, int col, int direction, int player);
-    int countConsecutive(int row, int col, int direction, int player);
+
+    void makeMoveInternal(int row, int col, int player);
 
 public:
     GomokuAI(int aiPlayerColor);
+
     void clearBoard();
-    void setBoard(const int* flatBoard, int blackCaptures, int whiteCaptures);
+    void setBoard(const int *flatBoard, int blackCaptures, int whiteCaptures);
+
     void makeMove(int row, int col, int player);
     bool isValidMove(int row, int col);
-    void getBestMove(int& bestRow, int& bestCol);
-    
-    // Accessor for the Rules Engine Bridge
-    const int (*getBoard() const)[BOARD_SIZE] { return board; }
-    int getCaptures(int player) const { return (player == 1) ? gameState.capturedByBlack : gameState.capturedByWhite; }
+
+    void getBestMove(int &bestRow, int &bestCol);
+
+    const int (*getBoard() const)[BOARD_SIZE]
+    {
+        return board;
+    }
+
+    int getCaptures(int player) const
+    {
+        return (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
+    }
+
+    int getOpponent(int player)
+    {
+        return (player == BLACK) ? WHITE : BLACK;
+    }
 };
 
-#endif // GOMOKU_AI_H
+#endif

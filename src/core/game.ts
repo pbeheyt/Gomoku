@@ -1,14 +1,28 @@
 /**
  * Logique du jeu et implémentation des règles
- * 
+ *
  * MAINTENANT ASYNCHRONE & PROPULSÉ PAR WASM.
  * Délègue toutes les vérifications de règles au moteur C++ via WasmAI.
  */
 
-import { Player, Position, Move, GameState, CaptureResult, ValidationResult, GameMode } from './types.js';
-import { GameBoard, BOARD_SIZE } from './board.js';
-import { emitMoveMade, emitCaptureMade, emitGameWon, emitPlayerChanged, emitGameDraw } from './events.js';
-import { WasmAI } from '../wasm/ai_wrapper.js';
+import {
+  Player,
+  Position,
+  Move,
+  GameState,
+  CaptureResult,
+  ValidationResult,
+  GameMode,
+} from "./types.js";
+import { GameBoard, BOARD_SIZE } from "./board.js";
+import {
+  emitMoveMade,
+  emitCaptureMade,
+  emitGameWon,
+  emitPlayerChanged,
+  emitGameDraw,
+} from "./events.js";
+import { WasmAI } from "../wasm/ai_wrapper.js";
 
 const STALEMATE_THRESHOLD = 20; // On vérifie le Pat si <= 20 cases vides
 
@@ -22,7 +36,7 @@ export class GomokuGame {
   private moveHistory: Move[];
   private currentMoveIndex: number;
   private gameId: number = 0;
-  
+
   // Le Moteur de Règles C++
   private wasmAI: WasmAI | null = null;
 
@@ -42,18 +56,25 @@ export class GomokuGame {
     this.wasmAI = ai;
   }
 
-  getGameId(): number { return this.gameId; }
+  getGameId(): number {
+    return this.gameId;
+  }
 
   /**
    * ASYNC : Applique un coup après validation par le Wasm.
    */
-  async makeMove(row: number, col: number, blackTime: number = 0, whiteTime: number = 0): Promise<ValidationResult> {
-    if (!this.wasmAI) return { isValid: false, reason: 'IA non prête' };
+  async makeMove(
+    row: number,
+    col: number,
+    blackTime: number = 0,
+    whiteTime: number = 0
+  ): Promise<ValidationResult> {
+    if (!this.wasmAI) return { isValid: false, reason: "IA non prête" };
 
     // 1. Branchement d'Historique
     if (this.currentMoveIndex < this.moveHistory.length) {
       this.moveHistory = this.moveHistory.slice(0, this.currentMoveIndex);
-      this.winner = null; 
+      this.winner = null;
     }
 
     // 2. Validation & Simulation (Async)
@@ -69,28 +90,29 @@ export class GomokuGame {
       timestamp: Date.now(),
       blackTime: blackTime,
       whiteTime: whiteTime,
-      captures: analysis.captures || []
+      captures: analysis.captures || [],
     };
+
     this.moveHistory.push(move);
     this.currentMoveIndex++;
-    
+
     // 4. Application Mécanique (Plateau JS Local)
     this.applyMoveMechanics(row, col, this.currentPlayer, move.captures);
 
     // 5. Synchro État Wasm (CRITIQUE)
     // On envoie l'état COMPLET du plateau et des SCORES pour garantir que le C++ est parfaitement synchro
     await this.wasmAI.setBoard(
-        this.board.getBoardState().flat(),
-        this.blackCaptures,
-        this.whiteCaptures
+      this.board.getBoardState().flat(),
+      this.blackCaptures,
+      this.whiteCaptures
     );
 
     // Événements
     emitMoveMade(move);
-    move.captures.forEach(capture => emitCaptureMade(capture));
+    move.captures.forEach((capture) => emitCaptureMade(capture));
 
     // 6. Vérification Victoire (Wasm Async - Inclut désormais la victoire par capture)
-    const isWin = await this.wasmAI.checkWin(row, col, this.currentPlayer);
+    const isWin = await this.wasmAI.checkWinAt(row, col, this.currentPlayer);
 
     if (isWin) {
       this.winner = this.currentPlayer;
@@ -98,8 +120,19 @@ export class GomokuGame {
       return { isValid: true };
     }
 
+    const opponent =
+      this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
+    const isWinOpponent = await this.wasmAI.checkWin(opponent);
+
+    if (isWinOpponent) {
+      this.winner = opponent;
+      emitGameWon(opponent);
+      return { isValid: true };
+    }
+
     // 7. Changement de Joueur
-    this.currentPlayer = this.currentPlayer === Player.BLACK ? Player.WHITE : Player.BLACK;
+    this.currentPlayer = opponent;
+
     emitPlayerChanged(this.currentPlayer);
 
     // 8. Vérification Avancée de Match Nul (Pat / Stalemate)
@@ -116,7 +149,11 @@ export class GomokuGame {
   /**
    * Helper pour vérifier un coup sans le jouer.
    */
-  async validateMove(row: number, col: number, playerOverride?: Player): Promise<ValidationResult> {
+  async validateMove(
+    row: number,
+    col: number,
+    playerOverride?: Player
+  ): Promise<ValidationResult> {
     return this.analyzeMove(row, col, playerOverride || this.currentPlayer);
   }
 
@@ -124,16 +161,19 @@ export class GomokuGame {
    * Le Moteur de Règles (Délégué au Wasm).
    * Pattern : Simulation locale -> Synchro Wasm -> Vérif Règles -> Annulation.
    */
-  private async analyzeMove(row: number, col: number, player: Player): Promise<ValidationResult & { captures?: CaptureResult[] }> {
-    if (!this.wasmAI) return { isValid: false, reason: 'IA non prête' };
-
+  private async analyzeMove(
+    row: number,
+    col: number,
+    player: Player
+  ): Promise<ValidationResult & { captures?: CaptureResult[] }> {
+    if (!this.wasmAI) return { isValid: false, reason: "IA non prête" };
     // STRATÉGIE : Délégation totale au C++
     // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).
     // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses et les SCORES.
     await this.wasmAI.setBoard(
-        this.board.getBoardState().flat(),
-        this.blackCaptures,
-        this.whiteCaptures
+      this.board.getBoardState().flat(),
+      this.blackCaptures,
+      this.whiteCaptures
     );
 
     // 1. Validation Unifiée (Single Source of Truth)
@@ -141,12 +181,12 @@ export class GomokuGame {
     const status = await this.wasmAI.validateMove(row, col, player);
 
     if (status !== 0) {
-        let reason = 'Coup invalide';
-        if (status === 1) reason = 'Hors limites';
-        if (status === 2) reason = 'Case occupée';
-        if (status === 3) reason = 'Suicide interdit';
-        if (status === 4) reason = 'Double-Trois interdit';
-        return { isValid: false, reason };
+      let reason = "Coup invalide";
+      if (status === 1) reason = "Hors limites";
+      if (status === 2) reason = "Case occupée";
+      if (status === 3) reason = "Suicide interdit";
+      if (status === 4) reason = "Double-Trois interdit";
+      return { isValid: false, reason };
     }
 
     // 2. Si valide, on récupère les détails des captures pour l'UI
@@ -154,14 +194,20 @@ export class GomokuGame {
 
     // Formatage des captures pour le JS
     const captures: CaptureResult[] = rawCaptures.map((c: any) => ({
-        capturedPositions: c.capturedPositions,
-        newCaptureCount: (player === Player.BLACK ? this.blackCaptures : this.whiteCaptures) + 2
+      capturedPositions: c.capturedPositions,
+      newCaptureCount:
+        (player === Player.BLACK ? this.blackCaptures : this.whiteCaptures) + 2,
     }));
 
     return { isValid: true, captures };
   }
 
-  private applyMoveMechanics(row: number, col: number, player: Player, captures: CaptureResult[]): void {
+  private applyMoveMechanics(
+    row: number,
+    col: number,
+    player: Player,
+    captures: CaptureResult[]
+  ): void {
     this.board.setPiece(row, col, player);
     this.lastMove = { row, col };
 
@@ -198,10 +244,10 @@ export class GomokuGame {
     this.currentMoveIndex = 0;
     this.gameId++;
     emitPlayerChanged(this.currentPlayer);
-    
+
     // Synchro Wasm
     if (this.wasmAI) {
-        this.wasmAI.setBoard(this.board.getBoardState().flat(), 0, 0);
+      this.wasmAI.setBoard(this.board.getBoardState().flat(), 0, 0);
     }
   }
 
@@ -218,44 +264,78 @@ export class GomokuGame {
 
     for (let i = 0; i < index; i++) {
       const move = this.moveHistory[i];
-      this.applyMoveMechanics(move.position.row, move.position.col, move.player, move.captures);
-      this.currentPlayer = (move.player === Player.BLACK) ? Player.WHITE : Player.BLACK;
-      
+      this.applyMoveMechanics(
+        move.position.row,
+        move.position.col,
+        move.player,
+        move.captures
+      );
+      this.currentPlayer =
+        move.player === Player.BLACK ? Player.WHITE : Player.BLACK;
+
       // Re-vérification condition de victoire sur le dernier coup du saut
       if (i === index - 1) {
-         if (this.wasmAI) {
-             await this.wasmAI.setBoard(
-                 this.board.getBoardState().flat(),
-                 this.blackCaptures,
-                 this.whiteCaptures
-             );
-             const isWin = await this.wasmAI.checkWin(move.position.row, move.position.col, move.player);
-             if (isWin) this.winner = move.player;
-         }
-      }
-    }
-    this.currentMoveIndex = index;
-    
-    // Synchro Finale
-    if (this.wasmAI) {
-        await this.wasmAI.setBoard(
+        if (this.wasmAI) {
+          await this.wasmAI.setBoard(
             this.board.getBoardState().flat(),
             this.blackCaptures,
             this.whiteCaptures
-        );
+          );
+          const isWin = await this.wasmAI.checkWinAt(
+            move.position.row,
+            move.position.col,
+            move.player
+          );
+          if (isWin) this.winner = move.player;
+
+          const opponent = this.currentPlayer;
+          const isWinOpponent = await this.wasmAI.checkWin(opponent);
+          if (isWinOpponent) this.winner = opponent;
+        }
+      }
+    }
+    this.currentMoveIndex = index;
+
+    // Synchro Finale
+    if (this.wasmAI) {
+      await this.wasmAI.setBoard(
+        this.board.getBoardState().flat(),
+        this.blackCaptures,
+        this.whiteCaptures
+      );
     }
   }
 
-  getCurrentMoveIndex(): number { return this.currentMoveIndex; }
-  getTotalMoves(): number { return this.moveHistory.length; }
-  getMoveHistory(): Move[] { return [...this.moveHistory]; }
-  isGameOver(): boolean { return this.winner !== null; }
-  getWinner(): Player | null { return this.winner; }
-  getCurrentPlayer(): Player { return this.currentPlayer; }
-  getBlackCaptures(): number { return this.blackCaptures; }
-  getWhiteCaptures(): number { return this.whiteCaptures; }
-  getLastMove(): Position | null { return this.lastMove; }
-  getBoard(): GameBoard { return this.board; }
+  getCurrentMoveIndex(): number {
+    return this.currentMoveIndex;
+  }
+  getTotalMoves(): number {
+    return this.moveHistory.length;
+  }
+  getMoveHistory(): Move[] {
+    return [...this.moveHistory];
+  }
+  isGameOver(): boolean {
+    return this.winner !== null;
+  }
+  getWinner(): Player | null {
+    return this.winner;
+  }
+  getCurrentPlayer(): Player {
+    return this.currentPlayer;
+  }
+  getBlackCaptures(): number {
+    return this.blackCaptures;
+  }
+  getWhiteCaptures(): number {
+    return this.whiteCaptures;
+  }
+  getLastMove(): Position | null {
+    return this.lastMove;
+  }
+  getBoard(): GameBoard {
+    return this.board;
+  }
 
   /**
    * Vérifie si le joueur est en situation de Pat (aucun coup légal possible).
@@ -263,8 +343,9 @@ export class GomokuGame {
   private async checkStalemate(player: Player): Promise<boolean> {
     // 1. Optimisation Mathématique O(1)
     // On calcule les cases vides sans parcourir le tableau : Total - (Posées - Capturées)
-    const stonesOnBoard = this.moveHistory.length - (this.blackCaptures + this.whiteCaptures);
-    const emptyCells = (BOARD_SIZE * BOARD_SIZE) - stonesOnBoard;
+    const stonesOnBoard =
+      this.moveHistory.length - (this.blackCaptures + this.whiteCaptures);
+    const emptyCells = BOARD_SIZE * BOARD_SIZE - stonesOnBoard;
 
     // On ne vérifie le Pat que si le plateau est presque plein (<= 20 cases vides)
     if (emptyCells > STALEMATE_THRESHOLD) return false;
@@ -273,9 +354,9 @@ export class GomokuGame {
 
     // 2. Synchro État Wasm
     await this.wasmAI.setBoard(
-        this.board.getBoardState().flat(),
-        this.blackCaptures,
-        this.whiteCaptures
+      this.board.getBoardState().flat(),
+      this.blackCaptures,
+      this.whiteCaptures
     );
 
     // 3. Délégation au moteur C++
