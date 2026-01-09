@@ -987,7 +987,7 @@ class GameController {
 
   /**
    * Helper : Trouve les coordonnées de début et fin de l'alignement gagnant.
-   * Scanne les 4 directions autour du dernier coup.
+   * Stratégie Hybride : Scan local autour du dernier coup OU Scan global (si victoire à retardement).
    */
   private findWinningLine(center: Position, player: Player): { start: Position, end: Position } | null {
     const board = this.game.getBoard();
@@ -998,34 +998,57 @@ class GameController {
         { dr: 1, dc: -1 }  // Diagonale /
     ];
 
-    for (const { dr, dc } of directions) {
-        // On cherche l'extrémité "négative"
-        let rStart = center.row;
-        let cStart = center.col;
-        while (board.getPiece(rStart - dr, cStart - dc) === player) {
-            rStart -= dr;
-            cStart -= dc;
-        }
+    // --- 1. Tentative Rapide (Autour du dernier coup) ---
+    // On ne le fait que si la dernière pierre appartient bien au gagnant
+    if (board.getPiece(center.row, center.col) === player) {
+        for (const { dr, dc } of directions) {
+            let rStart = center.row;
+            let cStart = center.col;
+            while (board.getPiece(rStart - dr, cStart - dc) === player) {
+                rStart -= dr;
+                cStart -= dc;
+            }
 
-        // On cherche l'extrémité "positive"
-        let rEnd = center.row;
-        let cEnd = center.col;
-        while (board.getPiece(rEnd + dr, cEnd + dc) === player) {
-            rEnd += dr;
-            cEnd += dc;
-        }
+            let rEnd = center.row;
+            let cEnd = center.col;
+            while (board.getPiece(rEnd + dr, cEnd + dc) === player) {
+                rEnd += dr;
+                cEnd += dc;
+            }
 
-        // Vérification de la longueur (inclusive)
-        // Calcul simple de distance en pas
-        const steps = Math.max(Math.abs(rEnd - rStart), Math.abs(cEnd - cStart)) + 1;
-        
-        if (steps >= 5) {
-            return { 
-                start: { row: rStart, col: cStart }, 
-                end: { row: rEnd, col: cEnd } 
-            };
+            const steps = Math.max(Math.abs(rEnd - rStart), Math.abs(cEnd - cStart)) + 1;
+            
+            if (steps >= 5) {
+                return { start: { row: rStart, col: cStart }, end: { row: rEnd, col: cEnd } };
+            }
         }
     }
+
+    // --- 2. Fallback : Scan Complet (Victoire à retardement) ---
+    // Si le dernier coup n'est pas le gagnant, ou ne complète pas la ligne, on cherche partout.
+    const size = board.getSize();
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (board.getPiece(r, c) !== player) continue;
+
+            for (const { dr, dc } of directions) {
+                // On vérifie 5 pierres consécutives dans la direction POSITIVE uniquement
+                // (pour éviter les doublons et simplifier)
+                let k = 1;
+                while (k < 5 && board.getPiece(r + k * dr, c + k * dc) === player) {
+                    k++;
+                }
+
+                if (k >= 5) {
+                    return {
+                        start: { row: r, col: c },
+                        end: { row: r + (k - 1) * dr, col: c + (k - 1) * dc }
+                    };
+                }
+            }
+        }
+    }
+
     return null;
   }
 }
