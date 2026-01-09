@@ -266,6 +266,11 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
             score += (openEnds == 2) ? SCORE_LIVE_TWO : SCORE_DEAD_TWO;
     }
 
+    score += GomokuRules::checkCaptures(board, row, col, player) * SCORE_LIVE_THREE;
+
+    int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
+    score += (BOARD_SIZE - centerDist) * 50;
+
     return score;
 }
 
@@ -383,12 +388,15 @@ int GomokuAI::evaluateBoard(int player)
     int pCaps = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
     int oCaps = (opponent == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
 
-    if (pCaps >= 10)
+    if (pCaps >= MAX_CAPTURE_STONES)
         return SCORE_FIVE;
-    if (oCaps >= 10)
+    if (oCaps >= MAX_CAPTURE_STONES)
         return -SCORE_FIVE;
 
     int score = 0;
+    int scoreAttack = 0;
+    int scoreDefense = 0;
+
     score += pCaps * SCORE_LIVE_THREE;
     score -= oCaps * SCORE_LIVE_THREE;
 
@@ -398,14 +406,17 @@ int GomokuAI::evaluateBoard(int player)
         {
             if (board[r][c] == player)
             {
-                score += evaluateMoveQuick(r, c, player) / 8;
+                scoreAttack += evaluateMoveQuick(r, c, player);
             }
             else if (board[r][c] == opponent)
             {
-                score -= evaluateMoveQuick(r, c, opponent) / 6;
+                scoreDefense -= evaluateMoveQuick(r, c, opponent);
             }
         }
     }
+
+    score += scoreAttack;
+    score += scoreDefense * 1.2;
 
     return score;
 }
