@@ -28,6 +28,7 @@ export class UIManager {
   private aiTimerSectionEl: HTMLElement | null;
   private timerLabelEl: HTMLElement | null;
   private timerDisplayEl: HTMLElement | null;
+  private timerAverageEl: HTMLElement | null;
   private miniSpinnerEl: HTMLElement | null;
   
   // --- Contrôles IA (LLM) ---
@@ -91,6 +92,7 @@ export class UIManager {
     this.aiTimerSectionEl = document.getElementById('aiTimerSection');
     this.timerLabelEl = document.getElementById('timerLabel');
     this.timerDisplayEl = document.getElementById('timer');
+    this.timerAverageEl = document.getElementById('timerAverage');
     this.miniSpinnerEl = document.getElementById('miniSpinner');
     this.aiReasoningControlsEl = document.getElementById('aiReasoningControls');
     this.aiReasoningHudEl = document.getElementById('aiReasoningHud');
@@ -214,6 +216,7 @@ export class UIManager {
     }
     
     if (this.timerDisplayEl) this.timerDisplayEl.textContent = "0.0000s";
+    if (this.timerAverageEl) this.timerAverageEl.textContent = "Moyenne: 0.0000s";
     if (this.timerLabelEl) this.timerLabelEl.textContent = "Dernier coup";
     if (this.miniSpinnerEl) this.miniSpinnerEl.classList.add('hidden');
   }
@@ -254,12 +257,15 @@ export class UIManager {
    * UX Trick : Si l'IA répond trop vite (< 600ms), on force un petit délai d'attente.
    * Cela évite que le texte "Réflexion..." ne flashe trop vite à l'écran.
    */
-  public async stopThinkingTimer(finalDuration: number): Promise<void> {
+  public async stopThinkingTimer(finalDuration: number, averageDuration: number = 0): Promise<void> {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;
     }
     if (this.timerDisplayEl) this.timerDisplayEl.textContent = `${finalDuration.toFixed(4)}s`;
+    if (this.timerAverageEl && averageDuration > 0) {
+        this.timerAverageEl.textContent = `Moyenne: ${averageDuration.toFixed(4)}s`;
+    }
     
     const MIN_DISPLAY_TIME = 600;
     const elapsed = performance.now() - this.thinkingStartTime;

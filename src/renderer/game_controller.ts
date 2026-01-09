@@ -77,6 +77,10 @@ class GameController {
   private isAIThinking: boolean = false; 
   private isProcessingMove: boolean = false; // Verrouillage pendant la validation Wasm
   private lastAIThinkingTime: number = 0;
+  
+  // Moyenne IA
+  private aiTotalThinkingTime: number = 0;
+  private aiMoveCount: number = 0;
 
   // --- Chronométrie & Classement ---
   private blackTimeTotal: number = 0; // Cumul secondes Noir
@@ -456,6 +460,11 @@ class GameController {
         const endTime = performance.now();
         this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
+        // Mise à jour de la moyenne
+        this.aiTotalThinkingTime += this.lastAIThinkingTime;
+        this.aiMoveCount++;
+        const avgTime = this.aiTotalThinkingTime / this.aiMoveCount;
+
         // Vérification paranoïaque après calcul
         // Si l'utilisateur a cliqué sur Reset pendant les 3s de calcul,
         // turnGameId ne correspondra plus à this.game.getGameId().
@@ -473,7 +482,8 @@ class GameController {
     } finally {
         // Déverrouillage uniquement si on est toujours dans la même partie
         if (this.game.getGameId() === turnGameId) {
-            await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
+            const avgTime = this.aiMoveCount > 0 ? this.aiTotalThinkingTime / this.aiMoveCount : 0;
+            await this.ui.stopThinkingTimer(this.lastAIThinkingTime, avgTime);
             this.isAIThinking = false;
             this.updateUI();
         }
@@ -512,6 +522,10 @@ class GameController {
       const endTime = performance.now();
       this.lastAIThinkingTime = (endTime - startTime) / 1000;
 
+      // Mise à jour de la moyenne (LLM compte aussi)
+      this.aiTotalThinkingTime += this.lastAIThinkingTime;
+      this.aiMoveCount++;
+
       const llmMove = result.position;
       this.ui.setReasoning(result.reasoning || "Aucun raisonnement disponible.");
 
@@ -531,7 +545,8 @@ class GameController {
       }
     } finally {
       if (this.game.getGameId() === turnGameId) {
-          await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
+          const avgTime = this.aiMoveCount > 0 ? this.aiTotalThinkingTime / this.aiMoveCount : 0;
+          await this.ui.stopThinkingTimer(this.lastAIThinkingTime, avgTime);
           this.isAIThinking = false;
           this.updateUI();
       }
@@ -581,6 +596,7 @@ class GameController {
         }
     } finally {
         if (this.game.getGameId() === turnGameId) {
+            // Pour une suggestion, on n'impacte pas la moyenne affichée du jeu en cours
             await this.ui.stopThinkingTimer(this.lastAIThinkingTime);
             this.isAIThinking = false;
             this.updateUI();
@@ -610,6 +626,8 @@ class GameController {
     this.suggestionPosition = null;
     this.isAIThinking = false;
     this.lastAIThinkingTime = 0;
+    this.aiTotalThinkingTime = 0;
+    this.aiMoveCount = 0;
     this.llmAI = null;
     
     // Réactivation du mode Classé
