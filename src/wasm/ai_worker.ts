@@ -26,6 +26,7 @@ interface GomokuModule {
   _rules_checkStalemate: (player: number) => number;
 
   _get_board_buffer: () => number; // Retourne un pointeur vers le buffer statique du board
+  _getAiCandidateMoves: () => number;
   HEAP32: Int32Array;
 }
 

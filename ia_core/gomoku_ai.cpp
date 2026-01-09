@@ -170,6 +170,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     int alpha = -INT_MAX;
     int beta = INT_MAX;
 
+    aiCandidateMoves.clear();
     for (int i = 0; i < maxCandidates; i++)
     {
         makeMoveInternal(candidates[i].row, candidates[i].col, aiPlayer);
@@ -182,6 +183,8 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             bestRow = candidates[i].row;
             bestCol = candidates[i].col;
         }
+
+        aiCandidateMoves.push_back(Move(candidates[i].row, candidates[i].col, std::max(candidates[i].score, score)));
 
         if (alpha >= beta)
             break;
@@ -421,82 +424,6 @@ int GomokuAI::evaluateBoard(int player)
     return score;
 }
 
-int GomokuAI::countPattern(int player, int opponent)
-{
-    int score = 0;
-    for (int r = 0; r < BOARD_SIZE; r++)
-    {
-        for (int c = 0; c < BOARD_SIZE; c++)
-        {
-            if (board[r][c] == player)
-            {
-                for (int dir = 0; dir < 4; dir++)
-                {
-                    LineInfo info = analyzeLine(r, c, player, dir);
-                    score += evaluateLine(player, info.count, info.openEnds, info.gaps);
-                }
-            }
-        }
-    }
-    return score / 4;
-}
-
-int GomokuAI::evaluateLine(int player, int count, int openEnds, int gaps)
-{
-    if (count >= 5)
-        return SCORE_FIVE;
-    if (count == 4)
-        return (openEnds == 2) ? SCORE_LIVE_FOUR : SCORE_DEAD_FOUR;
-    if (count == 3)
-        return (openEnds == 2) ? SCORE_LIVE_THREE : SCORE_DEAD_THREE;
-    if (count == 2)
-        return (openEnds == 2) ? SCORE_LIVE_TWO : SCORE_DEAD_TWO;
-    return 0;
-}
-
-LineInfo GomokuAI::analyzeLine(int row, int col, int player, int dirIdx)
-{
-    LineInfo info = {1, 0, 0, false};
-
-    int r = row + dy[dirIdx];
-    int c = col + dx[dirIdx];
-    int gaps = 0;
-
-    while (GomokuRules::isOnBoard(r, c) && gaps <= 1)
-    {
-        if (board[r][c] == player)
-            info.count++;
-        else if (board[r][c] == NONE && gaps == 0)
-            gaps++;
-        else
-            break;
-        r += dy[dirIdx];
-        c += dx[dirIdx];
-    }
-    if (gaps == 0 && GomokuRules::isEmptyCell(board, r, c))
-        info.openEnds++;
-
-    r = row - dy[dirIdx];
-    c = col - dx[dirIdx];
-    gaps = 0;
-
-    while (GomokuRules::isOnBoard(r, c) && gaps <= 1)
-    {
-        if (board[r][c] == player)
-            info.count++;
-        else if (board[r][c] == NONE && gaps == 0)
-            gaps++;
-        else
-            break;
-        r -= dy[dirIdx];
-        c -= dx[dirIdx];
-    }
-    if (gaps == 0 && GomokuRules::isEmptyCell(board, r, c))
-        info.openEnds++;
-
-    return info;
-}
-
 void GomokuAI::makeMoveInternal(int row, int col, int player)
 {
     currentHash ^= zobristTable[row][col][NONE];
@@ -565,42 +492,4 @@ void GomokuAI::makeMove(int row, int col, int player)
         currentHash ^= zobristTable[row][col][NONE];
         currentHash ^= zobristTable[row][col][player];
     }
-}
-
-std::vector<Move> GomokuAI::findOpenFours(int player)
-{
-    std::vector<Move> fours;
-    std::vector<Move> candidates = getCandidateMoves(player);
-
-    for (const Move &move : candidates)
-    {
-        int score = evaluateMoveQuick(move.row, move.col, player);
-        if (score >= SCORE_LIVE_FOUR)
-            fours.push_back(move);
-    }
-    return fours;
-}
-
-std::vector<Move> GomokuAI::findOpenThrees(int player)
-{
-    std::vector<Move> threes;
-    std::vector<Move> candidates = getCandidateMoves(player);
-
-    for (const Move &move : candidates)
-    {
-        int score = evaluateMoveQuick(move.row, move.col, player);
-        if (score >= SCORE_LIVE_THREE && score < SCORE_DEAD_FOUR)
-            threes.push_back(move);
-    }
-    return threes;
-}
-
-void GomokuAI::orderMoves(std::vector<Move> &moves, int player)
-{
-    for (Move &move : moves)
-        move.score = evaluateMoveQuick(move.row, move.col, player);
-
-    std::sort(moves.begin(), moves.end(),
-              [](const Move &a, const Move &b)
-              { return a.score > b.score; });
 }

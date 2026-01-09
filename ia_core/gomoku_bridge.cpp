@@ -26,6 +26,10 @@ static int BRIDGE_BOARD_BUFFER[BOARD_SIZE * BOARD_SIZE];
 // Taille 64 : Suffisant pour le pire cas théorique (8 directions * 2 pierres * 2 coords + header).
 static int BRIDGE_CAPTURE_BUFFER[64];
 
+// Buffer statique pour les Candidates moves (row, col, score)
+// Taille 64 : Suffisant pour le pire cas théorique (12 candidats max * 3 [row, col, score] + header).
+static int BRIDGE_CANDIDATES_MOVE[64];
+
 extern "C"
 {
 
@@ -197,6 +201,27 @@ extern "C"
         } // Undo automatique ici
 
         return BRIDGE_CAPTURE_BUFFER;
+    }
+
+    int *getAiCandidateMoves()
+    {
+        GomokuAI *ai = getGlobalAI();
+        // Par défaut : 0 captures
+        BRIDGE_CANDIDATES_MOVE[0] = 0;
+
+        if (ai == nullptr)
+            return BRIDGE_CANDIDATES_MOVE;
+
+        auto candidatesMoves = ai->getCandidates();
+
+        for (int i = 0; i < candidatesMoves.size(); i++)
+        {
+            BRIDGE_CANDIDATES_MOVE[1 + (i * 3)] = candidatesMoves[i].row;
+            BRIDGE_CANDIDATES_MOVE[1 + (i * 3) + 1] = candidatesMoves[i].col;
+            BRIDGE_CANDIDATES_MOVE[1 + (i * 3) + 2] = candidatesMoves[i].score;
+        }
+
+        return BRIDGE_CANDIDATES_MOVE;
     }
 
 } // extern "C"

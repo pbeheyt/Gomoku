@@ -53,21 +53,12 @@ struct GameState
     GameState() : capturedByBlack(0), capturedByWhite(0) {}
 };
 
-struct LineInfo
-{
-    int count;
-    int openEnds;
-    int gaps;
-    bool isThreat;
-
-    LineInfo() : count(0), openEnds(0), gaps(0), isThreat(false) {}
-    LineInfo(int c, int opEnds, int g, bool isTh) : count(c), openEnds(opEnds), gaps(g), isThreat(isTh) {}
-};
-
 class GomokuAI
 {
 private:
     int board[BOARD_SIZE][BOARD_SIZE];
+    std::vector<Move> aiCandidateMoves;
+    
     int aiPlayer, humanPlayer;
     int currentHash;
 
@@ -86,20 +77,12 @@ private:
 
     // Move generation and ordering
     std::vector<Move> getCandidateMoves(int player);
-    void orderMoves(std::vector<Move> &moves, int player);
 
     // move and board evaluation
     int evaluateBoard(int player);
-    int evaluateLine(int player, int count, int openEnds, int gaps);
-    int countPattern(int player, int opponent);
     int evaluateMoveQuick(int row, int col, int player);
     bool checkWinQuick(int row, int col, int player);
 
-    LineInfo analyzeLine(int row, int col, int player, int dirIdx);
-
-    // Threat detection - finds critical moves
-    std::vector<Move> findOpenFours(int player);
-    std::vector<Move> findOpenThrees(int player);
 
     void undoMove();
 
@@ -120,6 +103,12 @@ public:
     {
         return board;
     }
+
+    const std::vector<Move> getCandidates() const
+    {
+        return aiCandidateMoves;
+    }
+
 
     int getCaptures(int player) const
     {
