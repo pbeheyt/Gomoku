@@ -26,8 +26,9 @@ struct TTEntry
 struct Move
 {
     int row, col, score;
-    Move() : row(-1), col(-1), score(0) {}
-    Move(int r, int c, int s = 0) : row(r), col(c), score(s) {}
+    int algoType; // 0: Candidate (Heuristic), 1: Minimax (Deep Search)
+    Move() : row(-1), col(-1), score(0), algoType(0) {}
+    Move(int r, int c, int s = 0, int t = 0) : row(r), col(c), score(s), algoType(t) {}
 };
 
 struct CaptureInfo

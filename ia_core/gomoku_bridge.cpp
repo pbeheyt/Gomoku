@@ -26,9 +26,9 @@ static int BRIDGE_BOARD_BUFFER[BOARD_SIZE * BOARD_SIZE];
 // Taille 64 : Suffisant pour le pire cas théorique (8 directions * 2 pierres * 2 coords + header).
 static int BRIDGE_CAPTURE_BUFFER[64];
 
-// Buffer statique pour les Candidates moves (row, col, score)
-// Taille 64 : Suffisant pour le pire cas théorique (12 candidats max * 3 [row, col, score] + header).
-static int BRIDGE_CANDIDATES_MOVE[64];
+// Buffer statique pour les Candidates moves (row, col, score, type)
+// Taille 4096 : Suffisant pour ~1000 candidats (4 ints par move).
+static int BRIDGE_CANDIDATES_MOVE[4096];
 
 extern "C"
 {
@@ -206,19 +206,26 @@ extern "C"
     int *getAiCandidateMoves()
     {
         GomokuAI *ai = getGlobalAI();
-        // Par défaut : 0 captures
         BRIDGE_CANDIDATES_MOVE[0] = 0;
 
         if (ai == nullptr)
             return BRIDGE_CANDIDATES_MOVE;
 
         auto candidatesMoves = ai->getCandidates();
+        int count = candidatesMoves.size();
+        
+        // Sécurité overflow buffer (4 ints par move)
+        if (count > 1000) count = 1000;
 
-        for (int i = 0; i < candidatesMoves.size(); i++)
+        BRIDGE_CANDIDATES_MOVE[0] = count;
+
+        for (int i = 0; i < count; i++)
         {
-            BRIDGE_CANDIDATES_MOVE[1 + (i * 3)] = candidatesMoves[i].row;
-            BRIDGE_CANDIDATES_MOVE[1 + (i * 3) + 1] = candidatesMoves[i].col;
-            BRIDGE_CANDIDATES_MOVE[1 + (i * 3) + 2] = candidatesMoves[i].score;
+            int baseIdx = 1 + (i * 4);
+            BRIDGE_CANDIDATES_MOVE[baseIdx]     = candidatesMoves[i].row;
+            BRIDGE_CANDIDATES_MOVE[baseIdx + 1] = candidatesMoves[i].col;
+            BRIDGE_CANDIDATES_MOVE[baseIdx + 2] = candidatesMoves[i].score;
+            BRIDGE_CANDIDATES_MOVE[baseIdx + 3] = candidatesMoves[i].algoType;
         }
 
         return BRIDGE_CANDIDATES_MOVE;

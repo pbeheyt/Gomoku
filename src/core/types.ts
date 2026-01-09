@@ -59,6 +59,13 @@ export interface ValidationResult {
   reason?: string;
 }
 
+export interface DebugMove {
+  row: number;
+  col: number;
+  score: number;
+  type: 0 | 1 | 2; // 0 = Candidate (Yellow), 1 = Minimax (Red), 2 = One Shot (Purple)
+}
+
 // Contrat que doivent respecter toutes les IA (Wasm wrapper ou Service LLM)
 export interface AIInterface {
   requestMove(gameState: GameState): Promise<Position>;

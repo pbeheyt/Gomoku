@@ -65,6 +65,9 @@ export class UIManager {
   private setupModelSection: HTMLElement | null;
   private setupColorSection: HTMLElement | null;
 
+  // --- Debug ---
+  private debugToggleEl: HTMLInputElement | null;
+
   // --- État interne UI ---
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private thinkingStartTime: number = 0;
@@ -126,6 +129,8 @@ export class UIManager {
     this.setupModelSection = document.getElementById('modelSelectionSection');
     this.setupColorSection = document.getElementById('colorSelection');
     
+    this.debugToggleEl = document.getElementById('debugToggle') as HTMLInputElement;
+
     // Injection dynamique du Badge "Non Classé" dans le Header
     this.rankedBadgeEl = document.createElement('div');
     this.rankedBadgeEl.className = 'ranked-badge hidden';
@@ -582,5 +587,16 @@ export class UIManager {
   }): void {
     document.getElementById('saveSettingsBtn')?.addEventListener('click', actions.onSave);
     document.getElementById('cancelSettingsBtn')?.addEventListener('click', actions.onCancel);
+  }
+
+  public bindDebugToggle(callback: (enabled: boolean) => void): void {
+    this.debugToggleEl?.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        callback(target.checked);
+    });
+  }
+
+  public isDebugEnabled(): boolean {
+      return this.debugToggleEl ? this.debugToggleEl.checked : false;
   }
 }

@@ -171,6 +171,26 @@ class GameController {
       onSave: () => this.saveSettings(),
       onCancel: () => this.ui.hideSettingsModal()
     });
+
+    // Toggle Debug instantané
+    this.ui.bindDebugToggle(async (enabled) => {
+        if (enabled) {
+            // Activation : On récupère les données en mémoire (dernier coup calculé)
+            if (this.wasmAI && this.renderer) {
+                try {
+                    const debugData = await this.wasmAI.getDebugData();
+                    if (debugData.length > 0) {
+                        this.renderer.drawHeatmap(debugData);
+                    }
+                } catch (error) {
+                    console.warn("Impossible de récupérer les données de debug", error);
+                }
+            }
+        } else {
+            // Désactivation : Nettoyage immédiat
+            this.renderer?.clearHeatmap();
+        }
+    });
   }
 
   /**
@@ -375,7 +395,11 @@ class GameController {
 
     // Conversion Pixels -> Case du plateau
     const pos = this.canvasToBoard(e.clientX, e.clientY);
-    if (pos) await this.makeMove(pos.row, pos.col);
+    if (pos) {
+        // Nettoyage de la heatmap si on joue
+        this.renderer?.clearHeatmap();
+        await this.makeMove(pos.row, pos.col);
+    }
   }
 
   /**
@@ -505,6 +529,14 @@ class GameController {
 
         if (aiMove && this.game.getBoard().isCellEmpty(aiMove.row, aiMove.col)) {
             this.makeMove(aiMove.row, aiMove.col);
+            
+            // --- DEBUG / HEATMAP ---
+            if (this.ui.isDebugEnabled()) {
+                const debugData = await this.wasmAI.getDebugData();
+                if (this.renderer && debugData.length > 0) {
+                    this.renderer.drawHeatmap(debugData);
+                }
+            }
         } else {
             this.ui.showMessage("L'IA a retourné un coup invalide.", 'error');
         }
@@ -688,6 +720,7 @@ class GameController {
     this.ui.resetAiTimer();
     this.ui.setReasoning("En attente...");
     this.renderer?.clearWinningLine(); // Nettoyage du laser
+    this.renderer?.clearHeatmap();     // Nettoyage heatmap
     this.ui.resetCaptureWinEffect();   // Nettoyage du néon capture
     this.redraw();
     this.updateUI();
@@ -737,8 +770,9 @@ class GameController {
     if (this.isProcessingMove) return;
     this.isProcessingMove = true;
     
-    // Nettoyage visuel immédiat (Laser)
+    // Nettoyage visuel immédiat (Laser & Heatmap)
     this.renderer?.clearWinningLine();
+    this.renderer?.clearHeatmap();
 
     try {
         const current = this.game.getCurrentMoveIndex();

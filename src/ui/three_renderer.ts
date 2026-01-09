@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Player, Position } from '../core/types.js';
+import { Player, Position, DebugMove } from '../core/types.js';
 import { GameBoard, BOARD_SIZE } from '../core/board.js';
 
 /**
@@ -32,6 +32,9 @@ export class ThreeRenderer {
   private suggestionMarker!: THREE.Mesh; // Anneau vert (Conseil IA)
   private winningLine: THREE.Mesh | null = null; // Le "Laser" de victoire
   
+  private debugPlanes: THREE.Mesh[] = []; // Pool de tuiles pour la heatmap
+  private debugGroup: THREE.Group; // Conteneur pour tout effacer d'un coup
+
   // Matériaux PBR (Physically Based Rendering)
   private matBlack!: THREE.MeshPhysicalMaterial;
   private matWhite!: THREE.MeshPhysicalMaterial;
@@ -90,6 +93,9 @@ export class ThreeRenderer {
     this.mouse = new THREE.Vector2();
     this.stones = Array(this.BOARD_SIZE).fill(null).map(() => Array(this.BOARD_SIZE).fill(null));
     
+    this.debugGroup = new THREE.Group();
+    this.scene.add(this.debugGroup);
+
     this.initMaterials();
     this.createBoard();
     this.createStonesPool(); // Création massive des 361 pierres
@@ -354,6 +360,84 @@ export class ThreeRenderer {
         this.scene.remove(this.winningLine);
         this.winningLine = null;
     }
+  }
+
+  drawHeatmap(moves: DebugMove[]): void {
+    this.clearHeatmap();
+
+    // Taille exacte de la cellule pour éviter les trous (rainures)
+    const geometry = new THREE.PlaneGeometry(this.CELL_SIZE, this.CELL_SIZE);
+    // Rotation à plat
+    geometry.rotateX(-Math.PI / 2);
+
+    // Find min/max scores for normalization (only for Minimax moves)
+    let minScore = Infinity;
+    let maxScore = -Infinity;
+    moves.forEach(m => {
+        if (m.type === 1) {
+            if (m.score < minScore) minScore = m.score;
+            if (m.score > maxScore) maxScore = m.score;
+        }
+    });
+
+    moves.forEach(move => {
+        let color = 0xffd700; // Jaune (Candidat)
+        let opacity = 0.3;
+
+        // Type 2 : One Shot (Victoire/Blocage immédiat) -> Violet
+        if (move.type === 2) {
+            color = 0x9d00ff; // Neon Purple
+            opacity = 0.8;
+        }
+        // Type 1 : Minimax (Recherche profonde) -> Rouge
+        else if (move.type === 1) {
+            color = 0xff0000;
+            
+            // Gradient d'opacité basé sur le score pour le Minimax
+            if (maxScore > minScore) {
+                const normalized = (move.score - minScore) / (maxScore - minScore);
+                opacity = 0.4 + (normalized * 0.5);
+            } else {
+                opacity = 0.8;
+            }
+        }
+
+        const material = new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: opacity,
+            side: THREE.DoubleSide,
+            // depthTest: true par défaut -> permet d'afficher la heatmap SOUS les pierres
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        
+        // Positionnement
+        const halfSize = ((this.BOARD_SIZE - 1) * this.CELL_SIZE) / 2;
+        const x = (move.col * this.CELL_SIZE) - halfSize;
+        const z = (move.row * this.CELL_SIZE) - halfSize;
+        
+        // Y=0.005 : Entre le bois (0.0) et la grille (0.01) pour que les lignes restent visibles
+        mesh.position.set(x, 0.005, z); 
+        mesh.scale.setScalar(1.0); // Pleine largeur pour tout le monde (pas de trous)
+
+        this.debugGroup.add(mesh);
+        this.debugPlanes.push(mesh);
+    });
+  }
+
+  clearHeatmap(): void {
+    // Nettoyage propre de la mémoire Three.js
+    this.debugPlanes.forEach(mesh => {
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m.dispose());
+        } else {
+            mesh.material.dispose();
+        }
+        this.debugGroup.remove(mesh);
+    });
+    this.debugPlanes = [];
   }
 
   /**

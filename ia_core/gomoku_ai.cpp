@@ -112,6 +112,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     }
 
     std::vector<Move> candidates = getCandidateMoves(aiPlayer);
+    
+    // Store ALL candidates for Debug Heatmap (Type 0 = Yellow)
+    aiCandidateMoves = candidates;
+
     if (candidates.empty())
     {
         bestRow = bestCol = BOARD_SIZE / 2;
@@ -130,6 +134,14 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         {
             bestRow = move.row;
             bestCol = move.col;
+            // Mark winning move as Type 2 (Purple - One Shot)
+            for (auto &dm : aiCandidateMoves) {
+                if (dm.row == move.row && dm.col == move.col) {
+                    dm.score = SCORE_FIVE;
+                    dm.algoType = 2;
+                    break;
+                }
+            }
             return;
         }
 
@@ -141,6 +153,14 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         {
             bestRow = move.row;
             bestCol = move.col;
+            // Mark forced block as Type 2 (Purple - One Shot)
+            for (auto &dm : aiCandidateMoves) {
+                if (dm.row == move.row && dm.col == move.col) {
+                    dm.score = SCORE_FIVE;
+                    dm.algoType = 2;
+                    break;
+                }
+            }
             return;
         }
 
@@ -148,6 +168,15 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         score += evaluateMoveQuick(move.row, move.col, humanPlayer) * 1.1;
 
         move.score = score;
+
+        // Update heuristic score in debug list (Type 0)
+        for (auto &dm : aiCandidateMoves) {
+            if (dm.row == move.row && dm.col == move.col) {
+                dm.score = score;
+                break;
+            }
+        }
+
         if (score > bestScore)
         {
             bestScore = score;
@@ -157,7 +186,17 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     }
 
     if (bestScore > SCORE_LIVE_THREE)
+    {
+        // Heuristic found a very strong move (Live Three+), skipping Minimax.
+        // Mark the chosen move as Type 2 (Purple - One Shot).
+        for (auto &dm : aiCandidateMoves) {
+            if (dm.row == bestRow && dm.col == bestCol) {
+                dm.algoType = 2;
+                break;
+            }
+        }
         return;
+    }
 
     int depth = 10;
 
@@ -170,7 +209,6 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     int alpha = -INT_MAX;
     int beta = INT_MAX;
 
-    aiCandidateMoves.clear();
     for (int i = 0; i < maxCandidates; i++)
     {
         makeMoveInternal(candidates[i].row, candidates[i].col, aiPlayer);
@@ -184,7 +222,14 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             bestCol = candidates[i].col;
         }
 
-        aiCandidateMoves.push_back(Move(candidates[i].row, candidates[i].col, std::max(candidates[i].score, score)));
+        // Update the candidate in the global list with Minimax score and Type 1 (Red)
+        for (auto &debugMove : aiCandidateMoves) {
+            if (debugMove.row == candidates[i].row && debugMove.col == candidates[i].col) {
+                debugMove.score = std::max(candidates[i].score, score);
+                debugMove.algoType = 1; // Mark as analyzed by Minimax
+                break;
+            }
+        }
 
         if (alpha >= beta)
             break;

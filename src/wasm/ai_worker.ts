@@ -236,6 +236,27 @@ self.onmessage = async (event) => {
         break;
       }
 
+      case "getDebugData": {
+        const ptr = wasmModule._getAiCandidateMoves();
+        const startIdx = ptr >> 2;
+        const count = wasmModule.HEAP32[startIdx];
+        
+        const moves = [];
+        let cursor = startIdx + 1;
+        
+        for (let i = 0; i < count; i++) {
+            const r = wasmModule.HEAP32[cursor++];
+            const c = wasmModule.HEAP32[cursor++];
+            const s = wasmModule.HEAP32[cursor++];
+            const t = wasmModule.HEAP32[cursor++];
+            
+            moves.push({ row: r, col: c, score: s, type: t });
+        }
+        
+        self.postMessage({ type: "getDebugData_result", payload: moves });
+        break;
+      }
+
       case "cleanup":
         if (wasmModule._cleanupAI) {
           wasmModule._cleanupAI();

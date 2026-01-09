@@ -6,7 +6,7 @@
  * Il transforme l'API événementielle bas niveau (postMessage) en une API asynchrone moderne (Promise).
  */
 
-import { Player, Position, GameState } from "../core/types.js";
+import { Player, Position, GameState, DebugMove } from "../core/types.js";
 
 export class WasmAI {
   private worker: Worker | null = null;
@@ -55,6 +55,10 @@ export class WasmAI {
 
           case "bestMoveResult":
             this.resolveQuery("bestMoveResult", payload);
+            break;
+
+          case "getDebugData_result":
+            this.resolveQuery("getDebugData_result", payload);
             break;
 
           // --- RULES RESPONSES ---
@@ -117,6 +121,10 @@ export class WasmAI {
     // Aplatissement du board (2D -> 1D) pour faciliter le transfert mémoire vers C++
     const flatBoard = gameState.board.flat();
     return this.sendQuery("getBestMove", "bestMoveResult", { flatBoard });
+  }
+
+  public getDebugData(): Promise<DebugMove[]> {
+    return this.sendQuery("getDebugData", "getDebugData_result", {});
   }
 
   // Permet à l'UI d'attendre que le binaire Wasm soit chargé et compilé
