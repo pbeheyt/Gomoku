@@ -824,6 +824,29 @@ input:checked + .slider:before {
 #gameMessage.toast-warning { border-bottom-color: #ffaa00; } /* Orange */
 #gameMessage.toast-error { border-bottom-color: #ff4444; }   /* Red */
 
+/* Capture Win Neon Effect */
+@keyframes neonPulseGreen {
+    0% {
+        box-shadow: 0 0 5px #00ff89, 0 0 10px #00ff89, inset 0 0 5px #00ff89;
+        border-color: #00ff89;
+    }
+    50% {
+        box-shadow: 0 0 20px #00ff89, 0 0 30px #00ff89, inset 0 0 10px #00ff89;
+        border-color: #ffffff;
+    }
+    100% {
+        box-shadow: 0 0 5px #00ff89, 0 0 10px #00ff89, inset 0 0 5px #00ff89;
+        border-color: #00ff89;
+    }
+}
+
+.capture-win-glow {
+    animation: neonPulseGreen 1.2s infinite alternate;
+    background: rgba(0, 255, 137, 0.15) !important;
+    transform: scale(1.02);
+    z-index: 10;
+}
+
 @keyframes toastSlideUp {
     from {
         opacity: 0;

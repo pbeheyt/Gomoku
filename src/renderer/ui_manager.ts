@@ -498,6 +498,19 @@ export class UIManager {
     if (this.messageEl) this.messageEl.style.display = 'none';
   }
 
+  public triggerCaptureWinEffect(player: Player): void {
+    const id = player === Player.BLACK ? 'playerInfoBlack' : 'playerInfoWhite';
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('capture-win-glow');
+    }
+  }
+
+  public resetCaptureWinEffect(): void {
+    document.getElementById('playerInfoBlack')?.classList.remove('capture-win-glow');
+    document.getElementById('playerInfoWhite')?.classList.remove('capture-win-glow');
+  }
+
   // --- BINDINGS (Liaison UI -> Controller) ---
   // Ces méthodes connectent les événements DOM aux fonctions du GameController.
 

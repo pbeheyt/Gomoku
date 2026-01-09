@@ -30,6 +30,7 @@ export class ThreeRenderer {
   private ghostStone!: THREE.Mesh;       // Prévisualisation au survol
   private lastMoveMarker!: THREE.Mesh;   // Point rouge sur la dernière pierre
   private suggestionMarker!: THREE.Mesh; // Anneau vert (Conseil IA)
+  private winningLine: THREE.Mesh | null = null; // Le "Laser" de victoire
   
   // Matériaux PBR (Physically Based Rendering)
   private matBlack!: THREE.MeshPhysicalMaterial;
@@ -138,6 +139,13 @@ export class ThreeRenderer {
                 }
             }
         }
+    }
+
+    // Animation : Extension du Laser de Victoire
+    if (this.winningLine && this.winningLine.scale.y < 1) {
+        // Vitesse d'extension : +4% par frame (Rapide et dynamique)
+        this.winningLine.scale.y += 0.04;
+        if (this.winningLine.scale.y > 1) this.winningLine.scale.y = 1;
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -292,6 +300,59 @@ export class ThreeRenderer {
       this.suggestionMarker.position.y += 0.1;
     } else {
       this.suggestionMarker.visible = false;
+    }
+  }
+
+  /**
+   * Dessine une ligne lumineuse reliant les deux extrémités de l'alignement gagnant.
+   */
+  drawWinningLine(start: Position, end: Position, player: Player): void {
+    if (this.winningLine) {
+        this.scene.remove(this.winningLine);
+        this.winningLine = null;
+    }
+
+    // 1. Calcul des coordonnées Monde
+    const halfSize = ((this.BOARD_SIZE - 1) * this.CELL_SIZE) / 2;
+    const startX = (start.col * this.CELL_SIZE) - halfSize;
+    const startZ = (start.row * this.CELL_SIZE) - halfSize;
+    const endX = (end.col * this.CELL_SIZE) - halfSize;
+    const endZ = (end.row * this.CELL_SIZE) - halfSize;
+
+    const p1 = new THREE.Vector3(startX, this.TARGET_Y + 0.5, startZ);
+    const p2 = new THREE.Vector3(endX, this.TARGET_Y + 0.5, endZ);
+
+    // 2. Création de la géométrie (Tube)
+    const distance = p1.distanceTo(p2);
+    const geometry = new THREE.CylinderGeometry(0.2, 0.2, distance, 8);
+    
+    // Modification : Vert Néon pour tout le monde (Meilleure visibilité)
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x00ff89,
+        emissive: 0x00ff89,
+        emissiveIntensity: 0.8,
+        roughness: 0.2
+    });
+
+    this.winningLine = new THREE.Mesh(geometry, material);
+    
+    // 3. Orientation et Positionnement
+    // Le cylindre est créé verticalement par défaut, il faut le coucher et l'orienter
+    const center = p1.clone().add(p2).multiplyScalar(0.5);
+    this.winningLine.position.copy(center);
+    this.winningLine.lookAt(p2);
+    this.winningLine.rotateX(Math.PI / 2); // Rotation locale pour aligner l'axe Y du cylindre avec le vecteur direction
+    
+    // Animation : On commence avec une taille nulle pour l'étendre progressivement
+    this.winningLine.scale.y = 0;
+
+    this.scene.add(this.winningLine);
+  }
+
+  clearWinningLine(): void {
+    if (this.winningLine) {
+        this.scene.remove(this.winningLine);
+        this.winningLine = null;
     }
   }
 
