@@ -6,6 +6,10 @@
 #include <set>
 #include <random>
 
+#ifdef DEBUG_AI_LOGS
+#include <emscripten.h>
+#endif
+
 static GomokuAI *globalAI = nullptr;
 
 GomokuAI *getGlobalAI()
@@ -22,6 +26,132 @@ const int SCORE_DEAD_THREE = 500000;
 const int SCORE_LIVE_TWO = 100000;
 const int SCORE_DEAD_TWO = 10000;
 const int SCORE_ONE = 1000;
+
+// Defense score multiplier for heuristic evaluation
+const float DEFENSE_MULTIPLIER = 1.1f;
+
+#ifdef DEBUG_AI_LOGS
+void logMoveAnalysis(int row, int col, int player, const char* decisionMode, int realScore, const ScoreBreakdown* attackBreakdown = nullptr, const ScoreBreakdown* defenseBreakdown = nullptr, float defenseMultiplier = 1.0f)
+{
+    EM_ASM_({ console.group("%c[AI MOVE ANALYSIS]", "color: #00d4ff; font-weight: bold;"); });
+
+    // Position et joueur
+    EM_ASM_({
+        console.log("%c Position: (%d, %d) | Joueur: %s",
+            "font-weight: bold;",
+            $0, $1, $2 === 1 ? "⚫ BLACK" : "⚪ WHITE");
+    }, row, col, player);
+
+    // Mode de décision
+    EM_ASM_({
+        console.log("%c Mode: %s",
+            "color: #ffa500; font-weight: bold;",
+            UTF8ToString($0));
+    }, decisionMode);
+
+    // Si breakdown fourni, afficher les détails (mode Heuristic uniquement)
+    if (attackBreakdown)
+    {
+        const char* dirNames[4] = {"Horizontal", "Vertical", "Diagonale \\", "Diagonale /"};
+
+        // Affichage des patterns directionnels (Attaque)
+        EM_ASM_({ console.log("%c\n[ATTAQUE]", "color: #ff4444; font-weight: bold;"); });
+        for (int dir = 0; dir < 4; dir++)
+        {
+            if (attackBreakdown->patternScores[dir] > 0)
+            {
+                EM_ASM_({
+                    console.log("  %s: %s (%d stones, %d open) → +%s",
+                        UTF8ToString($0),
+                        UTF8ToString($1),
+                        $2, $3,
+                        $4.toLocaleString());
+                }, dirNames[dir], attackBreakdown->patternTypes[dir], 
+                   attackBreakdown->patternCounts[dir], attackBreakdown->patternOpenEnds[dir], 
+                   attackBreakdown->patternScores[dir]);
+            }
+        }
+
+        // Affichage des captures (Attaque)
+        if (attackBreakdown->captureCount > 0)
+        {
+            EM_ASM_({
+                console.log("%cCaptures: %d paires → +%s",
+                    "color: #ff6b35;",
+                    $0, $1.toLocaleString());
+            }, attackBreakdown->captureCount, attackBreakdown->captureScore);
+        }
+
+        // Affichage de la centralité (Attaque)
+        EM_ASM_({
+            console.log("%cCentralité: → +%s",
+                "color: #95e1d3;",
+                $0.toLocaleString());
+        }, attackBreakdown->centralityBonus);
+
+        EM_ASM_({
+            console.log("Score Attaque: %s", $0.toLocaleString());
+        }, attackBreakdown->totalScore);
+
+        // Si breakdown défensif fourni, l'afficher
+        if (defenseBreakdown)
+        {
+            EM_ASM_({
+                console.log("%c\n[DEFENSE]", "color: #4444ff; font-weight: bold;");
+            });
+            
+            for (int dir = 0; dir < 4; dir++)
+            {
+                if (defenseBreakdown->patternScores[dir] > 0)
+                {
+                    EM_ASM_({
+                        console.log("  %s: %s (%d stones, %d open) → +%s",
+                            UTF8ToString($0),
+                            UTF8ToString($1),
+                            $2, $3,
+                            $4.toLocaleString());
+                    }, dirNames[dir], defenseBreakdown->patternTypes[dir], 
+                       defenseBreakdown->patternCounts[dir], defenseBreakdown->patternOpenEnds[dir], 
+                       defenseBreakdown->patternScores[dir]);
+                }
+            }
+
+            if (defenseBreakdown->captureCount > 0)
+            {
+                EM_ASM_({
+                    console.log("%cCaptures: %d paires → +%s",
+                        "color: #ff6b35;",
+                        $0, $1.toLocaleString());
+                }, defenseBreakdown->captureCount, defenseBreakdown->captureScore);
+            }
+
+            EM_ASM_({
+                console.log("%cCentralité: → +%s",
+                    "color: #95e1d3;",
+                    $0.toLocaleString());
+            }, defenseBreakdown->centralityBonus);
+
+            EM_ASM_({
+                console.log("Score Défense brut: %s", $0.toLocaleString());
+            }, defenseBreakdown->totalScore);
+
+            int defenseTotal = defenseBreakdown->totalScore * defenseMultiplier;
+            EM_ASM_({
+                console.log("× " + $0.toFixed(1) + " = %s", $1.toLocaleString());
+            }, defenseMultiplier, defenseTotal);
+        }
+    }
+
+    // Score total
+    EM_ASM_({
+        console.log("%c\nSCORE DECISION: %s",
+            "color: #ffd700; font-weight: bold; font-size: 14px;",
+            $0.toLocaleString());
+    }, realScore);
+
+    EM_ASM_({ console.groupEnd(); });
+}
+#endif
 
 // Zobrist hashing - Ai brain, to remember pattern and avoid double computation
 uint64_t zobristTable[BOARD_SIZE][BOARD_SIZE][3];
@@ -94,6 +224,9 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     if (stoneCount == 0)
     {
         bestRow = bestCol = BOARD_SIZE / 2;
+#ifdef DEBUG_AI_LOGS
+        logMoveAnalysis(bestRow, bestCol, aiPlayer, "Opening (Hard-coded center)", 0);
+#endif
         return;
     }
 
@@ -108,6 +241,9 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         {
             bestRow = bestCol = BOARD_SIZE / 2;
         }
+#ifdef DEBUG_AI_LOGS
+        logMoveAnalysis(bestRow, bestCol, aiPlayer, "Opening (Near center)", 0);
+#endif
         return;
     }
 
@@ -142,6 +278,9 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
                     break;
                 }
             }
+#ifdef DEBUG_AI_LOGS
+            logMoveAnalysis(bestRow, bestCol, aiPlayer, "Winning Move (5 aligned or 10 captures)", SCORE_FIVE);
+#endif
             return;
         }
 
@@ -161,11 +300,14 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
                     break;
                 }
             }
+#ifdef DEBUG_AI_LOGS
+            logMoveAnalysis(bestRow, bestCol, aiPlayer, "Forced Block (Opponent winning threat)", SCORE_FIVE);
+#endif
             return;
         }
 
         int score = evaluateMoveQuick(move.row, move.col, aiPlayer);
-        score += evaluateMoveQuick(move.row, move.col, humanPlayer) * 1.1;
+        score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
 
         move.score = score;
 
@@ -195,6 +337,12 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
                 break;
             }
         }
+#ifdef DEBUG_AI_LOGS
+        ScoreBreakdown breakdownAttack, breakdownDefense;
+        evaluateMoveQuick(bestRow, bestCol, aiPlayer, &breakdownAttack);
+        evaluateMoveQuick(bestRow, bestCol, humanPlayer, &breakdownDefense);
+        logMoveAnalysis(bestRow, bestCol, aiPlayer, "Heuristic (Attack + Defense x1.1)", bestScore, &breakdownAttack, &breakdownDefense, DEFENSE_MULTIPLIER);
+#endif
         return;
     }
 
@@ -234,6 +382,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         if (alpha >= beta)
             break;
     }
+
+#ifdef DEBUG_AI_LOGS
+    logMoveAnalysis(bestRow, bestCol, aiPlayer, "Minimax Deep Search", alpha);
+#endif
 }
 
 bool GomokuAI::checkWinQuick(int row, int col, int player)
@@ -270,7 +422,7 @@ bool GomokuAI::checkWinQuick(int row, int col, int player)
     return captures + potentialCaptures >= MAX_CAPTURE_STONES;
 }
 
-int GomokuAI::evaluateMoveQuick(int row, int col, int player)
+int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown* details)
 {
     int score = 0;
 
@@ -304,20 +456,89 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
             openEnds++;
 
         // Score pattern
+        int patternScore = 0;
+        const char* patternType = "";
+        
         if (count >= 5)
-            score += SCORE_FIVE;
+        {
+            patternScore = SCORE_FIVE;
+            patternType = "Five";
+        }
         else if (count == 4)
-            score += (openEnds == 2) ? SCORE_LIVE_FOUR : SCORE_DEAD_FOUR;
+        {
+            if (openEnds == 2)
+            {
+                patternScore = SCORE_LIVE_FOUR;
+                patternType = "Live Four";
+            }
+            else
+            {
+                patternScore = SCORE_DEAD_FOUR;
+                patternType = "Dead Four";
+            }
+        }
         else if (count == 3)
-            score += (openEnds == 2) ? SCORE_LIVE_THREE : SCORE_DEAD_THREE;
+        {
+            if (openEnds == 2)
+            {
+                patternScore = SCORE_LIVE_THREE;
+                patternType = "Live Three";
+            }
+            else
+            {
+                patternScore = SCORE_DEAD_THREE;
+                patternType = "Dead Three";
+            }
+        }
         else if (count == 2)
-            score += (openEnds == 2) ? SCORE_LIVE_TWO : SCORE_DEAD_TWO;
+        {
+            if (openEnds == 2)
+            {
+                patternScore = SCORE_LIVE_TWO;
+                patternType = "Live Two";
+            }
+            else
+            {
+                patternScore = SCORE_DEAD_TWO;
+                patternType = "Dead Two";
+            }
+        }
+        else if (count == 1)
+        {
+            patternScore = SCORE_ONE;
+            patternType = "One";
+        }
+
+        score += patternScore;
+
+        if (details)
+        {
+            details->patternScores[dir] = patternScore;
+            details->patternCounts[dir] = count;
+            details->patternOpenEnds[dir] = openEnds;
+            details->patternTypes[dir] = patternType;
+        }
     }
 
-    score += GomokuRules::checkCaptures(board, row, col, player) * SCORE_LIVE_THREE;
+    int captureCount = GomokuRules::checkCaptures(board, row, col, player);
+    int captureScore = captureCount * SCORE_LIVE_THREE;
+    score += captureScore;
+
+    if (details)
+    {
+        details->captureCount = captureCount;
+        details->captureScore = captureScore;
+    }
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
-    score += (BOARD_SIZE - centerDist) * 50;
+    int centralityBonus = (BOARD_SIZE - centerDist) * 50;
+    score += centralityBonus;
+
+    if (details)
+    {
+        details->centralityBonus = centralityBonus;
+        details->totalScore = score;
+    }
 
     return score;
 }

@@ -31,6 +31,29 @@ struct Move
     Move(int r, int c, int s = 0, int t = 0) : row(r), col(c), score(s), algoType(t) {}
 };
 
+struct ScoreBreakdown
+{
+    int patternScores[4];        // Score par direction
+    int patternCounts[4];        // Nombre de pierres alignées par direction
+    int patternOpenEnds[4];      // Extrémités ouvertes par direction
+    const char* patternTypes[4]; // Type de pattern ("Live Four", etc.)
+    int captureCount;            // Nombre de captures potentielles
+    int captureScore;            // Score des captures
+    int centralityBonus;         // Bonus de centralité
+    int totalScore;              // Score total
+
+    ScoreBreakdown() : captureCount(0), captureScore(0), centralityBonus(0), totalScore(0)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            patternScores[i] = 0;
+            patternCounts[i] = 0;
+            patternOpenEnds[i] = 0;
+            patternTypes[i] = "";
+        }
+    }
+};
+
 struct CaptureInfo
 {
     int row, col;
@@ -81,7 +104,7 @@ private:
 
     // move and board evaluation
     int evaluateBoard(int player);
-    int evaluateMoveQuick(int row, int col, int player);
+    int evaluateMoveQuick(int row, int col, int player, ScoreBreakdown* details = nullptr);
     bool checkWinQuick(int row, int col, int player);
 
 
