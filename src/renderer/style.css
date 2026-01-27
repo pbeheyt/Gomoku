@@ -1,5 +1,3 @@
-/* --- GOMOKU "GLASS ARENA" THEME V2 --- */
-
 /* 1. Global Styles & Variables */
 :root {
     --bg-gradient: linear-gradient(135deg, #232526 0%, #414345 100%);
@@ -184,7 +182,6 @@ body {
 .stone-preview.black { background: #000; border: 1px solid #333; }
 .stone-preview.white { background: #fff; border: 1px solid #ccc; }
 
-/* .full-width-select removed in favor of reusable .glass-input */
 
 .setup-hint {
     font-size: 0.8rem;
@@ -229,7 +226,7 @@ body {
 .header-left, .header-right {
     display: flex;
     gap: 10px;
-    width: 150px; /* Fixed width for alignment */
+    width: 150px;
 }
 
 .header-right {
@@ -237,7 +234,6 @@ body {
 }
 
 .ranked-badge {
-    /* Integrated flow position */
     background: rgba(255, 50, 50, 0.15);
     border: 1px solid rgba(255, 50, 50, 0.4);
     color: #ff8888;
@@ -286,7 +282,7 @@ body {
     font-size: 0.75rem;
 }
 
-/* 4. The "Glass" Main Content Area */
+/* 4. The Main Content Area */
 .main-content {
     flex-grow: 1;
     display: flex;
@@ -309,7 +305,7 @@ body {
     border-radius: 10px; 
     padding: 0; 
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    width: 750px; /* Fixed size for consistency */
+    width: 750px;
     height: 750px;
     overflow: hidden;
     display: flex;
@@ -483,7 +479,7 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     text-align: center;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     max-width: 600px;
-    position: relative; /* For absolute positioning of close button */
+    position: relative;
 }
 .modal-close-icon {
     position: absolute;
@@ -554,7 +550,6 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); }
 
-/* UNIFIED INPUT STYLE (Glass Theme) */
 .glass-input {
     width: 100%;
     padding: 12px;
@@ -578,10 +573,8 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     color: rgba(255, 255, 255, 0.3);
 }
 
-/* CRITICAL FIX: Dropdown Option Visibility & Contrast */
-/* Options must have a solid background to be readable in native dropdowns */
 .glass-input option {
-    background-color: #232526; /* Matches --bg-gradient dark tone */
+    background-color: #232526;
     color: #f0f0f0;
     padding: 10px;
 }
@@ -670,11 +663,11 @@ input:checked + .slider:before {
     justify-content: center;
     gap: 10px;
     margin-bottom: 5px;
-    min-height: 30px; /* Reserve height to prevent vertical jumps */
+    min-height: 30px;
 }
 
 .timer-section h3 {
-    margin-bottom: 0; /* Remove default margin as flex handles gap */
+    margin-bottom: 0;
 }
 
 .mini-spinner {
@@ -690,15 +683,15 @@ input:checked + .slider:before {
     to { transform: rotate(360deg); }
 }
 
-/* 11. HUD Reasoning Overlay (Full Glass) */
+/* 11. HUD Reasoning Overlay */
 .hud-reasoning {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%; /* Full cover */
-    background: rgba(0, 0, 0, 0.65); /* More transparent */
-    backdrop-filter: blur(12px); /* Stronger blur for readability */
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(12px);
     color: #ffffff;
     padding: 40px;
     z-index: 50;
@@ -707,7 +700,7 @@ input:checked + .slider:before {
     transition: opacity 0.3s ease;
     display: flex;
     flex-direction: column;
-    justify-content: safe center; /* Center text vertically if short, allow scroll if long */
+    justify-content: safe center;
     align-items: center;
 }
 
@@ -722,7 +715,7 @@ input:checked + .slider:before {
     font-size: 1.1rem;
     line-height: 1.6;
     white-space: pre-wrap;
-    max-width: 800px; /* Readability limit */
+    max-width: 800px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
 
@@ -769,10 +762,10 @@ input:checked + .slider:before {
     font-size: 0.9rem;
 }
 
-/* 12. Enhanced Toast Notifications (HUD Style) */
+/* 12. Toast Notifications */
 #gameMessage {
     position: fixed;
-    bottom: 40px; /* Moved to bottom */
+    bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(20, 20, 20, 0.85);
@@ -782,7 +775,7 @@ input:checked + .slider:before {
     padding: 15px 50px 15px 25px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-bottom: 3px solid var(--accent-color); /* Default accent */
+    border-bottom: 3px solid var(--accent-color);
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 0, 0, 0.2);
     z-index: 2000;
     font-weight: 500;
@@ -820,9 +813,9 @@ input:checked + .slider:before {
 
 /* Toast Colors */
 #gameMessage.toast-info { border-bottom-color: var(--accent-color); }
-#gameMessage.toast-success { border-bottom-color: #00ff89; } /* Green */
-#gameMessage.toast-warning { border-bottom-color: #ffaa00; } /* Orange */
-#gameMessage.toast-error { border-bottom-color: #ff4444; }   /* Red */
+#gameMessage.toast-success { border-bottom-color: #00ff89; }
+#gameMessage.toast-warning { border-bottom-color: #ffaa00; }
+#gameMessage.toast-error { border-bottom-color: #ff4444; }
 
 /* Capture Win Neon Effect */
 @keyframes neonPulseGreen {
@@ -858,4 +851,3 @@ input:checked + .slider:before {
     }
 }
 
-/* END OF FILE */

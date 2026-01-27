@@ -1,10 +1,3 @@
-/**
- * Bus d'événements
- * 
- * Permet de découpler les modules : le Game (Core) notifie que quelque chose
- * s'est passé, et l'UI ou le Renderer réagissent sans que le Core ne les connaisse.
- */
-
 import { GameEvents, Move, CaptureResult, Player, Position } from './types.js';
 
 export class EventEmitter {
@@ -42,22 +35,13 @@ export class EventEmitter {
     }
   }
 
-  // Nettoyage complet
   clear(): void {
     this.listeners = {};
   }
 }
 
-/**
- * Instance Singleton.
- * Garantit que tout le monde (Game, UI, Controller) parle sur le même canal.
- */
 export const gameEvents = new EventEmitter();
 
-/**
- * Wrappers pour simplifier l'émission d'événements dans le code métier.
- * Évite d'avoir des strings magiques ('move:made') partout dans le code.
- */
 
 export function emitMoveMade(move: Move): void {
   gameEvents.emit('move:made', move);
