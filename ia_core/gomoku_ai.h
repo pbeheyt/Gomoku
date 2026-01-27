@@ -1,7 +1,3 @@
-/**
- * Gomoku AI Header
- * Strong AI with proper threat detection and evaluation
- */
 
 #ifndef GOMOKU_AI_H
 #define GOMOKU_AI_H
@@ -33,14 +29,14 @@ struct Move
 
 struct ScoreBreakdown
 {
-    int patternScores[4];        // Score par direction
-    int patternCounts[4];        // Nombre de pierres alignées par direction
-    int patternOpenEnds[4];      // Extrémités ouvertes par direction
-    const char* patternTypes[4]; // Type de pattern ("Live Four", etc.)
-    int captureCount;            // Nombre de captures potentielles
-    int captureScore;            // Score des captures
-    int centralityBonus;         // Bonus de centralité
-    int totalScore;              // Score total
+    int patternScores[4];
+    int patternCounts[4];
+    int patternOpenEnds[4];
+    const char *patternTypes[4];
+    int captureCount;
+    int captureScore;
+    int centralityBonus;
+    int totalScore;
 
     ScoreBreakdown() : captureCount(0), captureScore(0), centralityBonus(0), totalScore(0)
     {
@@ -82,13 +78,12 @@ class GomokuAI
 private:
     int board[BOARD_SIZE][BOARD_SIZE];
     std::vector<Move> aiCandidateMoves;
-    
+
     int aiPlayer, humanPlayer;
     int currentHash;
 
     GameState gameState;
 
-    // Move history for undo - with full capture tracking
     std::stack<MoveRecord> moveHistory;
     std::vector<GameState> stateHistory;
 
@@ -96,17 +91,14 @@ private:
     const int dx[4] = {1, 0, 1, 1};
     const int dy[4] = {0, 1, 1, -1};
 
-    // Minimax search with alpha-beta pruning
     int minimax(int depth, int alpha, int beta, int player);
 
-    // Move generation and ordering
     std::vector<Move> getCandidateMoves(int player);
 
     // move and board evaluation
     int evaluateBoard(int player);
-    int evaluateMoveQuick(int row, int col, int player, ScoreBreakdown* details = nullptr);
+    int evaluateMoveQuick(int row, int col, int player);
     bool checkWinQuick(int row, int col, int player);
-
 
     void undoMove();
 
@@ -132,7 +124,6 @@ public:
     {
         return aiCandidateMoves;
     }
-
 
     int getCaptures(int player) const
     {
