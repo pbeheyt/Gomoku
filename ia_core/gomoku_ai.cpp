@@ -31,10 +31,11 @@ const float DEFENSE_MULTIPLIER = 1.1f;
 
 #ifdef DEBUG_AI_LOGS
 // Helper pour logger les etapes du Minimax sans emojis
-void logMinimaxEvent(int depth, const char* type, int val1, int val2 = 0, int val3 = 0)
+void logMinimaxEvent(int depth, const char *type, int val1, int val2 = 0, int val3 = 0)
 {
     // On ne logue que les 4 premiers niveaux (ex: 10, 9, 8, 7) pour eviter le spam
-    if (depth < 7) return;
+    if (depth < 7)
+        return;
 
     EM_ASM_({
         var depth = $0;
@@ -54,18 +55,17 @@ void logMinimaxEvent(int depth, const char* type, int val1, int val2 = 0, int va
              console.log("%c" + indent + "  ! CUTOFF ! Score " + v1 + " >= Beta " + v2, "color: #ff4444; font-weight:bold");
         } else if (type === "TT_HIT") {
              console.log("%c" + indent + "  [TT] CACHE HIT Score: " + v1, "color: #ffff00");
-        }
-    }, depth, type, val1, val2, val3);
+        } }, depth, type, val1, val2, val3);
 }
 
-void logMoveAnalysis(int row, int col, int player, const char* decisionMode, int realScore, const ScoreBreakdown* attackBreakdown = nullptr, const ScoreBreakdown* defenseBreakdown = nullptr, float defenseMultiplier = 1.0f)
+void logMoveAnalysis(int row, int col, int player, const char *decisionMode, int realScore, const ScoreBreakdown *attackBreakdown = nullptr, const ScoreBreakdown *defenseBreakdown = nullptr, float defenseMultiplier = 1.0f)
 {
     EM_ASM_({ console.group("%c[AI MOVE ANALYSIS]", "color: #00d4ff; font-weight: bold;"); });
 
     // Position et joueur
     EM_ASM_({ console.log("%c Position: (%d, %d) | Joueur: %s",
                           "font-weight: bold;",
-                          $0, $1, $2 == = 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
+                          $0, $1, $2 === 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
 
     // Mode de décision
     EM_ASM_({ console.log("%c Mode: %s",
@@ -332,27 +332,6 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         }
     }
 
-    //     if (bestScore > SCORE_LIVE_THREE)
-    //     {
-    //         // Heuristic found a very strong move (Live Three+), skipping Minimax.
-    //         // Mark the chosen move as Type 2 (Purple - One Shot).
-    //         for (auto &dm : aiCandidateMoves)
-    //         {
-    //             if (dm.row == bestRow && dm.col == bestCol)
-    //             {
-    //                 dm.algoType = 2;
-    //                 break;
-    //             }
-    //         }
-    // #ifdef DEBUG_AI_LOGS
-    //         ScoreBreakdown breakdownAttack, breakdownDefense;
-    //         evaluateMoveQuick(bestRow, bestCol, aiPlayer, &breakdownAttack);
-    //         evaluateMoveQuick(bestRow, bestCol, humanPlayer, &breakdownDefense);
-    //         logMoveAnalysis(bestRow, bestCol, aiPlayer, "Heuristic (Attack + Defense x1.1)", bestScore, &breakdownAttack, &breakdownDefense, DEFENSE_MULTIPLIER);
-    // #endif
-    //         return;
-    //     }
-
     int depth = 10;
 
     std::sort(candidates.begin(), candidates.end(),
@@ -434,6 +413,11 @@ bool GomokuAI::checkWinQuick(int row, int col, int player)
 int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *details)
 {
     int score = 0;
+    bool isStoneCapturable = GomokuRules::isStoneCapturable(board, row, col, getOpponent(player));
+    int captureCount = GomokuRules::checkCaptures(board, row, col, player);
+
+    if (isStoneCapturable && captureCount == 0)
+        score -= SCORE_DEAD_FOUR * 1.1;
 
     for (int dir = 0; dir < 4; dir++)
     {
@@ -475,6 +459,7 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *de
             patternType = "Five";
             break;
         case 4:
+
             if (openEnds == 2)
             {
                 patternScore = SCORE_LIVE_FOUR;
@@ -487,6 +472,7 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *de
             }
             break;
         case 3:
+
             if (openEnds == 2)
             {
                 patternScore = SCORE_LIVE_THREE;
@@ -499,6 +485,7 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *de
             }
             break;
         case 2:
+
             if (openEnds == 2)
             {
                 patternScore = SCORE_LIVE_TWO;
@@ -530,12 +517,8 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *de
         score += patternScore;
     }
 
-    int captureCount = GomokuRules::checkCaptures(board, row, col, player);
-    int captureScore = captureCount * SCORE_LIVE_THREE;
+    int captureScore = captureCount * SCORE_LIVE_THREE * 1.1;
     score += captureScore;
-
-    if (GomokuRules::isStoneCapturable(board, row, col, getOpponent(player)) && captureCount == 0)
-        score -= SCORE_DEAD_FOUR / 2;
 
     if (details)
     {
@@ -571,11 +554,15 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
         if (entry.depth >= depth)
         {
             bool usable = false;
-            if (entry.flag == 0) usable = true;
-            else if (entry.flag == 1 && entry.score <= alpha) usable = true;
-            else if (entry.flag == 2 && entry.score >= beta) usable = true;
+            if (entry.flag == 0)
+                usable = true;
+            else if (entry.flag == 1 && entry.score <= alpha)
+                usable = true;
+            else if (entry.flag == 2 && entry.score >= beta)
+                usable = true;
 
-            if (usable) {
+            if (usable)
+            {
 #ifdef DEBUG_AI_LOGS
                 logMinimaxEvent(depth, "TT_HIT", entry.score);
 #endif
@@ -617,15 +604,17 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 
         if (score > bestScore)
             bestScore = score;
-        
-        if (score > alpha) {
+
+        if (score > alpha)
+        {
             alpha = score;
 #ifdef DEBUG_AI_LOGS
             logMinimaxEvent(depth, "UPDATE", score, move.row, move.col);
 #endif
         }
-        
-        if (alpha >= beta) {
+
+        if (alpha >= beta)
+        {
 #ifdef DEBUG_AI_LOGS
             logMinimaxEvent(depth, "CUTOFF", score, beta);
 #endif
@@ -663,9 +652,7 @@ std::vector<Move> GomokuAI::getCandidateMoves(int player)
                         int nr = r + dr;
                         int nc = c + dc;
 
-                        if (GomokuRules::isOnBoard(nr, nc) &&
-                            !visited[nr][nc] &&
-                            board[nr][nc] == NONE)
+                        if (GomokuRules::isEmptyCell(board, nr, nc) && !visited[nr][nc])
                         {
                             if (GomokuRules::validateMove(board, nr, nc, player) == VALID)
                             {
