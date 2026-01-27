@@ -2,14 +2,6 @@ import * as THREE from 'three';
 import { Player, Position, DebugMove } from '../core/types.js';
 import { GameBoard, BOARD_SIZE } from '../core/board.js';
 
-/**
- * Moteur de Rendu 3D (Three.js).
- * 
- * Responsabilités :
- * - Gérer la scène, la caméra et l'éclairage.
- * - Synchroniser l'état visuel avec l'état logique du jeu (Pattern Observer).
- * - Traduire les interactions souris (2D) en coordonnées de jeu (3D) via Raycasting.
- */
 export class ThreeRenderer {
   private container: HTMLElement;
   private canvas: HTMLCanvasElement;
@@ -19,32 +11,31 @@ export class ThreeRenderer {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private raycaster: THREE.Raycaster; // Pour le picking (souris -> 3D)
+  private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
   
-  // Cache d'objets (Object Pooling)
-  // On instancie toutes les pierres au démarrage pour éviter le GC (Garbage Collection) en jeu.
+  // Cache d'objets
   private stones: (THREE.Mesh | null)[][];
   
   // Marqueurs UI
-  private ghostStone!: THREE.Mesh;       // Prévisualisation au survol
-  private lastMoveMarker!: THREE.Mesh;   // Point rouge sur la dernière pierre
-  private suggestionMarker!: THREE.Mesh; // Anneau vert (Conseil IA)
-  private winningLine: THREE.Mesh | null = null; // Le "Laser" de victoire
+  private ghostStone!: THREE.Mesh;
+  private lastMoveMarker!: THREE.Mesh;
+  private suggestionMarker!: THREE.Mesh;
+  private winningLine: THREE.Mesh | null = null;
   
-  private debugPlanes: THREE.Mesh[] = []; // Pool de tuiles pour la heatmap
-  private debugGroup: THREE.Group; // Conteneur pour tout effacer d'un coup
+  private debugPlanes: THREE.Mesh[] = [];
+  private debugGroup: THREE.Group;
 
-  // Matériaux PBR (Physically Based Rendering)
+  // Matériaux
   private matBlack!: THREE.MeshPhysicalMaterial;
   private matWhite!: THREE.MeshPhysicalMaterial;
 
-  // Constantes de Monde (World Units)
+  // Constantes
   private readonly BOARD_SIZE = BOARD_SIZE;
   private readonly CELL_SIZE = 2.0; 
-  private readonly DROP_HEIGHT = 8.0; // Hauteur de chute pour l'animation
+  private readonly DROP_HEIGHT = 8.0;
   private readonly GRAVITY = 0.8;
-  private readonly TARGET_Y = 0.2;    // Hauteur finale sur le plateau
+  private readonly TARGET_Y = 0.2;
 
   constructor(containerId: string, board: GameBoard) {
     this.board = board;
@@ -55,40 +46,39 @@ export class ThreeRenderer {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x333333);
 
-    // 2. Setup Caméra (Vue isométrique simulée)
+    // 2. Setup Caméra
     const aspect = this.container.clientWidth / this.container.clientHeight;
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
-    this.camera.position.set(0, 45, 35); // Angle de vue confortable
+    this.camera.position.set(0, 45, 35);
     this.camera.lookAt(0, 0, 0);
 
-    // 3. Setup Renderer (WebGL)
+    // 3. Setup Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.shadowMap.enabled = true; // Ombres dynamiques
+    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.canvas = this.renderer.domElement;
     this.container.appendChild(this.canvas);
 
-    // 4. Éclairage Studio
-    // Lumière ambiante pour déboucher les ombres
+    // 4. Éclairage
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     this.scene.add(ambientLight);
 
-    // Key Light (Soleil) - Projette les ombres principales
+    // Key Light (Soleil)
     const mainLight = new THREE.DirectionalLight(0xfff4e5, 1.5);
     mainLight.position.set(15, 30, 15);
     mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 2048; // Haute résolution d'ombres
+    mainLight.shadow.mapSize.width = 2048;
     mainLight.shadow.mapSize.height = 2048;
-    mainLight.shadow.bias = -0.0001; // Évite les artefacts d'auto-ombrage (Shadow Acne)
+    mainLight.shadow.bias = -0.0001;
     this.scene.add(mainLight);
 
-    // Fill Light (Ciel) - Touche bleutée en contre-jour
+    // Fill Light (Ciel)
     const fillLight = new THREE.DirectionalLight(0xddeeff, 0.8);
     fillLight.position.set(-15, 10, -15);
     this.scene.add(fillLight);
 
-    // 5. Initialisation des Assets
+    // 5. Initialisation Assets
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.stones = Array(this.BOARD_SIZE).fill(null).map(() => Array(this.BOARD_SIZE).fill(null));
@@ -98,14 +88,13 @@ export class ThreeRenderer {
 
     this.initMaterials();
     this.createBoard();
-    this.createStonesPool(); // Création massive des 361 pierres
+    this.createStonesPool();
     this.createMarkers();
 
     this.animate();
   }
 
   private initMaterials(): void {
-    // Pierre Noire : Aspect ardoise matte
     this.matBlack = new THREE.MeshPhysicalMaterial({
         color: 0x1a1a1a,
         roughness: 0.7,
@@ -113,7 +102,6 @@ export class ThreeRenderer {
         clearcoat: 0.0
     });
 
-    // Pierre Blanche : Aspect porcelaine/coquillage brillant
     this.matWhite = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         roughness: 0.2,
@@ -123,14 +111,10 @@ export class ThreeRenderer {
     });
   }
 
-  /**
-   * Boucle de rendu (Game Loop graphique).
-   * Gère les animations (chute des pierres) et le rendu WebGL.
-   */
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
 
-    // Animation procédurale : Chute des pierres
+    // Animation chute des pierres
     for (let row = 0; row < this.BOARD_SIZE; row++) {
         for (let col = 0; col < this.BOARD_SIZE; col++) {
             const mesh = this.stones[row][col];
@@ -138,7 +122,6 @@ export class ThreeRenderer {
                 // Si la pierre flotte, on applique la gravité
                 if (mesh.position.y > this.TARGET_Y) {
                     mesh.position.y -= this.GRAVITY;
-                    // Clamp au sol (pas de rebond complexe pour l'instant)
                     if (mesh.position.y < this.TARGET_Y) {
                         mesh.position.y = this.TARGET_Y;
                     }
@@ -147,9 +130,8 @@ export class ThreeRenderer {
         }
     }
 
-    // Animation : Extension du Laser de Victoire
+    // Animation extension du Laser de Victoire
     if (this.winningLine && this.winningLine.scale.y < 1) {
-        // Vitesse d'extension : +4% par frame (Rapide et dynamique)
         this.winningLine.scale.y += 0.04;
         if (this.winningLine.scale.y > 1) this.winningLine.scale.y = 1;
     }
@@ -158,11 +140,11 @@ export class ThreeRenderer {
   }
 
   private createBoard(): void {
-    // Calcul de la taille physique du plateau
+    // Calcul taille physique du plateau
     const gridSize = (this.BOARD_SIZE - 1) * this.CELL_SIZE;
     const boardWidth = gridSize + (this.CELL_SIZE * 2); 
 
-    // Le socle en bois
+    // Socle en bois
     const geometry = new THREE.BoxGeometry(boardWidth, 1, boardWidth);
     const material = new THREE.MeshStandardMaterial({ 
       color: 0xdcb35c,
@@ -174,25 +156,19 @@ export class ThreeRenderer {
     boardMesh.receiveShadow = true;
     this.scene.add(boardMesh);
 
-    // Le quadrillage
+    // Quadrillage
     const gridHelper = new THREE.GridHelper(
       gridSize, 
       this.BOARD_SIZE - 1, 
       0x000000, 
       0x000000
     );
-    gridHelper.position.y = 0.01; // Z-fight fix (légèrement au-dessus du bois)
+    gridHelper.position.y = 0.01; // Légèrement au-dessus du bois
     (gridHelper.material as THREE.Material).opacity = 0.5;
     (gridHelper.material as THREE.Material).transparent = true;
     this.scene.add(gridHelper);
   }
 
-  /**
-   * Pattern Object Pooling.
-   * On génère les 361 meshes possibles dès le début.
-   * Pour jouer un coup, on se contente de rendre visible le mesh correspondant.
-   * Gain de performance majeur (pas d'allocation mémoire dynamique).
-   */
   private createStonesPool(): void {
     const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.45, 32, 32);
     
@@ -201,14 +177,14 @@ export class ThreeRenderer {
 
     for (let row = 0; row < this.BOARD_SIZE; row++) {
       for (let col = 0; col < this.BOARD_SIZE; col++) {
-        const mesh = new THREE.Mesh(geometry, this.matBlack); // Matériau placeholder
+        const mesh = new THREE.Mesh(geometry, this.matBlack);
         
         // Mapping Coordonnées Grille (Row/Col) -> Coordonnées Monde (X/Z)
         const x = (col * this.CELL_SIZE) - halfSize;
         const z = (row * this.CELL_SIZE) - halfSize;
         
         mesh.position.set(x, this.TARGET_Y, z);
-        mesh.scale.y = 0.6; // Aplatissement (forme de lentille)
+        mesh.scale.y = 0.6;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.visible = false; // Caché par défaut
@@ -220,7 +196,7 @@ export class ThreeRenderer {
   }
 
   private createMarkers(): void {
-    // 1. Ghost Stone (Fantôme de survol)
+    // 1. Ghost Stone
     const geometry = new THREE.SphereGeometry(this.CELL_SIZE * 0.4, 32, 32);
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.5 });
     this.ghostStone = new THREE.Mesh(geometry, ghostMat);
@@ -228,14 +204,14 @@ export class ThreeRenderer {
     this.ghostStone.visible = false;
     this.scene.add(this.ghostStone);
 
-    // 2. Last Move Marker (Point rouge)
+    // 2. Last Move Marker
     const markGeo = new THREE.SphereGeometry(0.2, 16, 16);
     const markMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     this.lastMoveMarker = new THREE.Mesh(markGeo, markMat);
     this.lastMoveMarker.visible = false;
     this.scene.add(this.lastMoveMarker);
 
-    // 3. Suggestion Marker (Anneau vert)
+    // 3. Suggestion Marker
     const ringGeo = new THREE.RingGeometry(0.5, 0.7, 32);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff89, side: THREE.DoubleSide });
     this.suggestionMarker = new THREE.Mesh(ringGeo, ringMat);
@@ -244,12 +220,8 @@ export class ThreeRenderer {
     this.scene.add(this.suggestionMarker);
   }
 
-  /**
-   * Synchronise la vue 3D avec l'état logique du jeu.
-   * Appelé à chaque fois que le contrôleur reçoit un événement 'move:made'.
-   */
   draw(currentPlayer: Player, hoverPos: Position | null, lastMove: Position | null, suggestionPos: Position | null): void {
-    // 1. Mise à jour des pierres (Visible/Invisible + Couleur)
+    // 1. Mise à jour des pierres
     for (let row = 0; row < this.BOARD_SIZE; row++) {
       for (let col = 0; col < this.BOARD_SIZE; col++) {
         const piece = this.board.getPiece(row, col);
@@ -263,7 +235,6 @@ export class ThreeRenderer {
             mesh.visible = true;
             mesh.position.y = this.DROP_HEIGHT; 
           }
-          // On assigne le bon matériau (Noir/Blanc)
           mesh.material = (piece === Player.BLACK) ? this.matBlack : this.matWhite;
         }
       }
@@ -274,7 +245,6 @@ export class ThreeRenderer {
       this.ghostStone.visible = true;
       const target = this.stones[hoverPos.row][hoverPos.col]!;
       this.ghostStone.position.copy(target.position);
-      // Le fantôme prend la couleur du joueur courant
       (this.ghostStone.material as THREE.MeshBasicMaterial).color.setHex(
         currentPlayer === Player.BLACK ? 0x000000 : 0xffffff
       );
@@ -289,7 +259,7 @@ export class ThreeRenderer {
       this.lastMoveMarker.position.copy(target.position);
       this.lastMoveMarker.position.y += 0.5; // Posé sur la pierre
       
-      // Contraste automatique (Point blanc sur pierre noire, etc.)
+      // Contraste
       const piece = this.board.getPiece(lastMove.row, lastMove.col);
       (this.lastMoveMarker.material as THREE.MeshBasicMaterial).color.setHex(
         piece === Player.BLACK ? 0xffffff : 0x000000
@@ -309,9 +279,6 @@ export class ThreeRenderer {
     }
   }
 
-  /**
-   * Dessine une ligne lumineuse reliant les deux extrémités de l'alignement gagnant.
-   */
   drawWinningLine(start: Position, end: Position, player: Player): void {
     if (this.winningLine) {
         this.scene.remove(this.winningLine);
@@ -328,11 +295,10 @@ export class ThreeRenderer {
     const p1 = new THREE.Vector3(startX, this.TARGET_Y + 0.5, startZ);
     const p2 = new THREE.Vector3(endX, this.TARGET_Y + 0.5, endZ);
 
-    // 2. Création de la géométrie (Tube)
+    // 2. Création de la géométrie
     const distance = p1.distanceTo(p2);
     const geometry = new THREE.CylinderGeometry(0.2, 0.2, distance, 8);
     
-    // Modification : Vert Néon pour tout le monde (Meilleure visibilité)
     const material = new THREE.MeshStandardMaterial({ 
         color: 0x00ff89,
         emissive: 0x00ff89,
@@ -343,13 +309,12 @@ export class ThreeRenderer {
     this.winningLine = new THREE.Mesh(geometry, material);
     
     // 3. Orientation et Positionnement
-    // Le cylindre est créé verticalement par défaut, il faut le coucher et l'orienter
     const center = p1.clone().add(p2).multiplyScalar(0.5);
     this.winningLine.position.copy(center);
     this.winningLine.lookAt(p2);
-    this.winningLine.rotateX(Math.PI / 2); // Rotation locale pour aligner l'axe Y du cylindre avec le vecteur direction
+    this.winningLine.rotateX(Math.PI / 2);
     
-    // Animation : On commence avec une taille nulle pour l'étendre progressivement
+    // Taille nulle puis on l'étendre progressivement
     this.winningLine.scale.y = 0;
 
     this.scene.add(this.winningLine);
@@ -365,12 +330,10 @@ export class ThreeRenderer {
   drawHeatmap(moves: DebugMove[]): void {
     this.clearHeatmap();
 
-    // Taille exacte de la cellule pour éviter les trous (rainures)
     const geometry = new THREE.PlaneGeometry(this.CELL_SIZE, this.CELL_SIZE);
-    // Rotation à plat
     geometry.rotateX(-Math.PI / 2);
 
-    // Find min/max scores for normalization (only for Minimax moves)
+    // min/max scores (Minimax)
     let minScore = Infinity;
     let maxScore = -Infinity;
     moves.forEach(m => {
@@ -384,16 +347,16 @@ export class ThreeRenderer {
         let color = 0xffd700; // Jaune (Candidat)
         let opacity = 0.3;
 
-        // Type 2 : One Shot (Victoire/Blocage immédiat) -> Violet
+        // Type 2 : One Shot -> Violet
         if (move.type === 2) {
-            color = 0x9d00ff; // Neon Purple
+            color = 0x9d00ff;
             opacity = 0.8;
         }
-        // Type 1 : Minimax (Recherche profonde) -> Rouge
+        // Type 1 : Minimax -> Rouge
         else if (move.type === 1) {
             color = 0xff0000;
             
-            // Gradient d'opacité basé sur le score pour le Minimax
+            // Gradient d'opacité basé sur le score
             if (maxScore > minScore) {
                 const normalized = (move.score - minScore) / (maxScore - minScore);
                 opacity = 0.4 + (normalized * 0.5);
@@ -407,7 +370,6 @@ export class ThreeRenderer {
             transparent: true,
             opacity: opacity,
             side: THREE.DoubleSide,
-            // depthTest: true par défaut -> permet d'afficher la heatmap SOUS les pierres
         });
 
         const mesh = new THREE.Mesh(geometry, material);
@@ -417,9 +379,8 @@ export class ThreeRenderer {
         const x = (move.col * this.CELL_SIZE) - halfSize;
         const z = (move.row * this.CELL_SIZE) - halfSize;
         
-        // Y=0.005 : Entre le bois (0.0) et la grille (0.01) pour que les lignes restent visibles
         mesh.position.set(x, 0.005, z); 
-        mesh.scale.setScalar(1.0); // Pleine largeur pour tout le monde (pas de trous)
+        mesh.scale.setScalar(1.0);
 
         this.debugGroup.add(mesh);
         this.debugPlanes.push(mesh);
@@ -427,7 +388,6 @@ export class ThreeRenderer {
   }
 
   clearHeatmap(): void {
-    // Nettoyage propre de la mémoire Three.js
     this.debugPlanes.forEach(mesh => {
         if (mesh.geometry) mesh.geometry.dispose();
         if (Array.isArray(mesh.material)) {
@@ -440,12 +400,8 @@ export class ThreeRenderer {
     this.debugPlanes = [];
   }
 
-  /**
-   * Raycasting : Conversion 2D (Souris) -> 3D (Monde).
-   * Projette un rayon depuis la caméra et cherche l'intersection avec un plan virtuel à Y=0.
-   */
   canvasToBoard(x: number, y: number): Position | null {
-    // 1. Conversion Pixels -> Normalized Device Coordinates (NDC) [-1, +1]
+    // 1. Conversion Pixels -> [-1, +1]
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = ((x - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((y - rect.top) / rect.height) * 2 + 1;
@@ -454,7 +410,6 @@ export class ThreeRenderer {
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
     // 3. Intersection avec un plan mathématique infini (Y=0)
-    // On n'intersecte pas les meshes des cases pour des raisons de performance et de précision.
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const target = new THREE.Vector3();
     this.raycaster.ray.intersectPlane(plane, target);

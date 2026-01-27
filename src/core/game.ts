@@ -1,10 +1,3 @@
-/**
- * Logique du jeu et implémentation des règles
- *
- * MAINTENANT ASYNCHRONE & PROPULSÉ PAR WASM.
- * Délègue toutes les vérifications de règles au moteur C++ via WasmAI.
- */
-
 import {
   Player,
   Position,
@@ -36,8 +29,6 @@ export class GomokuGame {
   private moveHistory: Move[];
   private currentMoveIndex: number;
   private gameId: number = 0;
-
-  // Le Moteur de Règles C++
   private wasmAI: WasmAI | null = null;
 
   constructor() {
@@ -60,9 +51,8 @@ export class GomokuGame {
     return this.gameId;
   }
 
-  /**
-   * ASYNC : Applique un coup après validation par le Wasm.
-   */
+
+  // Applique un coup après validation par le Wasm.
   async makeMove(
     row: number,
     col: number,
@@ -77,7 +67,7 @@ export class GomokuGame {
       this.winner = null;
     }
 
-    // 2. Validation & Simulation (Async)
+    // 2. Validation & Simulation
     const analysis = await this.analyzeMove(row, col, this.currentPlayer);
     if (!analysis.isValid) {
       return analysis;
@@ -99,7 +89,7 @@ export class GomokuGame {
     // 4. Application Mécanique (Plateau JS Local)
     this.applyMoveMechanics(row, col, this.currentPlayer, move.captures);
 
-    // 5. Synchro État Wasm (CRITIQUE)
+    // 5. Synchro État Wasm
     // On envoie l'état COMPLET du plateau et des SCORES pour garantir que le C++ est parfaitement synchro
     await this.wasmAI.setBoard(
       this.board.getBoardState().flat(),
@@ -111,7 +101,7 @@ export class GomokuGame {
     emitMoveMade(move);
     move.captures.forEach((capture) => emitCaptureMade(capture));
 
-    // 6. Vérification Victoire (Wasm Async - Inclut désormais la victoire par capture)
+    // 6. Vérification Victoire
     const isWin = await this.wasmAI.checkWinAt(row, col, this.currentPlayer);
 
     if (isWin) {
@@ -135,7 +125,7 @@ export class GomokuGame {
 
     emitPlayerChanged(this.currentPlayer);
 
-    // 8. Vérification Avancée de Match Nul (Pat / Stalemate)
+    // 8. Vérification Avancée de Match Nul
     // On vérifie si le nouveau joueur est bloqué (aucun coup légal restant)
     // uniquement si le plateau est presque plein.
     if (await this.checkStalemate(this.currentPlayer)) {
@@ -146,9 +136,6 @@ export class GomokuGame {
     return { isValid: true };
   }
 
-  /**
-   * Helper pour vérifier un coup sans le jouer.
-   */
   async validateMove(
     row: number,
     col: number,
@@ -157,27 +144,19 @@ export class GomokuGame {
     return this.analyzeMove(row, col, playerOverride || this.currentPlayer);
   }
 
-  /**
-   * Le Moteur de Règles (Délégué au Wasm).
-   * Pattern : Simulation locale -> Synchro Wasm -> Vérif Règles -> Annulation.
-   */
   private async analyzeMove(
     row: number,
     col: number,
     player: Player
   ): Promise<ValidationResult & { captures?: CaptureResult[] }> {
     if (!this.wasmAI) return { isValid: false, reason: "IA non prête" };
-    // STRATÉGIE : Délégation totale au C++
-    // Le Bridge C++ gère maintenant la simulation interne (pose temporaire).
-    // CRITIQUE : On force la synchro AVANT de vérifier pour être sûr que le C++ connait les pierres adverses et les SCORES.
     await this.wasmAI.setBoard(
       this.board.getBoardState().flat(),
       this.blackCaptures,
       this.whiteCaptures
     );
 
-    // 1. Validation Unifiée (Single Source of Truth)
-    // Le C++ gère maintenant toutes les priorités (Capture > Suicide, Capture > DoubleTrois)
+    // 1. Validation
     const status = await this.wasmAI.validateMove(row, col, player);
 
     if (status !== 0) {
@@ -337,11 +316,7 @@ export class GomokuGame {
     return this.board;
   }
 
-  /**
-   * Vérifie si le joueur est en situation de Pat (aucun coup légal possible).
-   */
   private async checkStalemate(player: Player): Promise<boolean> {
-    // 1. Optimisation Mathématique O(1)
     // On calcule les cases vides sans parcourir le tableau : Total - (Posées - Capturées)
     const stonesOnBoard =
       this.moveHistory.length - (this.blackCaptures + this.whiteCaptures);
@@ -360,7 +335,6 @@ export class GomokuGame {
     );
 
     // 3. Délégation au moteur C++
-    // Le C++ va scanner toutes les cases vides beaucoup plus vite qu'une boucle JS.
     return await this.wasmAI.checkStalemate(player);
   }
 }

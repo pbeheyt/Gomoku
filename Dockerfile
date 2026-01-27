@@ -1,14 +1,7 @@
-# ============================================================================== #
-#                    Dockerfile Final - Optimisation Maximale                    #
-# ============================================================================== #
-
-# Utiliser l'image de base la plus légère possible
 FROM node:20-bullseye-slim
 
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Installer les dépendances système et nettoyer dans la même couche pour minimiser la taille
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3 \
@@ -29,9 +22,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# --- OPTIMISATION EMSCRIPTEN EN UNE SEULE COUCHE ---
-# On fait TOUT dans une seule et même commande RUN pour minimiser les couches Docker
-# et on nettoie les fichiers d'installation dont on n'a plus besoin à la fin.
 ENV EMSDK_VERSION=3.1.59
 RUN \
     # 1. Télécharger l'archive
@@ -48,20 +38,14 @@ RUN \
     ./emsdk install ${EMSDK_VERSION} && \
     ./emsdk activate ${EMSDK_VERSION} && \
     \
-    # 5. NETTOYER les fichiers d'installation inutiles (CRUCIAL)
-    # On remonte à la racine pour être sûr des chemins
+    # 5. Nettoyer les fichiers d'installation inutiles pour réduire la taille de l'image finale
     cd / && \
     rm /emsdk.tar.gz && \
-    # On supprime les zips téléchargés par emsdk lui-même
     rm -rf /emsdk/zips && \
-    # On supprime les caches de git
     rm -rf /emsdk/.git
 
-# Ajouter les outils Emscripten au PATH pour les futures commandes
 ENV PATH="/emsdk:/emsdk/upstream/emscripten:${PATH}"
 
-# Revenir au répertoire de l'application
 WORKDIR /app
 
-# Garder le conteneur en vie
 CMD ["tail", "-f", "/dev/null"]

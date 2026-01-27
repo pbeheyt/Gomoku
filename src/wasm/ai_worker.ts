@@ -1,11 +1,4 @@
-/**
- * Web Worker IA (Thread dédié).
- *
- * Rôle : Exécuter le code C++ (via Wasm) sans bloquer le Thread Principal (UI).
- * Responsable de l'allocation mémoire manuelle pour les échanges de données JS <-> C++.
- */
 
-// Interface décrivant les exports du Module Emscripten (C++)
 interface GomokuModule {
   _initAI: (player: number) => void;
   _setBoard: (
@@ -17,36 +10,31 @@ interface GomokuModule {
   _getBestMove: () => number;
   _cleanupAI: () => void;
 
-  // Exports du moteur de règles
+  // Exports
   _rules_validateMove: (row: number, col: number, player: number) => number;
   _rules_checkWinAt: (row: number, col: number, player: number) => number;
   _rules_checkWin: (player: number) => number;
-  // Retourne un pointeur vers un tableau d'entiers statique. Index 0 = nombre, puis l, c, l, c...
   _rules_checkCaptures: (row: number, col: number, player: number) => number;
   _rules_checkStalemate: (player: number) => number;
 
-  _get_board_buffer: () => number; // Retourne un pointeur vers le buffer statique du board
+  _get_board_buffer: () => number;
   _getAiCandidateMoves: () => number;
   HEAP32: Int32Array;
 }
 
 let wasmModule: GomokuModule | null = null;
 
-/**
- * Charge et instancie le module WebAssembly.
- * Utilise 'importScripts' (spécifique Worker) pour charger le code de glue Emscripten.
- */
 async function loadWasmModule() {
   self.importScripts("ia_core.js");
 
-  // @ts-expect-error - GomokuAI est injecté dans le scope global par importScripts
+  // @ts-expect-error (GomokuAI est injecté dans le scope global par importScripts)
   const GomokuAIModule = self.GomokuAI;
 
   if (!GomokuAIModule) {
     throw new Error("Module GomokuAI pas trouvé après importScripts");
   }
 
-  // Injection des canaux de sortie pour les logs C++
+  // Logs C++
   wasmModule = await GomokuAIModule({
     print: (text: string) =>
       console.log("%c[C++ LOG]", "color: cyan; font-weight: bold;", text),
@@ -61,7 +49,6 @@ async function loadWasmModule() {
   }
 }
 
-// Initialisation au démarrage du Worker
 const wasmReadyPromise = loadWasmModule()
   .then(() => {
     console.log("Module IA WebAssembly chargé avec succès dans le worker");
@@ -72,11 +59,8 @@ const wasmReadyPromise = loadWasmModule()
     self.postMessage({ type: "worker_error", payload: error.message });
   });
 
-/**
- * Gestionnaire de messages (Main Thread -> Worker).
- */
+
 self.onmessage = async (event) => {
-  // On attend que le C++ soit prêt avant de traiter la requête
   await wasmReadyPromise;
 
   if (!wasmModule) {
@@ -102,12 +86,10 @@ self.onmessage = async (event) => {
 
         if (!flatBoard || !Array.isArray(flatBoard)) break;
 
-        // Stratégie Zero Malloc
         const ptr = wasmModule._get_board_buffer();
         wasmModule.HEAP32.set(flatBoard, ptr >> 2);
         wasmModule._setBoard(ptr, blackCaptures, whiteCaptures);
 
-        // Confirmation
         self.postMessage({ type: "setBoard_done" });
         break;
       }
@@ -119,7 +101,6 @@ self.onmessage = async (event) => {
       }
 
       case "getBestMove": {
-        // Payload : Le board aplati (1D Array)
         const flatBoard = payload?.flatBoard;
 
         if (!flatBoard || !Array.isArray(flatBoard)) {
@@ -131,22 +112,11 @@ self.onmessage = async (event) => {
           break;
         }
 
-        // STRATÉGIE ZÉRO MALLOC
-        // 1. Obtenir le pointeur vers le buffer statique en C++
         const ptr = wasmModule._get_board_buffer();
-
-        // 2. Écrire les données directement dans la mémoire Wasm
         // ptr est en octets, HEAP32 est une vue int32, donc diviser par 4
         wasmModule.HEAP32.set(flatBoard, ptr >> 2);
-
-        // 3. Dire à l'IA de lire depuis ce buffer (Captures ignorées pour getBestMove temporaire, ou utiliser payload si dispo)
-        // Note : getBestMove envoie généralement un état stateless, on suppose 0 ou on devrait passer l'état.
-        // Pour l'instant, on garde la compatibilité, mais idéalement getBestMove devrait aussi recevoir les captures.
-        // Le code existant de getBestMove dans le wrapper ne passe que flatBoard.
-        // On met 0 par défaut pour éviter le crash signature, l'IA se basera sur ce qu'elle a ou 0.
         wasmModule._setBoard(ptr, 0, 0);
 
-        // 4. Calculer
         const result = wasmModule._getBestMove();
         const row = Math.floor(result / 100);
         const col = result % 100;
@@ -194,14 +164,13 @@ self.onmessage = async (event) => {
         });
         break;
       case "rules_checkCaptures": {
-        // Appel au C++ : Récupération du pointeur vers le buffer statique
         const ptr = wasmModule._rules_checkCaptures(
           payload.row,
           payload.col,
           payload.player
         );
 
-        // Conversion Pointeur (octets) -> Index (int32)
+        // Conversion Pointeur octets -> int32
         const startIdx = ptr >> 2;
 
         // Lecture du compteur de pierres (Index 0)
@@ -209,12 +178,10 @@ self.onmessage = async (event) => {
 
         const captures = [];
 
-        // Curseur de lecture : Démarre juste après le compteur
         let readCursor = startIdx + 1;
 
         // Boucle par paire de pierres (Une capture = 2 pierres)
         for (let i = 0; i < stoneCount; i += 2) {
-          // Lecture séquentielle des coordonnées (Ligne, Colonne) pour la paire
           const r1 = wasmModule.HEAP32[readCursor++];
           const c1 = wasmModule.HEAP32[readCursor++];
           const r2 = wasmModule.HEAP32[readCursor++];

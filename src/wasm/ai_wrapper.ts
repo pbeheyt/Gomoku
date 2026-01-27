@@ -1,22 +1,13 @@
-/**
- * Wrapper (Proxy) pour l'IA WebAssembly.
- *
- * Architecture :
- * Ce fichier sert d'interface entre le Main Thread (UI) et le Worker Thread (Calcul).
- * Il transforme l'API événementielle bas niveau (postMessage) en une API asynchrone moderne (Promise).
- */
-
 import { Player, Position, GameState, DebugMove } from "../core/types.js";
 
 export class WasmAI {
   private worker: Worker | null = null;
 
-  // Gestion du cycle de vie du Worker
   private workerReadyPromise: Promise<void>;
   private resolveWorkerReady: () => void = () => {};
   private rejectWorkerReady: (reason?: unknown) => void = () => {};
 
-  // File d'attente générique pour TOUTES les requêtes (Map<TypeRéponse, Résolveur>)
+  // File d'attente générique (Map<TypeRéponse, Résolveur>)
   private pendingQueries: Map<
     string,
     { resolve: (val: any) => void; reject: (err: any) => void }
@@ -25,7 +16,6 @@ export class WasmAI {
   private aiPlayer: Player = Player.WHITE;
 
   constructor() {
-    // On prépare la promesse d'initialisation
     this.workerReadyPromise = new Promise((resolve, reject) => {
       this.resolveWorkerReady = resolve;
       this.rejectWorkerReady = reject;
@@ -37,7 +27,7 @@ export class WasmAI {
     try {
       this.worker = new Worker("ai_worker.js");
 
-      // Routeur de messages (Worker -> Main)
+      // Routeur de messages
       this.worker.onmessage = (event) => {
         const { type, payload } = event.data;
         switch (type) {
@@ -113,12 +103,7 @@ export class WasmAI {
     return this.sendQuery("makeMove", "makeMove_done", { row, col, player });
   }
 
-  /**
-   * Demande un calcul de coup.
-   * Utilise le système générique de requête.
-   */
   public getBestMove(gameState: GameState): Promise<Position> {
-    // Aplatissement du board (2D -> 1D) pour faciliter le transfert mémoire vers C++
     const flatBoard = gameState.board.flat();
     return this.sendQuery("getBestMove", "bestMoveResult", { flatBoard });
   }
@@ -126,8 +111,6 @@ export class WasmAI {
   public getDebugData(): Promise<DebugMove[]> {
     return this.sendQuery("getDebugData", "getDebugData_result", {});
   }
-
-  // Permet à l'UI d'attendre que le binaire Wasm soit chargé et compilé
   public async isReady(): Promise<boolean> {
     await this.workerReadyPromise;
     return this.worker !== null;
@@ -135,9 +118,6 @@ export class WasmAI {
 
   // --- RULES API ---
 
-  /**
-   * Returns 0 if valid, or an error code > 0.
-   */
   public async validateMove(
     row: number,
     col: number,
@@ -196,7 +176,6 @@ export class WasmAI {
     payload: any
   ): Promise<any> {
     return new Promise((resolve, reject) => {
-      // On enregistre le résolveur pour le TYPE DE RÉPONSE ATTENDU
       this.pendingQueries.set(responseType, { resolve, reject });
       this.worker?.postMessage({ type: requestType, payload });
     });
@@ -223,7 +202,6 @@ export class WasmAI {
   }
 }
 
-// Factory Helper
 export async function createWasmAI(): Promise<WasmAI> {
   const ai = new WasmAI();
   await ai.isReady(); // Bloque jusqu'à ce que le Worker soit opérationnel

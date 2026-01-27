@@ -1,18 +1,8 @@
-// @src/llm/llm_ai.ts
 import { GameState, Player, Position, ValidationResult } from '../core/types.js';
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_RETRIES = 3;
 
-/**
- * Interface client pour les modèles LLM (via OpenRouter).
- * 
- * Rôle : 
- * 1. Traduire l'état du jeu (Board) en Prompt textuel (ASCII Art).
- * 2. Gérer le dialogue avec l'IA (Request/Response).
- * 3. Implémenter une boucle de "Self-Correction" : si l'IA hallucine un coup invalide,
- *    on lui renvoie l'erreur pour qu'elle corrige elle-même.
- */
 export class LlmAI {
   private apiKey: string;
   private model: string;
@@ -25,23 +15,14 @@ export class LlmAI {
     this.model = model;
   }
 
-  /**
-   * Demande le meilleur coup à l'IA.
-   * Utilise une boucle de retry pour gérer les hallucinations ou les coups interdits.
-   * 
-   * Callback vers le moteur de règles (Game) pour valider le coup proposé.
-   */
   public async getBestMove(
     gameState: GameState, 
     validator?: (row: number, col: number) => Promise<ValidationResult>
   ): Promise<{ position: Position, reasoning: string }> {
     const prompt = this.generatePrompt(gameState);
     
-    // Historique de la conversation (Stateful pour la durée de la réflexion)
+    // Historique de la conversation
     const messages: { role: string; content: string }[] = [{ role: 'user', content: prompt }];
-
-    // Debug: Log du prompt pour vérifier l'ASCII art
-    // console.log("%c--- PROMPT SENT TO LLM ---", "color: cyan; font-weight: bold;", "\n", prompt);
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -66,17 +47,15 @@ export class LlmAI {
 
         const data = await response.json();
         const content = data.choices[0].message.content;
-
-        // console.log(`%c--- RÉPONSE BRUTE DU LLM (Essai ${attempt}) ---`, "color: yellow; font-weight: bold;", "\n", content);
         
         // On ajoute la réponse au contexte pour que l'IA s'en souvienne si on doit la corrige
         messages.push({ role: 'assistant', content: content });
 
-        // Extraction du raisonnement (Chain of Thought)
+        // Extraction du raisonnement
         const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
         const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Aucun raisonnement fourni.";
 
-        // Parsing robuste (Regex)
+        // Parsing
         const move = this.parseMove(content);
         
         if (move) {
@@ -84,7 +63,6 @@ export class LlmAI {
           let validationError = this.validateMove(move, gameState.board);
 
           // 2. Validation Métier (Règles Gomoku : Suicide, Double-3)
-          // On délègue ça au Core via le validator injecté.
           if (!validationError && validator) {
             const result = await validator(move.row, move.col);
             if (!result.isValid) {
@@ -101,7 +79,7 @@ export class LlmAI {
           }
 
           // FEEDBACK LOOP : L'IA a proposé un coup invalide.
-          // On ne plante pas. On injecte l'erreur dans la conversation et on boucle.
+          // On injecte l'erreur dans la conversation et on boucle.
           console.warn(`LLM a proposé un coup invalide ${JSON.stringify(move)}: ${validationError}`);
           
           const occupiedList = this.getOccupiedPositions(gameState.board);
@@ -132,17 +110,13 @@ INSTRUCTION:
 
       } catch (error) {
         console.error("Error inside LLM loop:", error);
-        throw error; // Erreur réseau fatale
+        throw error; // Erreur réseau
       }
     }
 
     throw new Error(`Failed to get a valid move from LLM after ${MAX_RETRIES} attempts.`);
   }
 
-  /**
-   * Extraction robuste des coordonnées via Regex.
-   * Permet à l'IA d'être verbeuse tant qu'elle fournit le JSON à la fin.
-   */
   private parseMove(content: string): Position | null {
     const rowMatch = content.match(/"row"\s*:\s*(\d+)/);
     const colMatch = content.match(/"col"\s*:\s*(\d+)/);
@@ -158,10 +132,6 @@ INSTRUCTION:
     return null;
   }
 
-  /**
-   * Validation locale basique (Limites & Occupation).
-   * Évite de solliciter le moteur de jeu pour des erreurs triviales.
-   */
   private validateMove(pos: Position, board: Player[][]): string | null {
     const size = board.length;
     if (pos.row < 0 || pos.row >= size || pos.col < 0 || pos.col >= size) {
@@ -173,14 +143,6 @@ INSTRUCTION:
     return null;
   }
 
-  /**
-   * Construit le Prompt Engineering.
-   * Stratégie :
-   * 1. Contexte (Qui suis-je ?)
-   * 2. Visuel (Board ASCII)
-   * 3. Tactique (Règles & Priorités)
-   * 4. Format (Chain of Thought + JSON)
-   */
   private generatePrompt(gameState: GameState): string {
     const playerChar = gameState.currentPlayer === Player.BLACK ? 'X' : 'O';
     const opponentChar = gameState.currentPlayer === Player.BLACK ? 'O' : 'X';
@@ -231,9 +193,6 @@ After the \`<reasoning>\` block, provide your final move in the following strict
     `;
   }
 
-  /**
-   * Helper pour aider l'IA à éviter les collisions en lui donnant la liste noire.
-   */
   private getOccupiedPositions(board: Player[][]): number[][] {
     const occupied: number[][] = [];
     for (let r = 0; r < board.length; r++) {
@@ -246,10 +205,6 @@ After the \`<reasoning>\` block, provide your final move in the following strict
     return occupied;
   }
 
-  /**
-   * Générateur de représentation ASCII.
-   * Utilise des marqueurs visuels [X] pour le dernier coup pour attirer l'attention de l'IA.
-   */
   private formatBoard(board: Player[][], playerChar: string, opponentChar: string, lastMove: Position | null): string {
     // En-tête des colonnes
     let header = '      ';
@@ -269,9 +224,9 @@ After the \`<reasoning>\` block, provide your final move in the following strict
         const currentPlayerNumber = (playerChar === 'X') ? Player.BLACK : Player.WHITE;
 
         if (cell === currentPlayerNumber) {
-            symbol = playerChar; // C'est nous
+            symbol = playerChar;
         } else if (cell !== Player.NONE) {
-            symbol = opponentChar; // C'est l'autre
+            symbol = opponentChar;
         }
         
         // Marqueur visuel pour le dernier coup
@@ -281,7 +236,7 @@ After the \`<reasoning>\` block, provide your final move in the following strict
           line += ` ${symbol} `;
         }
       });
-      // Suffixe ligne (pour lisibilité)
+      // Suffixe ligne
       line += ` ${r}`;
       boardStr += line + '\n';
     });

@@ -1,23 +1,9 @@
-/**
- * Service de gestion du Classement (Persistence).
- * 
- * Utilise le LocalStorage du navigateur comme une base de données simple.
- * Gère le calcul de score, la limitation à 10 entrées et la génération du tableau HTML.
- */
 import { LeaderboardEntry, Player } from '../core/types.js';
 
 const LEADERBOARD_KEY = 'gomoku-leaderboard-v1';
 const MAX_ENTRIES = 10;
 
 export class LeaderboardManager {
-  
-  /**
-   * Algorithme de Scoring.
-   * Formule : Base (10000) - Pénalités (Temps/Coups).
-   * 
-   * Un bonus de 500pts est accordé aux Blancs car ils jouent en second
-   * (désavantage tactique au Gomoku).
-   */
   public static calculateScore(moves: number, timeSeconds: number, playerColor: Player): number {
     const base = 10000;
     const movePenalty = moves * 50;
@@ -31,9 +17,6 @@ export class LeaderboardManager {
     return Math.max(0, score);
   }
 
-  /**
-   * Récupère les scores depuis le stockage local.
-   */
   public static getEntries(): LeaderboardEntry[] {
     try {
       const raw = localStorage.getItem(LEADERBOARD_KEY);
@@ -42,14 +25,10 @@ export class LeaderboardManager {
       return JSON.parse(raw) as LeaderboardEntry[];
     } catch (e) {
       console.error("Échec de l'analyse du classement", e);
-      return []; // En cas de corruption, on renvoie une liste vide (Fail Safe)
+      return [];
     }
   }
 
-  /**
-   * Ajoute une nouvelle entrée et sauvegarde.
-   * Garde uniquement le Top 10.
-   */
   public static addEntry(moves: number, timeSeconds: number, aiLevel: string, playerColor: Player): LeaderboardEntry {
     const score = this.calculateScore(moves, timeSeconds, playerColor);
     
@@ -65,10 +44,8 @@ export class LeaderboardManager {
     const entries = this.getEntries();
     entries.push(newEntry);
 
-    // Tri descendant (Meilleur score en premier)
     entries.sort((a, b) => b.score - a.score);
 
-    // On coupe pour ne garder que l'élite
     if (entries.length > MAX_ENTRIES) {
       entries.splice(MAX_ENTRIES);
     }
@@ -77,10 +54,6 @@ export class LeaderboardManager {
     return newEntry;
   }
 
-  /**
-   * Génère le HTML du tableau des scores.
-   * Note : le Manager génère directement la Vue partielle ici pour simplifier le contrôleur UI.
-   */
   public static generateHTML(): string {
     const entries = this.getEntries();
     
@@ -110,7 +83,6 @@ export class LeaderboardManager {
     entries.forEach((entry, index) => {
       const rankDisplay = `#${index + 1}`;
 
-      // Pastille de couleur
       const color = entry.playerColor ?? Player.BLACK;
       const colorDot = color === Player.BLACK 
         ? '<span style="color:#000; text-shadow: 0 0 2px #fff;">⚫</span>' 
@@ -132,9 +104,6 @@ export class LeaderboardManager {
     return html;
   }
 
-  /**
-   * Helper de formatage mm:ss
-   */
   private static formatTime(totalSeconds: number): string {
     const mins = Math.floor(totalSeconds / 60);
     const secs = Math.floor(totalSeconds % 60);

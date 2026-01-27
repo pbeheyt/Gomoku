@@ -4,10 +4,6 @@ import path from 'path';
 // Référence globale pour éviter que le Garbage Collector ne détruise la fenêtre
 let mainWindow: BrowserWindow | null = null;
 
-/**
- * Crée la fenêtre principale de l'application.
- * Processus : Main (Node.js)
- */
 function createWindow() {
   mainWindow = new BrowserWindow({
     show: false, // On cache la fenêtre tant qu'elle n'est pas chargée (évite l'écran blanc)
@@ -23,7 +19,7 @@ function createWindow() {
 
   mainWindow.maximize();
   
-  // Événement : La fenêtre est prête à être affichée (pas de flash blanc)
+  // Événement : La fenêtre est prête à être affichée
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
@@ -35,8 +31,6 @@ function createWindow() {
     mainWindow = null;
   });
 }
-
-// --- CYCLE DE VIE ---
 
 app.whenReady().then(() => {
   createWindow();

@@ -1,10 +1,3 @@
-/**
- * Définitions de types partagées (Contrats d'interface).
- * 
- * Ce fichier garantit la cohérence des données entre le Core, l'UI, le Renderer et les Workers.
- * Si on change une structure ici, TypeScript cassera la compilation partout où c'est nécessaire.
- */
-
 export enum Player {
   NONE = 0,
   BLACK = 1,
@@ -14,8 +7,8 @@ export enum Player {
 export enum GameMode {
   PLAYER_VS_PLAYER = 'pvp',
   PLAYER_VS_AI = 'pva',     // Contre l'IA native (C++)
-  PLAYER_VS_LLM = 'pvllm',  // Contre un LLM (GPT/Claude)
-  AI_VS_LLM = 'aivllm',     // Mode spectateur (Arena)
+  PLAYER_VS_LLM = 'pvllm',  // Contre un LLM
+  AI_VS_LLM = 'aivllm',     // Mode spectateur
   AI_SUGGEST = 'suggest',   // Mode assistance
 }
 
@@ -31,7 +24,7 @@ export interface CaptureResult {
 
 // Unité atomique d'historique.
 // Contient tout le contexte nécessaire (position + temps + conséquences)
-// pour permettre un Replay fiable sans recalcul (Event Sourcing).
+// pour permettre un Replay sans recalcul.
 export interface Move {
   position: Position;
   player: Player;
@@ -42,7 +35,6 @@ export interface Move {
 }
 
 // Snapshot complet de l'état du jeu.
-// C'est l'objet "Stateless" qu'on envoie aux IA pour qu'elles analysent la situation.
 export interface GameState {
   board: Player[][];
   currentPlayer: Player;
@@ -66,7 +58,7 @@ export interface DebugMove {
   type: 0 | 1 | 2; // 0 = Candidate (Yellow), 1 = Minimax (Red), 2 = One Shot (Purple)
 }
 
-// Contrat que doivent respecter toutes les IA (Wasm wrapper ou Service LLM)
+// Contrat que doivent respecter toutes les IA (Wasm wrapper ou LLM)
 export interface AIInterface {
   requestMove(gameState: GameState): Promise<Position>;
   getName(): string;
@@ -82,8 +74,7 @@ export interface LeaderboardEntry {
   playerColor: Player;
 }
 
-// Typage strict pour l'EventEmitter.
-// Mappe le nom de l'événement (clé) à la signature de la fonction callback (valeur).
+// Mappe le nom de l'événement à la signature de la fonction callback.
 export interface GameEvents {
   'move:made': (move: Move) => void;
   'capture:made': (capture: CaptureResult) => void;
