@@ -1,33 +1,17 @@
-/**
- * Gomoku Bridge
- * Expose la logique C++ vers JavaScript via WebAssembly.
- * Ne contient AUCUNE logique de jeu, uniquement du code d'interface.
- *
- * Organisation :
- * 1. Gestion Mémoire (Buffers)
- * 2. Cycle de Vie IA
- * 3. Actions de Jeu (IA)
- * 4. Moteur de Règles (Exports)
- */
-
 #include "gomoku_ai.h"
 #include "gomoku_rules.h"
 
 // =================================================================================
-//                            1. GESTION MÉMOIRE (BUFFERS)
+//                            1. GESTION MÉMOIRE
 // =================================================================================
 
 // Buffer statique pour le Plateau (19x19)
-// Permet d'écrire l'état du jeu depuis JS directement dans la mémoire Wasm
-// sans faire d'allocation dynamique (malloc/free) à chaque frame.
 static int BRIDGE_BOARD_BUFFER[BOARD_SIZE * BOARD_SIZE];
 
 // Buffer statique pour les Captures
-// Taille 64 : Suffisant pour le pire cas théorique (8 directions * 2 pierres * 2 coords + header).
 static int BRIDGE_CAPTURE_BUFFER[64];
 
 // Buffer statique pour les Candidates moves (row, col, score, type)
-// Taille 4096 : Suffisant pour ~1000 candidats (4 ints par move).
 static int BRIDGE_CANDIDATES_MOVE[4096];
 
 extern "C"
@@ -50,7 +34,6 @@ extern "C"
         {
             delete ai;
         }
-        // Le constructeur définit l'instance globale automatiquement
         new GomokuAI(aiPlayer);
     }
 
@@ -69,12 +52,11 @@ extern "C"
         if (ai != nullptr)
         {
             delete ai;
-            // Le pointeur global est nettoyé par la logique appelante ou le prochain init
         }
     }
 
     // =================================================================================
-    //                            3. ACTIONS DE JEU (IA)
+    //                            3. ACTIONS DE JEU
     // =================================================================================
 
     void makeMove(int row, int col, int player)
@@ -107,15 +89,13 @@ extern "C"
     //                            4. MOTEUR DE RÈGLES (EXPORTS)
     // =================================================================================
 
-    // Fonction de Validation Maître exposée au JS
     // Retourne : 0=VALID, 1=BOUNDS, 2=OCCUPIED, 3=SUICIDE, 4=DOUBLE_THREE
     int rules_validateMove(int row, int col, int player)
     {
         GomokuAI *ai = getGlobalAI();
         if (ai == nullptr)
-            return 1; // Erreur par défaut
+            return 1;
 
-        // On a besoin d'un pointeur non-const pour la simulation
         auto board = const_cast<int (*)[BOARD_SIZE]>(ai->getBoard());
 
         return (int)GomokuRules::validateMove(board, row, col, player);
@@ -129,14 +109,11 @@ extern "C"
 
         auto board = const_cast<int (*)[BOARD_SIZE]>(ai->getBoard());
 
-        // Simulation RAII
         ScopedMove move(board, row, col, player);
 
-        // Calcul du nombre total de captures après ce coup simulé
         int currentCaptures = ai->getCaptures(player);
         int totalCaptures = currentCaptures + move.numCaptured;
 
-        // Vérification de la victoire sur l'état simulé
         return GomokuRules::checkWinAt(board, row, col, player, player, totalCaptures);
     }
 
@@ -148,13 +125,9 @@ extern "C"
 
         auto board = const_cast<int (*)[BOARD_SIZE]>(ai->getBoard());
 
-        // Simulation RAII
-
-        // Calcul du nombre total de captures après ce coup simulé
         int currentCaptures = ai->getCaptures(player);
         int lastMovePlayer = ai->getOpponent(player);
 
-        // Vérification de la victoire sur l'état simulé
         return GomokuRules::checkWin(board, player, lastMovePlayer, currentCaptures);
     }
 
@@ -162,22 +135,15 @@ extern "C"
     {
         GomokuAI *ai = getGlobalAI();
         if (ai == nullptr)
-            return 0; // Pas d'IA = Pas de Pat (par sécurité)
+            return 0;
 
         auto board = const_cast<int (*)[BOARD_SIZE]>(ai->getBoard());
         return GomokuRules::checkStalemate(board, player) ? 1 : 0;
     }
 
-    /**
-     * Retourne un pointeur vers le buffer de captures statique.
-     * Structure du buffer :
-     * [0] : Nombre de pierres capturées (N)
-     * [1..N] : Coordonnées [r1, c1, r2, c2, ...]
-     */
     int *rules_checkCaptures(int row, int col, int player)
     {
         GomokuAI *ai = getGlobalAI();
-        // Par défaut : 0 captures
         BRIDGE_CAPTURE_BUFFER[0] = 0;
 
         if (ai == nullptr)
@@ -185,11 +151,9 @@ extern "C"
 
         auto board = const_cast<int (*)[BOARD_SIZE]>(ai->getBoard());
 
-        // Scope RAII pour la simulation
         {
             ScopedMove move(board, row, col, player);
 
-            // Écriture du résultat dans le buffer statique
             BRIDGE_CAPTURE_BUFFER[0] = move.numCaptured;
 
             // Aplatissement des coordonnées
@@ -198,7 +162,7 @@ extern "C"
                 BRIDGE_CAPTURE_BUFFER[1 + (i * 2)] = move.captured[i][0];     // Row
                 BRIDGE_CAPTURE_BUFFER[1 + (i * 2) + 1] = move.captured[i][1]; // Col
             }
-        } // Undo automatique ici
+        }
 
         return BRIDGE_CAPTURE_BUFFER;
     }
