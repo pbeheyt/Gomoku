@@ -30,126 +30,33 @@ const int SCORE_ONE = 1000;
 const float DEFENSE_MULTIPLIER = 1.1f;
 
 #ifdef DEBUG_AI_LOGS
-// Helper pour logger les etapes du Minimax sans emojis
-void logMinimaxEvent(int depth, const char *type, int val1, int val2 = 0, int val3 = 0)
+
+void logMoveAnalysis(int row, int col, int player, int score, bool isBestMove = false)
 {
-    // On ne logue que les 4 premiers niveaux (ex: 10, 9, 8, 7) pour eviter le spam
-    if (depth < 7)
-        return;
+    EM_ASM_({ console.group("%c[AI MOVE ANALYSIS]", "color: #ff6600; font-weight: bold;"); });
 
-    EM_ASM_({
-        var depth = $0;
-        var type = UTF8ToString($1);
-        var v1 = $2;
-        var v2 = $3;
-        var v3 = $4;
-        
-        // Indentation visuelle
-        var indent = " ".repeat((10 - depth) * 2);
-        
-        if (type === "ENTRY") {
-             console.log("%c" + indent + "[D" + depth + "] SEARCH | Alpha: " + v1 + " Beta: " + v2, "color: #00d4ff");
-        } else if (type === "UPDATE") {
-             console.log("%c" + indent + "  > BEST: " + v1 + " (Move " + v2 + "," + v3 + ")", "color: #44ff44");
-        } else if (type === "CUTOFF") {
-             console.log("%c" + indent + "  ! CUTOFF ! Score " + v1 + " >= Beta " + v2, "color: #ff4444; font-weight:bold");
-        } else if (type === "TT_HIT") {
-             console.log("%c" + indent + "  [TT] CACHE HIT Score: " + v1, "color: #ffff00");
-        } }, depth, type, val1, val2, val3);
-}
-
-void logMoveAnalysis(int row, int col, int player, const char *decisionMode, int realScore, const ScoreBreakdown *attackBreakdown = nullptr, const ScoreBreakdown *defenseBreakdown = nullptr, float defenseMultiplier = 1.0f)
-{
-    EM_ASM_({ console.group("%c[AI MOVE ANALYSIS]", "color: #00d4ff; font-weight: bold;"); });
-
-    // Position et joueur
     EM_ASM_({ console.log("%c Position: (%d, %d) | Joueur: %s",
                           "font-weight: bold;",
                           $0, $1, $2 === 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
 
-    // Mode de décision
-    EM_ASM_({ console.log("%c Mode: %s",
-                          "color: #ffa500; font-weight: bold;",
-                          UTF8ToString($0)); }, decisionMode);
-
-    // Si breakdown fourni, afficher les détails (mode Heuristic uniquement)
-    if (attackBreakdown)
+    if (isBestMove)
     {
-        const char *dirNames[4] = {"Horizontal", "Vertical", "Diagonale \\", "Diagonale /"};
 
-        // Affichage des patterns directionnels (Attaque)
-        EM_ASM_({ console.log("%c\n[ATTAQUE]", "color: #ff4444; font-weight: bold;"); });
-        for (int dir = 0; dir < 4; dir++)
-        {
-            if (attackBreakdown->patternScores[dir] > 0)
-            {
-                EM_ASM_({ console.log("  %s: %s (%d stones, %d open) → +%s",
-                                      UTF8ToString($0),
-                                      UTF8ToString($1),
-                                      $2, $3,
-                                      $4.toLocaleString()); }, dirNames[dir], attackBreakdown->patternTypes[dir], attackBreakdown->patternCounts[dir], attackBreakdown->patternOpenEnds[dir], attackBreakdown->patternScores[dir]);
-            }
-        }
-
-        // Affichage des captures (Attaque)
-        if (attackBreakdown->captureCount > 0)
-        {
-            EM_ASM_({ console.log("%cCaptures: %d paires → +%s",
-                                  "color: #ff6b35;",
-                                  $0, $1.toLocaleString()); }, attackBreakdown->captureCount, attackBreakdown->captureScore);
-        }
-
-        // Affichage de la centralité (Attaque)
-        EM_ASM_({ console.log("%cCentralité: → +%s",
-                              "color: #95e1d3;",
-                              $0.toLocaleString()); }, attackBreakdown->centralityBonus);
-
-        EM_ASM_({ console.log("Score Attaque: %s", $0.toLocaleString()); }, attackBreakdown->totalScore);
-
-        // Si breakdown défensif fourni, l'afficher
-        if (defenseBreakdown)
-        {
-            EM_ASM_({
-                console.log("%c\n[DEFENSE]", "color: #4444ff; font-weight: bold;");
-            });
-
-            for (int dir = 0; dir < 4; dir++)
-            {
-                if (defenseBreakdown->patternScores[dir] > 0)
-                {
-                    EM_ASM_({ console.log("  %s: %s (%d stones, %d open) → +%s",
-                                          UTF8ToString($0),
-                                          UTF8ToString($1),
-                                          $2, $3,
-                                          $4.toLocaleString()); }, dirNames[dir], defenseBreakdown->patternTypes[dir], defenseBreakdown->patternCounts[dir], defenseBreakdown->patternOpenEnds[dir], defenseBreakdown->patternScores[dir]);
-                }
-            }
-
-            if (defenseBreakdown->captureCount > 0)
-            {
-                EM_ASM_({ console.log("%cCaptures: %d paires → +%s",
-                                      "color: #ff6b35;",
-                                      $0, $1.toLocaleString()); }, defenseBreakdown->captureCount, defenseBreakdown->captureScore);
-            }
-
-            EM_ASM_({ console.log("%cCentralité: → +%s",
-                                  "color: #95e1d3;",
-                                  $0.toLocaleString()); }, defenseBreakdown->centralityBonus);
-
-            EM_ASM_({ console.log("Score Défense brut: %s", $0.toLocaleString()); }, defenseBreakdown->totalScore);
-
-            int defenseTotal = defenseBreakdown->totalScore * defenseMultiplier;
-            EM_ASM_({ console.log("× " + $0.toFixed(1) + " = %s", $1.toLocaleString()); }, defenseMultiplier, defenseTotal);
-        }
+        EM_ASM_({ console.log("%c[AI BEST MOVE DECISION]", "color: #00ff00; font-weight: bold;",
+                              $0.toLocaleString()); }, score);
     }
+    else
+    {
 
-    // Score total
-    EM_ASM_({ console.log("%c\nSCORE DECISION: %s",
-                          "color: #ffd700; font-weight: bold; font-size: 14px;",
-                          $0.toLocaleString()); }, realScore);
+        EM_ASM_({ console.log("%c\nSCORE DECISION: %s",
+                              "color: #ffd700; font-weight: bold; font-size: 14px;",
+                              $0.toLocaleString()); }, score);
+    }
+    EM_ASM_({ console.groupEnd(); });
 
     EM_ASM_({ console.groupEnd(); });
 }
+
 #endif
 
 // Zobrist hashing - Ai brain, to remember pattern and avoid double computation
@@ -212,6 +119,11 @@ bool GomokuAI::isValidMove(int row, int col)
 
 void GomokuAI::getBestMove(int &bestRow, int &bestCol)
 {
+
+#ifdef DEBUG_AI_LOGS
+    EM_ASM_({ console.group("%c[AI PROCESSING BEST MOVE]", "color: #00d4ff; font-weight: bold;"); });
+#endif
+
     bestRow = bestCol = -1;
 
     int stoneCount = 0;
@@ -224,7 +136,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     {
         bestRow = bestCol = BOARD_SIZE / 2;
 #ifdef DEBUG_AI_LOGS
-        logMoveAnalysis(bestRow, bestCol, aiPlayer, "Opening (Hard-coded center)", 0);
+        logMoveAnalysis(bestRow, bestCol, aiPlayer, 0);
 #endif
         return;
     }
@@ -241,7 +153,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             bestRow = bestCol = BOARD_SIZE / 2;
         }
 #ifdef DEBUG_AI_LOGS
-        logMoveAnalysis(bestRow, bestCol, aiPlayer, "Opening (Near center)", 0);
+        logMoveAnalysis(bestRow, bestCol, aiPlayer, 0);
 #endif
         return;
     }
@@ -280,7 +192,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
                 }
             }
 #ifdef DEBUG_AI_LOGS
-            logMoveAnalysis(bestRow, bestCol, aiPlayer, "Winning Move (5 aligned or 10 captures)", SCORE_FIVE);
+            logMoveAnalysis(bestRow, bestCol, aiPlayer, SCORE_FIVE, true);
 #endif
             return;
         }
@@ -304,7 +216,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
                 }
             }
 #ifdef DEBUG_AI_LOGS
-            logMoveAnalysis(bestRow, bestCol, aiPlayer, "Forced Block (Opponent winning threat)", SCORE_FIVE);
+            logMoveAnalysis(bestRow, bestCol, aiPlayer, SCORE_FIVE, true);
 #endif
             return;
         }
@@ -349,6 +261,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         int score = -minimax(depth - 1, -beta, -alpha, humanPlayer);
         undoMove();
 
+#ifdef DEBUG_AI_LOGS
+        logMoveAnalysis(candidates[i].row, candidates[i].col, aiPlayer, score);
+#endif
+
         if (score > alpha)
         {
             alpha = score;
@@ -372,7 +288,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     }
 
 #ifdef DEBUG_AI_LOGS
-    logMoveAnalysis(bestRow, bestCol, aiPlayer, "Minimax Deep Search", alpha);
+    logMoveAnalysis(bestRow, bestCol, aiPlayer, bestScore, true);
 #endif
 }
 
@@ -410,7 +326,7 @@ bool GomokuAI::checkWinQuick(int row, int col, int player)
     return captures + potentialCaptures >= MAX_CAPTURE_STONES;
 }
 
-int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *details)
+int GomokuAI::evaluateMoveQuick(int row, int col, int player)
 {
     int score = 0;
     int captureCount = GomokuRules::checkCaptures(board, row, col, player);
@@ -452,94 +368,52 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *de
         {
         case 5:
             patternScore = SCORE_FIVE;
-            patternType = "Five";
             break;
         case 4:
 
             if (openEnds == 2)
-            {
                 patternScore = SCORE_LIVE_FOUR;
-                patternType = "Live Four";
-            }
             else
-            {
                 patternScore = SCORE_DEAD_FOUR;
-                patternType = "Dead Four";
-            }
             break;
         case 3:
 
             if (openEnds == 2)
-            {
                 patternScore = SCORE_LIVE_THREE;
-                patternType = "Live Three";
-            }
             else
-            {
                 patternScore = SCORE_DEAD_THREE;
-                patternType = "Dead Three";
-            }
             break;
         case 2:
 
             if (openEnds == 2)
-            {
                 patternScore = SCORE_LIVE_TWO;
-                patternType = "Live Two";
-            }
             else
-            {
                 patternScore = SCORE_DEAD_TWO;
-                patternType = "Dead Two";
-            }
+
             break;
         case 1:
             patternScore = SCORE_ONE;
-            patternType = "One";
             break;
 
         default:
             break;
         }
 
-        if (details)
-        {
-            details->patternScores[dir] = patternScore;
-            details->patternCounts[dir] = count;
-            details->patternOpenEnds[dir] = openEnds;
-            details->patternTypes[dir] = patternType;
-        }
-
         score += patternScore;
     }
 
-    int captureScore = captureCount * SCORE_LIVE_THREE * 1.1;
+    int captureScore = captureCount * SCORE_LIVE_THREE;
     score += captureScore;
-
-    if (details)
-    {
-        details->captureCount = captureCount;
-        details->captureScore = captureScore;
-    }
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
     int centralityBonus = (BOARD_SIZE - centerDist) * 50;
     score += centralityBonus;
-
-    if (details)
-    {
-        details->centralityBonus = centralityBonus;
-        details->totalScore = score;
-    }
 
     return score;
 }
 
 int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 {
-#ifdef DEBUG_AI_LOGS
-    logMinimaxEvent(depth, "ENTRY", alpha, beta);
-#endif
 
     if (depth == 0)
         return evaluateBoard(player);
@@ -559,9 +433,6 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 
             if (usable)
             {
-#ifdef DEBUG_AI_LOGS
-                logMinimaxEvent(depth, "TT_HIT", entry.score);
-#endif
                 return entry.score;
             }
         }
@@ -602,20 +473,10 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
             bestScore = score;
 
         if (score > alpha)
-        {
             alpha = score;
-#ifdef DEBUG_AI_LOGS
-            logMinimaxEvent(depth, "UPDATE", score, move.row, move.col);
-#endif
-        }
 
         if (alpha >= beta)
-        {
-#ifdef DEBUG_AI_LOGS
-            logMinimaxEvent(depth, "CUTOFF", score, beta);
-#endif
             break;
-        }
     }
 
     TTEntry entry;
@@ -650,7 +511,15 @@ std::vector<Move> GomokuAI::getCandidateMoves(int player)
 
                         if (GomokuRules::isEmptyCell(board, nr, nc) && !visited[nr][nc])
                         {
-                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID && !GomokuRules::isStoneCapturable(board, nr, nc, getOpponent(player)))
+                            int potentialCapture = GomokuRules::checkCaptures(board, nr, nc, player);
+
+                            if (potentialCapture == 0 && GomokuRules::isStoneCapturable(board, nr, nc, getOpponent(player)))
+                            {
+                                visited[nr][nc] = true;
+                                continue;
+                            }
+
+                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID)
                             {
                                 candidates.push_back(Move(nr, nc, 0));
                                 visited[nr][nc] = true;
