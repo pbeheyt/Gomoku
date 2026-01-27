@@ -413,11 +413,7 @@ bool GomokuAI::checkWinQuick(int row, int col, int player)
 int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown *details)
 {
     int score = 0;
-    bool isStoneCapturable = GomokuRules::isStoneCapturable(board, row, col, getOpponent(player));
     int captureCount = GomokuRules::checkCaptures(board, row, col, player);
-
-    if (isStoneCapturable && captureCount == 0)
-        score -= SCORE_DEAD_FOUR * 1.1;
 
     for (int dir = 0; dir < 4; dir++)
     {
@@ -654,7 +650,7 @@ std::vector<Move> GomokuAI::getCandidateMoves(int player)
 
                         if (GomokuRules::isEmptyCell(board, nr, nc) && !visited[nr][nc])
                         {
-                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID)
+                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID && !GomokuRules::isStoneCapturable(board, nr, nc, getOpponent(player)))
                             {
                                 candidates.push_back(Move(nr, nc, 0));
                                 visited[nr][nc] = true;
