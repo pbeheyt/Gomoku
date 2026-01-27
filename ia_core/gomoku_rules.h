@@ -1,8 +1,3 @@
-/**
- * Moteur de Règles Gomoku - En-tête
- * Logique pure pour les règles du jeu, séparée de la stratégie IA.
- */
-
 #ifndef GOMOKU_RULES_H
 #define GOMOKU_RULES_H
 
@@ -16,7 +11,6 @@
 const int BOARD_SIZE = 19;
 const int MAX_CAPTURE_STONES = 10;
 
-// Représentation des joueurs
 enum Player
 {
     NONE = 0,
@@ -24,17 +18,15 @@ enum Player
     WHITE = 2
 };
 
-// Statuts de validation d'un coup
 enum MoveStatus
 {
     VALID = 0,
-    INVALID_BOUNDS = 1,      // Hors plateau
-    INVALID_OCCUPIED = 2,    // Case déjà prise
-    INVALID_SUICIDE = 3,     // Coup suicidaire (interdit sauf si capture)
-    INVALID_DOUBLE_THREE = 4 // Double-trois (interdit sauf si capture)
+    INVALID_BOUNDS = 1,
+    INVALID_OCCUPIED = 2,
+    INVALID_SUICIDE = 3,
+    INVALID_DOUBLE_THREE = 4
 };
 
-// Structures géométriques
 struct Point
 {
     int r, c;
@@ -45,31 +37,15 @@ struct Direction
     int r, c;
 };
 
-// Axes de vérification (4 directions : Horizontal, Vertical, Diag1, Diag2)
 const Direction AXES[4] = {
     {0, 1}, {1, 0}, {1, 1}, {1, -1}};
 
-// Directions de capture (8 directions autour de la pierre)
 const Direction CAPTURE_DIRECTIONS[8] = {
     {0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}};
-
-// =================================================================================
-//                              CLASSE DE RÈGLES
-// =================================================================================
 
 class GomokuRules
 {
 public:
-    // ============================================================
-    // SECTION PUBLIQUE : API DU MOTEUR
-    // (Seules ces fonctions doivent être appelées depuis l'extérieur)
-    // ============================================================
-
-    /**
-     * VALIDATION MAÎTRE (Point d'entrée principal)
-     * Effectue une validation complète d'un coup.
-     * Simule le coup et les captures pour résoudre les cas limites.
-     */
     static MoveStatus validateMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
 
     // --- Primitives (Lecture Seule) ---
@@ -87,30 +63,25 @@ public:
     static bool checkWin(const int board[BOARD_SIZE][BOARD_SIZE], int player, int lastMovePlayer, int capturedStones);
     static bool checkStalemate(const int board[BOARD_SIZE][BOARD_SIZE], int player);
 
-    // --- Helpers Complexes (Accessibles si besoin spécifique) ---
+    // --- Helpers ---
     static bool isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
     static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
-    // Vérifie si 5 pierres sont alignées ET incassables par capture
     static bool checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
     static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
 
 private:
-    // ============================================================
-    // SECTION PRIVÉE : CUISINE INTERNE
-    // (Helpers utilisés uniquement pour les calculs internes)
-    // ============================================================
 
-    // --- 1. Analyse de Motifs (Patterns) ---
+// --- 1. Analyse de Motifs---
     static bool isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::string getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
     static std::vector<Point> getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player);
 
-    // --- 2. Logique de Paires (Sandwich/Surround) ---
+    // --- 2. Logique de Paires ---
     static bool tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent);
     static bool isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
     static bool isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
 
-    // --- 3. Validation de Victoire (Capture Breaks Win) ---
+    // --- 3. Validation de Victoire ---
     static int getLongestSegment(const std::vector<bool> &isRemoved);
     static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point> &line, int opponent);
 };
@@ -119,11 +90,6 @@ private:
 //                              RAII HELPER
 // =================================================================================
 
-/**
- * ScopedMove (RAII Pattern)
- * Applique un coup à la construction et l'annule automatiquement à la destruction.
- * Sécurise la gestion de l'état du plateau lors des simulations.
- */
 struct ScopedMove
 {
     int (*board)[BOARD_SIZE];
@@ -135,4 +101,4 @@ struct ScopedMove
     ~ScopedMove();
 };
 
-#endif // GOMOKU_RULES_H
+#endif

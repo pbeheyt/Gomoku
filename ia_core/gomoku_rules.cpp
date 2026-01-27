@@ -1,18 +1,11 @@
-/**
- * Moteur de Règles Gomoku - Implémentation
- * Organisation : Bottom-Up (Primitives -> Physique -> Patterns -> Paires -> Règles -> Arbitrage)
- */
-
 #include "gomoku_rules.h"
 #include <algorithm>
 #include <iostream>
 
 // =================================================================================
-//                              0. TEMPLATE HELPERS (INTERNE)
+//                              0. TEMPLATE HELPERS
 // =================================================================================
 
-// Factorise la boucle des 8 directions pour la détection de paires.
-// Predicate signature: bool(board, p1, p2, opponent)
 template <typename Predicate>
 static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int subjectPlayer, Predicate predicate)
 {
@@ -33,7 +26,6 @@ static bool scanNeighborPairs(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
             Point p1 = {row, col};
             Point p2 = {rAdj, cAdj};
 
-            // On délègue la vérification spécifique (Sandwich ou Surround)
             if (predicate(board, p1, p2, opponent))
             {
                 return true;
@@ -128,7 +120,7 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 {
     int opponent = (player == BLACK) ? WHITE : BLACK;
 
-    // 1. Restauration des pierres capturées (remises à l'adversaire)
+    // 1. Restauration des pierres capturées
     for (int i = 0; i < captureCount; i++)
     {
         board[capturedStonesOut[i][0]][capturedStonesOut[i][1]] = opponent;
@@ -138,16 +130,14 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 }
 
 // =================================================================================
-//                              3. ANALYSE DE MOTIFS (PATTERNS)
+//                              3. ANALYSE DE MOTIFS
 // =================================================================================
 
 bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
 {
-    // 1. Buffer sur la Stack (Rapide, pas de malloc)
     // Mapping: 0 = Empty, 1 = Player, 2 = Block/Opponent
     int window[11];
 
-    // 2. Remplissage du buffer (-5 à +5 autour du coup)
     for (int i = -5; i <= 5; i++)
     {
         int r = row + i * dir.r;
@@ -155,7 +145,7 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 
         if (!isOnBoard(r, c))
         {
-            window[i + 5] = 2; // Hors plateau -> Bloquant
+            window[i + 5] = 2;
         }
         else
         {
@@ -165,13 +155,10 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
             else if (p == NONE)
                 window[i + 5] = 0;
             else
-                window[i + 5] = 2; // Adversaire -> Bloquant
+                window[i + 5] = 2;
         }
     }
 
-    // 3. Vérification des motifs (Scan direct)
-    // Les motifs font 6 de large. Positions de départ possibles : index 0 à 5.
-    // Motifs codés :
     // __PPP_ : 0 0 1 1 1 0
     // _PPP__ : 0 1 1 1 0 0
     // _P_PP_ : 0 1 0 1 1 0
@@ -179,25 +166,23 @@ bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, 
 
     for (int s = 0; s <= 5; s++)
     {
-        // Optimisation : Tous les Free-Threes valides sont bornés par des cases vides (0)
+        // Tous les Free-Threes valides sont bornés par des cases vides (0)
         if (window[s] != 0 || window[s + 5] != 0)
             continue;
 
-        // Vérification du corps du motif (indices relatifs 1, 2, 3, 4)
-
-        // __PPP_ (0 0 1 1 1 0) -> Corps: 0 1 1 1
+        // 0 0 1 1 1 0
         if (window[s + 1] == 0 && window[s + 2] == 1 && window[s + 3] == 1 && window[s + 4] == 1)
             return true;
 
-        // _PPP__ (0 1 1 1 0 0) -> Corps: 1 1 1 0
+        // 0 1 1 1 0 0
         if (window[s + 1] == 1 && window[s + 2] == 1 && window[s + 3] == 1 && window[s + 4] == 0)
             return true;
 
-        // _P_PP_ (0 1 0 1 1 0) -> Corps: 1 0 1 1
+        // 0 1 0 1 1 0
         if (window[s + 1] == 1 && window[s + 2] == 0 && window[s + 3] == 1 && window[s + 4] == 1)
             return true;
 
-        // _PP_P_ (0 1 1 0 1 0) -> Corps: 1 1 0 1
+        // 0 1 1 0 1 0
         if (window[s + 1] == 1 && window[s + 2] == 1 && window[s + 3] == 0 && window[s + 4] == 1)
             return true;
     }
@@ -219,30 +204,23 @@ bool GomokuRules::checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int ro
 }
 
 // =================================================================================
-//                              4. LOGIQUE DE PAIRES (HELPER)
+//                              4. LOGIQUE DE PAIRES
 // =================================================================================
 
-/**
- * Vérifie si l'adversaire peut légalement jouer à la position (r, c).
- */
 bool GomokuRules::tryCaptureAt(const int board[BOARD_SIZE][BOARD_SIZE], int r, int c, int opponent)
 {
     if (!isEmptyCell(board, r, c))
         return false;
-    // On doit cast le board car validateMove a besoin d'un pointeur non-const pour simuler
     auto mutableBoard = const_cast<int (*)[BOARD_SIZE]>(board);
     return validateMove(mutableBoard, r, c, opponent) == VALID;
 }
 
-/**
- * Motif [O P P _] ou [_ P P O] -> Capture Potentielle
- */
 bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent)
 {
     int dr = p2.r - p1.r;
     int dc = p2.c - p1.c;
 
-    // Arrière (côté P1)
+    // Arrière (P1)
     int rBack = p1.r - dr;
     int cBack = p1.c - dc;
 
@@ -267,9 +245,6 @@ bool GomokuRules::isPairSandwiched(const int board[BOARD_SIZE][BOARD_SIZE], Poin
     return false;
 }
 
-/**
- * Motif [O P P O] -> Suicide / Capture Immédiate
- */
 bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent)
 {
     int dr = p2.r - p1.r;
@@ -287,12 +262,11 @@ bool GomokuRules::isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Poin
 }
 
 // =================================================================================
-//                              5. VALIDATION DE VICTOIRE (HELPERS)
+//                              5. VALIDATION DE VICTOIRE
 // =================================================================================
 
 bool GomokuRules::isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent)
 {
-    // Le sujet est la pierre à (row, col), son adversaire est 'opponent'.
     int subjectPlayer = (opponent == BLACK) ? WHITE : BLACK;
     return scanNeighborPairs(board, row, col, subjectPlayer, isPairSandwiched);
 }
@@ -337,7 +311,6 @@ bool GomokuRules::isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZ
 
 bool GomokuRules::isSuicideMove(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt)
 {
-    // Règle Suicide : Interdit de créer le motif [O X X O]
     return scanNeighborPairs(board, row, col, playerInt, isPairSurrounded);
 }
 
@@ -359,7 +332,7 @@ bool GomokuRules::checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int 
 }
 
 // =================================================================================
-//                              7. ARBITRAGE (WIN & STALEMATE)
+//                              7. ARBITRAGE
 // =================================================================================
 
 bool GomokuRules::checkWinAt(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int playerInt, int lastMovePlayer, int capturedStones)
