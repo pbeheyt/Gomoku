@@ -26,6 +26,16 @@ build: up install wasm tsc copy-static
 	@echo "\n\033[1;32m✅ Build terminé.\033[0m"
 	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
 
+# Build en mode DEBUG avec logs IA activés
+build-debug: up install wasm-debug tsc copy-static
+	@echo "Empaquetage de l'application (DEBUG MODE)..."
+	@$(DOCKER_EXEC) npm run build
+	@echo "Création du lien symbolique..."
+	@ln -sf dist/linux-unpacked/Gomoku $(NAME)
+	@echo "\n\033[1;32m✅ Build DEBUG terminé.\033[0m"
+	@echo "\n\033[1;33mLes logs IA s'afficheront dans la console DevTools (F12)\033[0m\n"
+	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
+
 re: fclean all
 
 # --- Sous-Tâches (Étapes de build) ---
@@ -50,6 +60,19 @@ wasm:
 	@echo "Compilation Wasm..."
 	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp ia_core/gomoku_rules.cpp ia_core/gomoku_bridge.cpp -o src/renderer/ia_core.js \
 		-O3 \
+		-s WASM=1 \
+		-s MODULARIZE=1 \
+		-s EXPORT_NAME="GomokuAI" \
+		-s EXPORTED_FUNCTIONS='["_initAI", "_setBoard", "_makeMove", "_getBestMove", "_cleanupAI", "_get_board_buffer", "_rules_validateMove", "_rules_checkWinAt", "_rules_checkWin" , "_rules_checkCaptures", "_rules_checkStalemate", "_getAiCandidateMoves"]' \
+		-s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "intArrayFromString", "writeArrayToMemory"]' \
+		-s ALLOW_MEMORY_GROWTH=1
+
+# Compilation Wasm en mode Debug avec logs détaillés de l'IA
+wasm-debug:
+	@echo "Compilation Wasm (DEBUG MODE)..."
+	@$(DOCKER_EXEC) emcc ia_core/gomoku_ai.cpp ia_core/gomoku_rules.cpp ia_core/gomoku_bridge.cpp -o src/renderer/ia_core.js \
+		-O3 \
+		-D DEBUG_AI_LOGS \
 		-s WASM=1 \
 		-s MODULARIZE=1 \
 		-s EXPORT_NAME="GomokuAI" \
