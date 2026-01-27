@@ -1,4 +1,3 @@
-
 #include "gomoku_ai.h"
 #include <algorithm>
 #include <climits>
@@ -31,6 +30,34 @@ const int SCORE_ONE = 1000;
 const float DEFENSE_MULTIPLIER = 1.1f;
 
 #ifdef DEBUG_AI_LOGS
+// Helper pour logger les etapes du Minimax sans emojis
+void logMinimaxEvent(int depth, const char* type, int val1, int val2 = 0, int val3 = 0)
+{
+    // On ne logue que les 4 premiers niveaux (ex: 10, 9, 8, 7) pour eviter le spam
+    if (depth < 7) return;
+
+    EM_ASM_({
+        var depth = $0;
+        var type = UTF8ToString($1);
+        var v1 = $2;
+        var v2 = $3;
+        var v3 = $4;
+        
+        // Indentation visuelle
+        var indent = " ".repeat((10 - depth) * 2);
+        
+        if (type === "ENTRY") {
+             console.log("%c" + indent + "[D" + depth + "] SEARCH | Alpha: " + v1 + " Beta: " + v2, "color: #00d4ff");
+        } else if (type === "UPDATE") {
+             console.log("%c" + indent + "  > BEST: " + v1 + " (Move " + v2 + "," + v3 + ")", "color: #44ff44");
+        } else if (type === "CUTOFF") {
+             console.log("%c" + indent + "  ! CUTOFF ! Score " + v1 + " >= Beta " + v2, "color: #ff4444; font-weight:bold");
+        } else if (type === "TT_HIT") {
+             console.log("%c" + indent + "  [TT] CACHE HIT Score: " + v1, "color: #ffff00");
+        }
+    }, depth, type, val1, val2, val3);
+}
+
 void logMoveAnalysis(int row, int col, int player, const char* decisionMode, int realScore, const ScoreBreakdown* attackBreakdown = nullptr, const ScoreBreakdown* defenseBreakdown = nullptr, float defenseMultiplier = 1.0f)
 {
     EM_ASM_({ console.group("%c[AI MOVE ANALYSIS]", "color: #00d4ff; font-weight: bold;"); });
@@ -545,6 +572,10 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player, ScoreBreakdown* de
 
 int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 {
+#ifdef DEBUG_AI_LOGS
+    logMinimaxEvent(depth, "ENTRY", alpha, beta);
+#endif
+
     if (depth == 0)
         return evaluateBoard(player);
 
@@ -553,12 +584,17 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
         TTEntry &entry = transpositionTable[currentHash];
         if (entry.depth >= depth)
         {
-            if (entry.flag == 0)
+            bool usable = false;
+            if (entry.flag == 0) usable = true;
+            else if (entry.flag == 1 && entry.score <= alpha) usable = true;
+            else if (entry.flag == 2 && entry.score >= beta) usable = true;
+
+            if (usable) {
+#ifdef DEBUG_AI_LOGS
+                logMinimaxEvent(depth, "TT_HIT", entry.score);
+#endif
                 return entry.score;
-            if (entry.flag == 1 && entry.score <= alpha)
-                return alpha;
-            if (entry.flag == 2 && entry.score >= beta)
-                return beta;
+            }
         }
     }
 
@@ -595,10 +631,20 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 
         if (score > bestScore)
             bestScore = score;
-        if (score > alpha)
+        
+        if (score > alpha) {
             alpha = score;
-        if (alpha >= beta)
+#ifdef DEBUG_AI_LOGS
+            logMinimaxEvent(depth, "UPDATE", score, move.row, move.col);
+#endif
+        }
+        
+        if (alpha >= beta) {
+#ifdef DEBUG_AI_LOGS
+            logMinimaxEvent(depth, "CUTOFF", score, beta);
+#endif
             break;
+        }
     }
 
     TTEntry entry;
