@@ -112,7 +112,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     }
 
     std::vector<Move> candidates = getCandidateMoves(aiPlayer);
-    
+
     // Store ALL candidates for Debug Heatmap (Type 0 = Yellow)
     aiCandidateMoves = candidates;
 
@@ -135,8 +135,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             bestRow = move.row;
             bestCol = move.col;
             // Mark winning move as Type 2 (Purple - One Shot)
-            for (auto &dm : aiCandidateMoves) {
-                if (dm.row == move.row && dm.col == move.col) {
+            for (auto &dm : aiCandidateMoves)
+            {
+                if (dm.row == move.row && dm.col == move.col)
+                {
                     dm.score = SCORE_FIVE;
                     dm.algoType = 2;
                     break;
@@ -154,8 +156,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             bestRow = move.row;
             bestCol = move.col;
             // Mark forced block as Type 2 (Purple - One Shot)
-            for (auto &dm : aiCandidateMoves) {
-                if (dm.row == move.row && dm.col == move.col) {
+            for (auto &dm : aiCandidateMoves)
+            {
+                if (dm.row == move.row && dm.col == move.col)
+                {
                     dm.score = SCORE_FIVE;
                     dm.algoType = 2;
                     break;
@@ -170,8 +174,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         move.score = score;
 
         // Update heuristic score in debug list (Type 0)
-        for (auto &dm : aiCandidateMoves) {
-            if (dm.row == move.row && dm.col == move.col) {
+        for (auto &dm : aiCandidateMoves)
+        {
+            if (dm.row == move.row && dm.col == move.col)
+            {
                 dm.score = score;
                 break;
             }
@@ -189,8 +195,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     {
         // Heuristic found a very strong move (Live Three+), skipping Minimax.
         // Mark the chosen move as Type 2 (Purple - One Shot).
-        for (auto &dm : aiCandidateMoves) {
-            if (dm.row == bestRow && dm.col == bestCol) {
+        for (auto &dm : aiCandidateMoves)
+        {
+            if (dm.row == bestRow && dm.col == bestCol)
+            {
                 dm.algoType = 2;
                 break;
             }
@@ -223,8 +231,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         }
 
         // Update the candidate in the global list with Minimax score and Type 1 (Red)
-        for (auto &debugMove : aiCandidateMoves) {
-            if (debugMove.row == candidates[i].row && debugMove.col == candidates[i].col) {
+        for (auto &debugMove : aiCandidateMoves)
+        {
+            if (debugMove.row == candidates[i].row && debugMove.col == candidates[i].col)
+            {
                 debugMove.score = std::max(candidates[i].score, score);
                 debugMove.algoType = 1; // Mark as analyzed by Minimax
                 break;
@@ -303,15 +313,41 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
         if (GomokuRules::isEmptyCell(board, r, c))
             openEnds++;
 
-        // Score pattern
-        if (count >= 5)
+        bool isStoneCapturable = GomokuRules::isStoneCapturable(board, row, col, getOpponent(player));
+
+        switch (count)
+        {
+        case 5:
             score += SCORE_FIVE;
-        else if (count == 4)
+            break;
+
+        case 4:
             score += (openEnds == 2) ? SCORE_LIVE_FOUR : SCORE_DEAD_FOUR;
-        else if (count == 3)
+            if (isStoneCapturable)
+                score -= SCORE_DEAD_FOUR / 2;
+            break;
+        case 3:
             score += (openEnds == 2) ? SCORE_LIVE_THREE : SCORE_DEAD_THREE;
-        else if (count == 2)
+            if (isStoneCapturable)
+                score -= SCORE_DEAD_THREE / 2;
+            break;
+        case 2:
             score += (openEnds == 2) ? SCORE_LIVE_TWO : SCORE_DEAD_TWO;
+            if (isStoneCapturable)
+                score -= SCORE_DEAD_TWO / 2;
+            break;
+
+        default:
+            break;
+        }
+        // if (count >= 5)
+        //     score += SCORE_FIVE;
+        // else if (count == 4)
+        //     score += (openEnds == 2) ? SCORE_LIVE_FOUR : SCORE_DEAD_FOUR;
+        // else if (count == 3)
+        //     score += (openEnds == 2) ? SCORE_LIVE_THREE : SCORE_DEAD_THREE;
+        // else if (count == 2)
+        //     score += (openEnds == 2) ? SCORE_LIVE_TWO : SCORE_DEAD_TWO;
     }
 
     score += GomokuRules::checkCaptures(board, row, col, player) * SCORE_LIVE_THREE;
