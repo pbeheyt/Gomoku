@@ -141,39 +141,13 @@ void GomokuRules::undoMove(int board[BOARD_SIZE][BOARD_SIZE], int row, int col, 
 //                              3. ANALYSE DE MOTIFS (PATTERNS)
 // =================================================================================
 
-std::vector<Point> GomokuRules::getConsecutiveLine(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
+bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
 {
-    std::vector<Point> line;
-    line.reserve(9); // Optimisation : évite les réallocations pour une ligne max de 9
-    line.push_back({row, col});
+    // 1. Buffer sur la Stack (Rapide, pas de malloc)
+    // Mapping: 0 = Empty, 1 = Player, 2 = Block/Opponent
+    int window[11];
 
-    // Scanner direction positive
-    int r = row + dir.r;
-    int c = col + dir.c;
-    while (getPlayerAt(board, r, c) == static_cast<Player>(player))
-    {
-        line.push_back({r, c});
-        r += dir.r;
-        c += dir.c;
-    }
-
-    // Scanner direction négative (insérer au début pour garder l'ordre)
-    r = row - dir.r;
-    c = col - dir.c;
-    while (getPlayerAt(board, r, c) == static_cast<Player>(player))
-    {
-        line.insert(line.begin(), {r, c});
-        r -= dir.r;
-        c -= dir.c;
-    }
-    return line;
-}
-
-std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int playerInt)
-{
-    Player player = static_cast<Player>(playerInt);
-    std::string line = "";
-    // Scanner une fenêtre de -5 à +5 autour du point
+    // 2. Remplissage du buffer (-5 à +5 autour du coup)
     for (int i = -5; i <= 5; i++)
     {
         int r = row + i * dir.r;
@@ -181,34 +155,53 @@ std::string GomokuRules::getLinePattern(const int board[BOARD_SIZE][BOARD_SIZE],
 
         if (!isOnBoard(r, c))
         {
-            line += 'O'; // Mur/Adversaire (Bloquant)
+            window[i + 5] = 2; // Hors plateau -> Bloquant
         }
         else
         {
-            Player p = getPlayerAt(board, r, c);
+            int p = board[r][c];
             if (p == player)
-                line += 'P';
+                window[i + 5] = 1;
             else if (p == NONE)
-                line += '_';
+                window[i + 5] = 0;
             else
-                line += 'O'; // Adversaire (Bloquant)
+                window[i + 5] = 2; // Adversaire -> Bloquant
         }
     }
-    return line;
-}
 
-bool GomokuRules::isFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, Direction dir, int player)
-{
-    std::string line = getLinePattern(board, row, col, dir, player);
+    // 3. Vérification des motifs (Scan direct)
+    // Les motifs font 6 de large. Positions de départ possibles : index 0 à 5.
+    // Motifs codés :
+    // __PPP_ : 0 0 1 1 1 0
+    // _PPP__ : 0 1 1 1 0 0
+    // _P_PP_ : 0 1 0 1 1 0
+    // _PP_P_ : 0 1 1 0 1 0
 
-    // Motifs stricts de Free-Three (Doivent permettre de créer un Open-Four _PPPP_)
-    const char *patterns[] = {"__PPP_", "_PPP__", "_P_PP_", "_PP_P_"};
-
-    for (int i = 0; i < 4; i++)
+    for (int s = 0; s <= 5; s++)
     {
-        if (line.find(patterns[i]) != std::string::npos)
+        // Optimisation : Tous les Free-Threes valides sont bornés par des cases vides (0)
+        if (window[s] != 0 || window[s + 5] != 0)
+            continue;
+
+        // Vérification du corps du motif (indices relatifs 1, 2, 3, 4)
+
+        // __PPP_ (0 0 1 1 1 0) -> Corps: 0 1 1 1
+        if (window[s + 1] == 0 && window[s + 2] == 1 && window[s + 3] == 1 && window[s + 4] == 1)
+            return true;
+
+        // _PPP__ (0 1 1 1 0 0) -> Corps: 1 1 1 0
+        if (window[s + 1] == 1 && window[s + 2] == 1 && window[s + 3] == 1 && window[s + 4] == 0)
+            return true;
+
+        // _P_PP_ (0 1 0 1 1 0) -> Corps: 1 0 1 1
+        if (window[s + 1] == 1 && window[s + 2] == 0 && window[s + 3] == 1 && window[s + 4] == 1)
+            return true;
+
+        // _PP_P_ (0 1 1 0 1 0) -> Corps: 1 1 0 1
+        if (window[s + 1] == 1 && window[s + 2] == 1 && window[s + 3] == 0 && window[s + 4] == 1)
             return true;
     }
+
     return false;
 }
 

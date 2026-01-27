@@ -92,6 +92,7 @@ public:
     static bool checkDoubleThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
     // Vérifie si 5 pierres sont alignées ET incassables par capture
     static bool checkFreeThree(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int player);
+    static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
 
 private:
     // ============================================================
@@ -110,7 +111,6 @@ private:
     static bool isPairSurrounded(const int board[BOARD_SIZE][BOARD_SIZE], Point p1, Point p2, int opponent);
 
     // --- 3. Validation de Victoire (Capture Breaks Win) ---
-    static bool isStoneCapturable(const int board[BOARD_SIZE][BOARD_SIZE], int row, int col, int opponent);
     static int getLongestSegment(const std::vector<bool> &isRemoved);
     static bool isLineBreakableByCapture(const int board[BOARD_SIZE][BOARD_SIZE], const std::vector<Point> &line, int opponent);
 };
