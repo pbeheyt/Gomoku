@@ -21,9 +21,7 @@ export interface CaptureResult {
   newCaptureCount: number;
 }
 
-// Unité atomique d'historique.
-// Contient tout le contexte nécessaire (position + temps + conséquences)
-// pour permettre un Replay sans recalcul.
+
 export interface Move {
   position: Position;
   player: Player;
@@ -31,9 +29,8 @@ export interface Move {
   blackTime: number; // Temps cumulé au moment du coup
   whiteTime: number; // Temps cumulé au moment du coup
   captures: CaptureResult[]; // Snapshot des captures pour le replay
+  debugData?: DebugMove[]; // Données heatmap
 }
-
-// Snapshot complet de l'état du jeu.
 export interface GameState {
   board: Player[][];
   currentPlayer: Player;

@@ -142,16 +142,14 @@ class GameController {
     });
 
     // Toggle Debug
-    this.ui.bindDebugToggle(async (enabled) => {
-        if (enabled) {
-            if (this.wasmAI && this.renderer) {
-                try {
-                    const debugData = await this.wasmAI.getDebugData();
-                    if (debugData.length > 0) {
-                        this.renderer.drawHeatmap(debugData);
-                    }
-                } catch (error) {
-                    console.warn("Impossible de récupérer les données de debug", error);
+    this.ui.bindDebugToggle((enabled) => {
+        if (enabled && this.renderer) {
+            const current = this.game.getCurrentMoveIndex();
+            if (current > 0) {
+                const history = this.game.getMoveHistory();
+                const lastMove = history[current - 1];
+                if (lastMove?.debugData) {
+                    this.renderer.drawHeatmap(lastMove.debugData);
                 }
             }
         } else {
@@ -364,6 +362,21 @@ class GameController {
           }
           this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
           return;
+        }
+        
+        // Sauvegarde des debugData pour heatmap si mode PvAI
+        if (this.currentMode === GameMode.PLAYER_VS_AI && this.wasmAI) {
+            const previousPlayer = this.game.getCurrentPlayer() === Player.BLACK ? Player.WHITE : Player.BLACK;
+            if (this.players[previousPlayer] === 'AI_WASM') {
+                try {
+                    const debugData = await this.wasmAI.getDebugData();
+                    if (debugData.length > 0) {
+                        this.game.attachDebugDataToLastMove(debugData);
+                    }
+                } catch (error) {
+                    console.warn("Impossible de sauvegarder debugData", error);
+                }
+            }
         }
         
         this.hoverPosition = null;
@@ -676,6 +689,13 @@ class GameController {
             if (lastMove) {
                 this.blackTimeTotal = lastMove.blackTime;
                 this.whiteTimeTotal = lastMove.whiteTime;
+                
+                if (this.ui.isDebugEnabled() && 
+                    this.currentMode === GameMode.PLAYER_VS_AI && 
+                    lastMove.debugData && 
+                    this.renderer) {
+                    this.renderer.drawHeatmap(lastMove.debugData);
+                }
             }
         }
         

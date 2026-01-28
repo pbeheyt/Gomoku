@@ -6,6 +6,7 @@ import {
   CaptureResult,
   ValidationResult,
   GameMode,
+  DebugMove,
 } from "./types.js";
 import { GameBoard, BOARD_SIZE } from "./board.js";
 import {
@@ -314,6 +315,12 @@ export class GomokuGame {
   }
   getBoard(): GameBoard {
     return this.board;
+  }
+
+  attachDebugDataToLastMove(debugData: DebugMove[]): void {
+    if (this.moveHistory.length === 0) return;
+    const lastMove = this.moveHistory[this.moveHistory.length - 1];
+    lastMove.debugData = debugData;
   }
 
   private async checkStalemate(player: Player): Promise<boolean> {
