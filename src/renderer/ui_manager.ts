@@ -208,7 +208,7 @@ export class UIManager {
 
   public showLeaderboardModal(): void {
     const html = LeaderboardManager.generateHTML();
-    this.showModal('Scores', html, [{ text: 'Fermer', callback: () => {} }]);
+    this.showModal('Scores', html, [{ text: 'Fermer', callback: () => {} }], 'modal-box-wide');
   }
 
   public setWinnerMessage(winner: Player): void {
@@ -298,8 +298,16 @@ export class UIManager {
   }
 
   // Affiche une modale générique
-  public showModal(title: string, contentHTML: string, buttons: ModalButton[]): void {
+  public showModal(title: string, contentHTML: string, buttons: ModalButton[], customClass?: string): void {
     if (!this.genericModalEl || !this.modalTitleEl || !this.modalBodyEl || !this.modalFooterEl) return;
+    
+    const modalBox = this.genericModalEl.querySelector('.modal-box');
+    if (modalBox) {
+      modalBox.className = 'modal-box';
+      if (customClass) {
+        modalBox.classList.add(customClass);
+      }
+    }
     
     this.modalTitleEl.textContent = title;
     this.modalBodyEl.innerHTML = contentHTML;

@@ -358,6 +358,17 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 .player-info.active-player .player-name { color: var(--text-primary); }
 
 /* Leaderboard Table */
+.leaderboard-grid {
+    display: flex;
+    gap: 60px;
+    width: 100%;
+}
+
+.leaderboard-column {
+    flex: 1;
+    min-width: 0;
+}
+
 .leaderboard-table {
     width: 100%;
     border-collapse: collapse;
@@ -477,6 +488,9 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     max-width: 600px;
     position: relative;
+}
+.modal-box.modal-box-wide {
+    max-width: 1200px;
 }
 .modal-close-icon {
     position: absolute;

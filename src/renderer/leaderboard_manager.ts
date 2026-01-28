@@ -84,17 +84,17 @@ export class LeaderboardManager {
   }
 
   public static generateHTML(): string {
-    const topGames = this.getTopGames(3);
+    const topGames = this.getTopGames(5);
     const recentGames = this.getRecentGames(5);
     
-    let html = '';
+    let html = '<div class="leaderboard-grid">';
 
-    // --- TOP 3 MEILLEURES PARTIES ---
+    // --- TOP 5 MEILLEURES PARTIES ---
     html += `
-      <div style="margin-bottom: 30px;">
+      <div class="leaderboard-column">
         <h3 style="text-align:center; color:#ffd700; margin-bottom:10px; font-size:1.2rem;">Meilleures Performances</h3>
         <p style="text-align:center; margin-bottom:15px; color:#aaa; font-size:0.85rem;">
-          Top 3 des meilleurs scores
+          Top 5 des meilleurs scores
         </p>
     `;
 
@@ -102,7 +102,6 @@ export class LeaderboardManager {
       html += '<p style="text-align:center; color:#666; font-style:italic;">Aucune partie enregistrée</p>';
     } else {
       html += `
-        <div style="max-height: 300px; overflow-y: auto; overflow-x: hidden;">
           <table class="leaderboard-table">
             <thead>
               <tr>
@@ -159,14 +158,14 @@ export class LeaderboardManager {
         `;
       });
 
-      html += `</tbody></table></div>`;
+      html += `</tbody></table>`;
     }
 
     html += `</div>`;
 
     // --- 5 DERNIÈRES PARTIES ---
     html += `
-      <div>
+      <div class="leaderboard-column">
         <h3 style="text-align:center; color:#4a9eff; margin-bottom:10px; font-size:1.2rem;">Dernières Parties</h3>
         <p style="text-align:center; margin-bottom:15px; color:#aaa; font-size:0.85rem;">
           5 parties les plus récentes
@@ -177,7 +176,6 @@ export class LeaderboardManager {
       html += '<p style="text-align:center; color:#666; font-style:italic;">Aucune partie enregistrée</p>';
     } else {
       html += `
-        <div style="max-height: 300px; overflow-y: auto; overflow-x: hidden;">
           <table class="leaderboard-table">
             <thead>
               <tr>
@@ -234,17 +232,11 @@ export class LeaderboardManager {
         `;
       });
 
-      html += `</tbody></table></div>`;
+      html += `</tbody></table>`;
     }
 
-    html += `</div>`;
+    html += `</div></div>`;
     
     return html;
-  }
-
-  private static formatTime(totalSeconds: number): string {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = Math.floor(totalSeconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 }
