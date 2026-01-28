@@ -598,6 +598,11 @@ class GameController {
     this.redraw();
     this.updateUI();
     this.ui.clearMessage();
+
+    if (!isNewGame) {
+      this.startGlobalTimer();
+      this.handleTurnStart();
+    }
   }
 
   private startGlobalTimer(): void {
