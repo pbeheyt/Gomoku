@@ -1,6 +1,9 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 
+// Suppression des logs d'erreur GPU VSync inutiles sous Linux
+app.commandLine.appendSwitch('log-level', '3');
+
 // Référence globale pour éviter que le Garbage Collector ne détruise la fenêtre
 let mainWindow: BrowserWindow | null = null;
 
