@@ -64,6 +64,8 @@ export interface AIInterface {
   getDifficulty(): number;
 }
 
+export type GameResult = 'victory' | 'defeat' | 'draw';
+
 export interface LeaderboardEntry {
   date: string;
   moves: number;
@@ -71,6 +73,7 @@ export interface LeaderboardEntry {
   score: number;
   aiLevel: string;
   playerColor: Player;
+  result: GameResult;
 }
 
 // Mappe le nom de l'événement à la signature de la fonction callback.

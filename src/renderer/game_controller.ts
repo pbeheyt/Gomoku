@@ -220,17 +220,31 @@ class GameController {
       this.updateUI(); 
       
       // --- LOGIQUE DU LEADERBOARD ---
-      if (this.currentMode === GameMode.PLAYER_VS_AI || this.currentMode === GameMode.PLAYER_VS_LLM) {
-          if (isVictory && this.currentMode === GameMode.PLAYER_VS_AI) {
-              if (this.isRanked) {
-                  const moves = this.game.getMoveHistory().length;
-                  const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
-                  
-                  const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor);
-                  this.ui.showMessage(`Nouveau Score: ${entry.score} pts`, 'success');
+      if (this.currentMode === GameMode.PLAYER_VS_AI) {
+          if (this.isRanked) {
+              const moves = this.game.getMoveHistory().length;
+              const timeTaken = (humanColor === Player.BLACK) ? this.blackTimeTotal : this.whiteTimeTotal;
+              
+              let result: 'victory' | 'defeat' | 'draw';
+              if (winner === null) {
+                  result = 'draw';
+              } else if (winner === humanColor) {
+                  result = 'victory';
               } else {
-                  this.ui.showMessage(`Victoire en mode Sandbox (Non classé)`, 'warning');
+                  result = 'defeat';
               }
+              
+              const entry = LeaderboardManager.addEntry(moves, timeTaken, 'AI C++', humanColor, result);
+              
+              if (result === 'victory') {
+                  this.ui.showMessage(`Victoire ! Score: ${Math.round(entry.score)} pts`, 'success');
+              } else if (result === 'defeat') {
+                  this.ui.showMessage(`Défaite. Score: ${Math.round(entry.score)} pts`, 'error');
+              } else {
+                  this.ui.showMessage(`Match nul. Score: ${Math.round(entry.score)} pts`, 'warning');
+              }
+          } else {
+              this.ui.showMessage(`Partie en mode Sandbox (Non classée)`, 'warning');
           }
       }
       
