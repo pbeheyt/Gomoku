@@ -447,13 +447,6 @@ canvas { display: block; cursor: pointer; border-radius: 5px; outline: none; }
 #resetBtn { background: var(--button-gradient); border: none; color: white; }
 #resetBtn:hover { background: var(--button-hover-gradient); }
 
-/* Rules */
-.rules-section summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 5px; border-radius: 5px; transition: background 0.2s ease; }
-.rules-section summary:hover { background: rgba(255, 255, 255, 0.1); }
-.rules-section ul { list-style-type: none; padding: 10px 0 0 15px; color: var(--text-secondary); }
-.rules-section li { padding-left: 20px; position: relative; margin-bottom: 8px; font-size: 0.9rem; }
-.rules-section li::before { content: "▸"; position: absolute; left: 0; color: var(--accent-color); }
-
 /* Responsive */
 @media (max-width: 1200px) {
     .main-content { flex-direction: column; padding: 20px; }

@@ -132,7 +132,6 @@ class GameController {
     // Header & Modales
     this.ui.bindHeaderControls({
       onHome: () => this.confirmGoToMenu(),
-      onRules: () => this.showRulesModal(),
       onSettings: () => this.openSettingsModal()
     });
 
@@ -786,15 +785,7 @@ class GameController {
     this.ui.showMessage('Paramètres sauvegardés', 'success');
   }
 
-  private showRulesModal(): void {
-    const rulesHTML = `
-      <ul>
-        <li><b>Victoire par Alignement :</b> Le premier joueur à aligner 5 pierres...</li>
-        <li><b>Victoire par Capture :</b> Capturez 10 pierres adverses...</li>
-        <li><b>Double-Trois Interdit :</b> Il est interdit de jouer un coup...</li>
-      </ul>`;
-    this.ui.showModal('Règles du Gomoku', rulesHTML, [{ text: 'Fermer', callback: () => {} }]);
-  }
+
 
   private confirmReset(): void {
     this.ui.showModal('Recommencer', '<p>Êtes-vous sûr de vouloir recommencer ?</p>', [

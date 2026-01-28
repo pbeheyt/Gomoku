@@ -512,11 +512,9 @@ export class UIManager {
 
   public bindHeaderControls(actions: {
     onHome: () => void,
-    onRules: () => void,
     onSettings: () => void
   }): void {
     document.getElementById('headerHomeBtn')?.addEventListener('click', actions.onHome);
-    document.getElementById('headerRulesBtn')?.addEventListener('click', actions.onRules);
     document.getElementById('headerSettingsBtn')?.addEventListener('click', actions.onSettings);
   }
 
