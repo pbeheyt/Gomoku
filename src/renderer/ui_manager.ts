@@ -41,14 +41,14 @@ export class UIManager {
   private modalFooterEl: HTMLElement | null;
   private settingsModalEl: HTMLElement | null;
   private apiKeyInputEl: HTMLInputElement | null;
-  private modelSelectEl: HTMLSelectElement | null;
+  private modelSelectEl: HTMLInputElement | null;
   private soundToggleEl: HTMLInputElement | null = null;
   private messageEl: HTMLElement | null = null;
   private rankedBadgeEl: HTMLElement | null = null;
 
   // --- Setup Modal ---
   private setupModalEl: HTMLElement | null;
-  private setupModelSelectEl: HTMLSelectElement | null;
+  private setupModelSelectEl: HTMLInputElement | null;
   private setupColorBtns: NodeListOf<Element>;
   private setupStartBtn: HTMLElement | null;
   private setupCancelBtn: HTMLElement | null;
@@ -108,12 +108,12 @@ export class UIManager {
     this.modalFooterEl = document.getElementById('modalFooter');
     this.settingsModalEl = document.getElementById('settingsModal');
     this.apiKeyInputEl = document.getElementById('apiKeyInput') as HTMLInputElement;
-    this.modelSelectEl = document.getElementById('modelSelect') as HTMLSelectElement;
+    this.modelSelectEl = document.getElementById('modelSelect') as HTMLInputElement;
     this.soundToggleEl = document.getElementById('soundToggle') as HTMLInputElement;
 
     // Setup Modal
     this.setupModalEl = document.getElementById('setupModal');
-    this.setupModelSelectEl = document.getElementById('setupModelSelect') as HTMLSelectElement;
+    this.setupModelSelectEl = document.getElementById('setupModelSelect') as HTMLInputElement;
     this.setupColorBtns = document.querySelectorAll('.btn-color');
     this.setupStartBtn = document.getElementById('startGameBtn');
     this.setupCancelBtn = document.getElementById('cancelSetupBtn');
@@ -321,7 +321,9 @@ export class UIManager {
 
   public showSettingsModal(apiKey: string, modelId: string): void {
     if (this.apiKeyInputEl) this.apiKeyInputEl.value = apiKey;
-    if (this.modelSelectEl) this.modelSelectEl.value = modelId;
+    if (this.modelSelectEl) {
+      this.modelSelectEl.value = modelId || 'google/gemini-3-flash-preview';
+    }
     
     if (this.soundToggleEl) {
         const isMuted = localStorage.getItem('gomoku-muted') === 'true';
@@ -336,32 +338,14 @@ export class UIManager {
   }
 
   public getSettingsValues(): { apiKey: string, model: string, soundEnabled: boolean } {
+    const rawModel = this.modelSelectEl?.value?.trim() || '';
+    const cleanModel = rawModel.replace(/[^a-zA-Z0-9\/\-_.]/g, '').slice(0, 100);
+    
     return {
       apiKey: this.apiKeyInputEl?.value || '',
-      model: this.modelSelectEl?.value || '',
+      model: cleanModel || 'google/gemini-3-flash-preview',
       soundEnabled: this.soundToggleEl ? this.soundToggleEl.checked : true
     };
-  }
-
-  public populateModels(models: { name: string; id: string }[]): void {
-    if (this.modelSelectEl) {
-        this.modelSelectEl.innerHTML = '';
-        models.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            this.modelSelectEl!.appendChild(option);
-        });
-    }
-    if (this.setupModelSelectEl) {
-        this.setupModelSelectEl.innerHTML = '';
-        models.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            this.setupModelSelectEl!.appendChild(option);
-        });
-    }
   }
 
   public showSetupModal(
@@ -385,9 +369,7 @@ export class UIManager {
 
     if (needsModel && this.setupModelSelectEl) {
         const savedModel = localStorage.getItem('gomoku-llm-model');
-        if (savedModel) {
-            this.setupModelSelectEl.value = savedModel;
-        }
+        this.setupModelSelectEl.value = savedModel || 'google/gemini-3-flash-preview';
     }
 
     this.setupColorBtns.forEach(btn => {

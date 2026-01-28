@@ -58,8 +58,8 @@
 
             <div class="setup-section hidden" id="modelSelectionSection">
                 <label>Modèle LLM :</label>
-                <select id="setupModelSelect" class="glass-input"></select>
-                <p class="setup-hint">Configurez votre clé API dans les paramètres si nécessaire.</p>
+                <input type="text" id="setupModelSelect" class="glass-input" placeholder="google/gemini-3-flash-preview" maxlength="100">
+                <p class="setup-hint">Copiez le nom du modèle depuis <a href="https://openrouter.ai/models" target="_blank" style="color: var(--active-glow);">openrouter.ai/models</a></p>
             </div>
 
             <div class="modal-footer">
@@ -97,9 +97,8 @@
                 </div>
                 <div class="form-group">
                     <label for="modelSelect">Modèle LLM par défaut</label>
-                    <select id="modelSelect" class="glass-input">
-                        <option value="">Chargement des modèles...</option>
-                    </select>
+                    <input type="text" id="modelSelect" class="glass-input" placeholder="google/gemini-3-flash-preview" maxlength="100">
+                    <p class="setup-hint" style="font-size: 0.8rem; margin-top: 5px; color: #888;">Copiez le nom du modèle depuis <a href="https://openrouter.ai/models" target="_blank" style="color: var(--active-glow);">openrouter.ai/models</a></p>
                 </div>
                 <div class="form-group toggle-group">
                     <label for="soundToggle">Effets Sonores</label>

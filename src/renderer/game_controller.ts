@@ -87,7 +87,6 @@ class GameController {
     this.setupBindings();
     this.setupGameEvents();
     this.initializeAI();
-    this.loadAndPopulateModels();
 
     this.showView('MENU');
   }
@@ -733,17 +732,6 @@ class GameController {
   private showView(view: AppState): void {
     this.appState = view;
     this.ui.showView(view);
-  }
-
-  private async loadAndPopulateModels(): Promise<void> {
-    try {
-      const response = await fetch('./openrouter_models.json');
-      if (!response.ok) throw new Error('Erreur de chargement des modèles LLM.');
-      const models = await response.json();
-      this.ui.populateModels(models);
-    } catch (error) {
-      console.error('Erreur lors du chargement des modèles LLM :', error);
-    }
   }
 
   private openSettingsModal(): void {
