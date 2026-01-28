@@ -277,7 +277,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         {
             if (debugMove.row == candidates[i].row && debugMove.col == candidates[i].col)
             {
-                debugMove.score = std::max(candidates[i].score, score);
+                debugMove.score = score;
                 debugMove.algoType = 1; // Mark as analyzed by Minimax
                 break;
             }
@@ -288,7 +288,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
     }
 
 #ifdef DEBUG_AI_LOGS
-    logMoveAnalysis(bestRow, bestCol, aiPlayer, bestScore, true);
+    logMoveAnalysis(bestRow, bestCol, aiPlayer, alpha, true);
 #endif
 }
 
