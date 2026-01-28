@@ -118,7 +118,6 @@ class GameController {
       onPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_PLAYER),
       onPva: () => this.initiateGameStart(GameMode.PLAYER_VS_AI),
       onLlmPvp: () => this.initiateGameStart(GameMode.PLAYER_VS_LLM),
-      onAiVsLlm: () => this.initiateGameStart(GameMode.AI_VS_LLM),
       onReplay: () => this.startGame(this.currentMode, this.lastGameConfig),
       onMenu: () => this.showView('MENU'),
       onSettings: () => this.openSettingsModal()
@@ -254,7 +253,7 @@ class GameController {
       return;
     }
 
-    if (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM) {
+    if (mode === GameMode.PLAYER_VS_LLM) {
       const apiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
       if (!apiKey || apiKey.trim() === '') {
         this.ui.showModal(
@@ -299,11 +298,6 @@ class GameController {
         case GameMode.PLAYER_VS_LLM:
             this.players[userColor] = 'HUMAN';
             this.players[opponentColor] = 'AI_LLM';
-            break;
-
-        case GameMode.AI_VS_LLM:
-            this.players[Player.BLACK] = 'AI_WASM';
-            this.players[Player.WHITE] = 'AI_LLM';
             break;
     }
     if (config.modelId) {

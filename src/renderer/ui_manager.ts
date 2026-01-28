@@ -170,10 +170,10 @@ export class UIManager {
     if (this.blackTimerEl) this.blackTimerEl.textContent = this.formatTime(blackTime);
     if (this.whiteTimerEl) this.whiteTimerEl.textContent = this.formatTime(whiteTime);
 
-    const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
+    const isAiGame = mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM;
     this.aiTimerSectionEl?.classList.toggle('hidden', !isAiGame);
 
-    const isLlmMode = mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM;
+    const isLlmMode = mode === GameMode.PLAYER_VS_LLM;
     this.aiReasoningControlsEl?.classList.toggle('hidden', !isLlmMode);
     
     if (!isLlmMode) {
@@ -372,7 +372,7 @@ export class UIManager {
         if (btn.getAttribute('data-color') === '1') btn.classList.add('selected');
     });
 
-    const needsModel = (mode === GameMode.PLAYER_VS_LLM || mode === GameMode.AI_VS_LLM);
+    const needsModel = (mode === GameMode.PLAYER_VS_LLM);
     const needsColor = (mode === GameMode.PLAYER_VS_AI || mode === GameMode.PLAYER_VS_LLM);
 
     if (this.setupModelSection) this.setupModelSection.classList.toggle('hidden', !needsModel);
@@ -478,7 +478,6 @@ export class UIManager {
     onPvp: () => void,
     onPva: () => void,
     onLlmPvp: () => void,
-    onAiVsLlm: () => void,
     onReplay: () => void,
     onMenu: () => void,
     onSettings: () => void
@@ -486,7 +485,6 @@ export class UIManager {
     document.getElementById('cardPvp')?.addEventListener('click', actions.onPvp);
     document.getElementById('cardPva')?.addEventListener('click', actions.onPva);
     document.getElementById('cardLlm')?.addEventListener('click', actions.onLlmPvp);
-    document.getElementById('cardArena')?.addEventListener('click', actions.onAiVsLlm);
     
     document.getElementById('mainSettingsBtn')?.addEventListener('click', actions.onSettings);
     document.getElementById('leaderboardBtn')?.addEventListener('click', () => {

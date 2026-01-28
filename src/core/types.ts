@@ -8,7 +8,6 @@ export enum GameMode {
   PLAYER_VS_PLAYER = 'pvp',
   PLAYER_VS_AI = 'pva',     // Contre l'IA native (C++)
   PLAYER_VS_LLM = 'pvllm',  // Contre un LLM
-  AI_VS_LLM = 'aivllm',     // Mode spectateur
   AI_SUGGEST = 'suggest',   // Mode assistance
 }
 
