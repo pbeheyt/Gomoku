@@ -586,6 +586,7 @@ class GameController {
     
     this.ui.resetAiTimer();
     this.ui.setReasoning("En attente...");
+    this.ui.resetDebugToggle();        // Désactivation du toggle heatmap
     this.renderer?.clearWinningLine(); // Nettoyage du laser
     this.renderer?.clearHeatmap();     // Nettoyage heatmap
     this.ui.resetCaptureWinEffect();   // Nettoyage du néon capture

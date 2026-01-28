@@ -57,6 +57,7 @@ export class UIManager {
 
   // --- Debug ---
   private debugToggleEl: HTMLInputElement | null;
+  private debugSectionEl: HTMLElement | null;
 
   // --- État interne UI ---
   private timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -120,6 +121,7 @@ export class UIManager {
     this.setupColorSection = document.getElementById('colorSelection');
     
     this.debugToggleEl = document.getElementById('debugToggle') as HTMLInputElement;
+    this.debugSectionEl = document.getElementById('debugSection');
 
     // Injection Badge "Non Classé"
     this.rankedBadgeEl = document.createElement('div');
@@ -181,6 +183,8 @@ export class UIManager {
     }
     
     this.suggestBtnEl?.classList.toggle('hidden', mode !== GameMode.PLAYER_VS_PLAYER);
+    
+    this.debugSectionEl?.classList.toggle('hidden', mode !== GameMode.PLAYER_VS_AI);
   }
 
   private formatTime(seconds: number): string {
@@ -551,5 +555,11 @@ export class UIManager {
 
   public isDebugEnabled(): boolean {
       return this.debugToggleEl ? this.debugToggleEl.checked : false;
+  }
+
+  public resetDebugToggle(): void {
+    if (this.debugToggleEl) {
+        this.debugToggleEl.checked = false;
+    }
   }
 }
