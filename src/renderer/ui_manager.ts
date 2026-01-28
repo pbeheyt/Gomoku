@@ -128,9 +128,9 @@ export class UIManager {
     this.rankedBadgeEl.className = 'ranked-badge hidden';
     this.rankedBadgeEl.textContent = '🚫 NON CLASSÉ';
     
-    const headerCenter = document.getElementById('headerCenter');
-    if (headerCenter) {
-        headerCenter.appendChild(this.rankedBadgeEl);
+    const boardContainer = document.getElementById('boardContainer');
+    if (boardContainer) {
+        boardContainer.appendChild(this.rankedBadgeEl);
     }
   }
 
