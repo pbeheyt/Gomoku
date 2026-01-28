@@ -22,12 +22,11 @@ const int SCORE_LIVE_FOUR = 50000000;
 const int SCORE_DEAD_FOUR = 10000000;
 const int SCORE_LIVE_THREE = 5000000;
 const int SCORE_DEAD_THREE = 500000;
-const int SCORE_LIVE_TWO = 100000;
-const int SCORE_DEAD_TWO = 10000;
-const int SCORE_ONE = 1000;
-
-// Defense score multiplier for heuristic evaluation
-const float DEFENSE_MULTIPLIER = 1.1f;
+const int SCORE_LIVE_TWO = 250000;
+const int SCORE_DEAD_TWO = 50000;
+const int SCORE_ONE = 5000;
+const int SCORE_OPEN_TWO = 300000;
+const int SCORE_DOUBLE_THREAT = 8000000;
 
 #ifdef DEBUG_AI_LOGS
 
@@ -37,7 +36,7 @@ void logMoveAnalysis(int row, int col, int player, int score, bool isBestMove = 
 
     EM_ASM_({ console.log("%c Position: (%d, %d) | Joueur: %s",
                           "font-weight: bold;",
-                          $0, $1, $2 === 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
+                          $0, $1, $2 == 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
 
     if (isBestMove)
     {
@@ -222,7 +221,8 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         }
 
         int score = evaluateMoveQuick(move.row, move.col, aiPlayer);
-        score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
+        int humanScore = evaluateMoveQuick(move.row, move.col, humanPlayer);
+        score += humanScore * 1.2;
 
         move.score = score;
 
@@ -246,11 +246,11 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
 
     int depth = 10;
 
+    int maxCandidates = std::min(6, static_cast<int>(candidates.size()));
+
     std::sort(candidates.begin(), candidates.end(),
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
-
-    int maxCandidates = std::min(6, (int)candidates.size());
 
     int alpha = -INT_MAX;
     int beta = INT_MAX;
@@ -330,6 +330,16 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
 {
     int score = 0;
     int captureCount = GomokuRules::checkCaptures(board, row, col, player);
+    bool isStoneCapturable = GomokuRules::isStoneCapturable(board, row, col, getOpponent(player));
+    int oppCapture = player == BLACK ? gameState.capturedByWhite : gameState.capturedByBlack;
+
+    bool isLostRiskMove = isStoneCapturable && oppCapture >= MAX_CAPTURE_STONES - 2;
+
+    if (isLostRiskMove)
+        return 0;
+
+    int patternCount[4] = {0};
+    int threatCount = 0;
 
     for (int dir = 0; dir < 4; dir++)
     {
@@ -339,58 +349,80 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
         // Count right
         int r = row + dy[dir];
         int c = col + dx[dir];
+        int rightCount = 0;
         while (GomokuRules::isOnBoard(r, c) && board[r][c] == player && count < 5)
         {
             count++;
+            rightCount++;
             r += dy[dir];
             c += dx[dir];
         }
-        if (GomokuRules::isEmptyCell(board, r, c))
+        bool rightOpen = GomokuRules::isEmptyCell(board, r, c);
+        if (rightOpen)
             openEnds++;
 
         // Count left
         r = row - dy[dir];
         c = col - dx[dir];
+        int leftCount = 0;
+
+        bool leftOpen = GomokuRules::isEmptyCell(board, r, c);
+        if (leftOpen)
+        {
+            r -= dy[dir];
+            c -= dx[dir];
+        }
+
         while (GomokuRules::isOnBoard(r, c) && board[r][c] == player && count < 5)
         {
             count++;
+            leftCount++;
             r -= dy[dir];
             c -= dx[dir];
         }
         if (GomokuRules::isEmptyCell(board, r, c))
             openEnds++;
 
-        // Score pattern
         int patternScore = 0;
-        const char *patternType = "";
 
         switch (count)
         {
         case 5:
             patternScore = SCORE_FIVE;
+            threatCount++;
             break;
-        case 4:
 
+        case 4:
             if (openEnds == 2)
+            {
                 patternScore = SCORE_LIVE_FOUR;
+                threatCount++;
+            }
             else
                 patternScore = SCORE_DEAD_FOUR;
             break;
-        case 3:
 
+        case 3:
             if (openEnds == 2)
+            {
                 patternScore = SCORE_LIVE_THREE;
+                threatCount++;
+            }
             else
                 patternScore = SCORE_DEAD_THREE;
             break;
-        case 2:
 
+        case 2:
             if (openEnds == 2)
+            {
                 patternScore = SCORE_LIVE_TWO;
+                if ((rightCount == 1 && leftCount == 0) || (rightCount == 0 && leftCount == 1))
+                    patternScore += SCORE_OPEN_TWO;
+            }
             else
                 patternScore = SCORE_DEAD_TWO;
-
             break;
+
         case 1:
             patternScore = SCORE_ONE;
             break;
@@ -399,14 +431,31 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
             break;
         }
 
+        patternCount[dir] = count;
         score += patternScore;
     }
 
-    int captureScore = captureCount * SCORE_LIVE_THREE;
-    score += captureScore;
+    if (threatCount >= 2)
+        score += SCORE_DOUBLE_THREAT;
+
+    if (captureCount == 0 && isStoneCapturable)
+        score += -SCORE_FIVE;
+    else if (captureCount > 0)
+    {
+        if (threatCount > 0)
+            score += captureCount * SCORE_LIVE_THREE * 2.5;
+        else if (score < SCORE_LIVE_FOUR)
+            score += captureCount * SCORE_LIVE_THREE * 2;
+        else
+            score += captureCount * SCORE_LIVE_THREE * 1.5;
+    }
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
     int centralityBonus = (BOARD_SIZE - centerDist) * 50;
+
+    if (threatCount == 0)
+        centralityBonus += (BOARD_SIZE - centerDist) * 30;
+
     score += centralityBonus;
 
     return score;
@@ -455,17 +504,15 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
 
-    int maxMoves = (depth > 3) ? 4 : 6;
-
-    if (candidates.size() > maxMoves)
-        candidates.resize(maxMoves);
+    int pruneMoves = depth <= 3 ? 4 : 6;
+    int maxCandidates = std::min(pruneMoves, static_cast<int>(candidates.size()));
 
     int bestScore = -INT_MAX;
     int oldAlpha = alpha;
 
-    for (const Move &move : candidates)
+    for (int i = 0; i < maxCandidates; i++)
     {
-        makeMoveInternal(move.row, move.col, player);
+        makeMoveInternal(candidates[i].row, candidates[i].col, player);
         int score = -minimax(depth - 1, -beta, -alpha, opponent);
         undoMove();
 
@@ -509,22 +556,14 @@ std::vector<Move> GomokuAI::getCandidateMoves(int player)
                         int nr = r + dr;
                         int nc = c + dc;
 
-                        if (GomokuRules::isEmptyCell(board, nr, nc) && !visited[nr][nc])
-                        {
-                            int potentialCapture = GomokuRules::checkCaptures(board, nr, nc, player);
+                        if (!GomokuRules::isEmptyCell(board, nr, nc) || visited[nr][nc])
+                            continue;
 
-                            if (potentialCapture == 0 && GomokuRules::isStoneCapturable(board, nr, nc, getOpponent(player)))
-                            {
-                                visited[nr][nc] = true;
-                                continue;
-                            }
+                        if (GomokuRules::validateMove(board, nr, nc, player) != VALID)
+                            continue;
 
-                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID)
-                            {
-                                candidates.push_back(Move(nr, nc, 0));
-                                visited[nr][nc] = true;
-                            }
-                        }
+                        candidates.push_back(Move(nr, nc, 0));
+                        visited[nr][nc] = true;
                     }
                 }
             }
@@ -549,27 +588,56 @@ int GomokuAI::evaluateBoard(int player)
     int score = 0;
     int scoreAttack = 0;
     int scoreDefense = 0;
+    int scoreMomentum = 0;
 
-    score += pCaps * SCORE_LIVE_THREE;
-    score -= oCaps * SCORE_LIVE_THREE;
+    int captureUrgency = std::max(pCaps, oCaps) / 2;
+    score += pCaps * (SCORE_LIVE_THREE + captureUrgency * 100000);
+    score -= oCaps * (SCORE_LIVE_THREE + captureUrgency * 100000);
 
+       int playerStones = 0, opponentStones = 0;
     for (int r = 0; r < BOARD_SIZE; r++)
     {
         for (int c = 0; c < BOARD_SIZE; c++)
         {
             if (board[r][c] == player)
             {
-                scoreAttack += evaluateMoveQuick(r, c, player);
+                playerStones++;
+                bool nearOpponent = false;
+                for (int dr = -1; dr <= 1 && !nearOpponent; dr++)
+                    for (int dc = -1; dc <= 1 && !nearOpponent; dc++)
+                        if (GomokuRules::isOnBoard(r + dr, c + dc) && board[r + dr][c + dc] == opponent)
+                            nearOpponent = true;
+
+                if (nearOpponent || playerStones <= 10)
+                    scoreAttack += evaluateMoveQuick(r, c, player);
+                else
+                    scoreAttack += SCORE_ONE;
             }
             else if (board[r][c] == opponent)
             {
-                scoreDefense -= evaluateMoveQuick(r, c, opponent);
+                opponentStones++;
+                bool nearPlayer = false;
+                for (int dr = -1; dr <= 1 && !nearPlayer; dr++)
+                    for (int dc = -1; dc <= 1 && !nearPlayer; dc++)
+                        if (GomokuRules::isOnBoard(r + dr, c + dc) && board[r + dr][c + dc] == player)
+                            nearPlayer = true;
+
+                if (nearPlayer || opponentStones <= 10)
+                    scoreDefense -= evaluateMoveQuick(r, c, opponent);
+                else
+                    scoreDefense -= SCORE_ONE;
             }
         }
     }
 
+    if (playerStones > opponentStones)
+        scoreMomentum = (playerStones - opponentStones) * 500;
+    else if (opponentStones > playerStones)
+        scoreMomentum = -(opponentStones - playerStones) * 500;
+
     score += scoreAttack;
-    score += scoreDefense * 1.2;
+    score += scoreDefense * 1.3;
+    score += scoreMomentum;
 
     return score;
 }
