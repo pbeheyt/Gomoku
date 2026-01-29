@@ -26,9 +26,16 @@ const int SCORE_DEAD_THREE = 500000;
 const int SCORE_LIVE_TWO = 100000;
 const int SCORE_DEAD_TWO = 10000;
 const int SCORE_ONE = 1000;
+const int CENTERALITY_BONUS = 50;
 
 // Defense score multiplier for heuristic evaluation
 const float DEFENSE_MULTIPLIER = 1.2f;
+const float CAPTURE_PRIORITY_MULTIPLIER = 1.1f;
+
+const int CANDIDATES_SIZE = 50;
+const int MAX_ROOT_CANDIDATES = 6;
+const int MAX_LEAFT_CANDIDATES = 8;
+const int MINI_MAX_DEPTH = 10;
 
 #ifdef DEBUG_AI_LOGS
 
@@ -251,13 +258,13 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         }
     }
 
-    int depth = 10;
+    int depth = MINI_MAX_DEPTH;
 
     std::sort(candidates.begin(), candidates.end(),
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
 
-    int maxCandidates = 6;
+    int maxCandidates = MAX_ROOT_CANDIDATES;
 
     int alpha = -INT_MAX;
     int beta = INT_MAX;
@@ -427,19 +434,18 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
         return SCORE_FIVE / 2;
 
     score += analyzePatternScore(row, col, player);
-
     score += analyzePatternScore(row, col, opponent) * DEFENSE_MULTIPLIER;
 
     if (score >= SCORE_FIVE)
         return score;
 
-    int captureScore = potentialCaptureCount * SCORE_DEAD_FOUR * 1.1;
-    int opponentCaptureScore = potentialOppCaptureCount * SCORE_DEAD_FOUR * DEFENSE_MULTIPLIER;
+    int captureScore = potentialCaptureCount * SCORE_DEAD_FOUR * CAPTURE_PRIORITY_MULTIPLIER;
+    int opponentCaptureScore = potentialOppCaptureCount * SCORE_DEAD_FOUR * DEFENSE_MULTIPLIER * CAPTURE_PRIORITY_MULTIPLIER;
 
     score += captureScore + opponentCaptureScore;
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
-    int centralityBonus = (BOARD_SIZE - centerDist) * 50;
+    int centralityBonus = (BOARD_SIZE - centerDist) * CENTERALITY_BONUS;
     score += centralityBonus;
 
     return score;
@@ -485,17 +491,14 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
     {
         m.score = evaluateMoveQuick(m.row, m.col, player);
         if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player)))
-        {
-            std::cout << "Capturable stone at (" << m.row << ", " << m.col << ")" << std::endl;
             m.score = INT_MIN;
-        }
     }
 
     std::sort(candidates.begin(), candidates.end(),
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
 
-    candidates.resize(8);
+    candidates.resize(MAX_LEAFT_CANDIDATES);
 
     int bestScore = -INT_MAX;
     int oldAlpha = alpha;
@@ -528,7 +531,7 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
 std::vector<Move> GomokuAI::getCandidateMoves(int player)
 {
     std::vector<Move> candidates;
-    candidates.reserve(50);
+    candidates.reserve(CANDIDATES_SIZE);
 
     bool visited[BOARD_SIZE][BOARD_SIZE] = {false};
     const int RADIUS = 2;
@@ -579,8 +582,8 @@ int GomokuAI::evaluateBoard(int player)
     int scoreAttack = 0;
     int scoreDefense = 0;
 
-    score += pCaps * SCORE_DEAD_FOUR * 1.1;
-    score -= oCaps * SCORE_DEAD_FOUR * 1.1;
+    score += pCaps * SCORE_DEAD_FOUR * CAPTURE_PRIORITY_MULTIPLIER;
+    score -= oCaps * SCORE_DEAD_FOUR * CAPTURE_PRIORITY_MULTIPLIER;
 
     for (int r = 0; r < BOARD_SIZE; r++)
     {
@@ -598,7 +601,7 @@ int GomokuAI::evaluateBoard(int player)
     }
 
     score += scoreAttack;
-    score += scoreDefense * 1.2;
+    score += scoreDefense * DEFENSE_MULTIPLIER;
 
     return score;
 }
