@@ -4,6 +4,7 @@
 #include <cstring>
 #include <set>
 #include <random>
+#include <iostream>
 
 #ifdef DEBUG_AI_LOGS
 #include <emscripten.h>
@@ -27,7 +28,7 @@ const int SCORE_DEAD_TWO = 10000;
 const int SCORE_ONE = 1000;
 
 // Defense score multiplier for heuristic evaluation
-const float DEFENSE_MULTIPLIER = 1.1f;
+const float DEFENSE_MULTIPLIER = 1.2f;
 
 #ifdef DEBUG_AI_LOGS
 
@@ -224,8 +225,10 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         int score = evaluateMoveQuick(move.row, move.col, aiPlayer);
         score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
 
-        if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer))
+        if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer)) {
+            std::cout << "Capturable stone at (" << move.row << ", " << move.col << ")" << std::endl;
             move.score = INT_MIN;
+        }
         else
             move.score = score;
 
@@ -466,8 +469,10 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
     for (Move &m : candidates)
     {
         m.score = evaluateMoveQuick(m.row, m.col, player);
-        if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player)))
+        if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player))) {
+            std::cout << "Capturable stone at (" << m.row << ", " << m.col << ")" << std::endl;
             m.score = INT_MIN;
+        }
     }
 
     std::sort(candidates.begin(), candidates.end(),
