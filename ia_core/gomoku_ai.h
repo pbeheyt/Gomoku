@@ -103,6 +103,8 @@ private:
     void undoMove();
 
     void makeMoveInternal(int row, int col, int player);
+    int analyzePatternScore(int row, int col, int player);
+
 
 public:
     GomokuAI(int aiPlayerColor);
