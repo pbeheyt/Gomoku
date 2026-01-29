@@ -330,7 +330,6 @@ class GameController {
     // Conversion Pixels
     const pos = this.canvasToBoard(e.clientX, e.clientY);
     if (pos) {
-        this.renderer?.clearHeatmap();
         await this.makeMove(pos.row, pos.col);
     }
   }
@@ -362,6 +361,9 @@ class GameController {
           this.ui.showMessage(`Mouvement invalide: ${result.reason}`, 'warning');
           return;
         }
+        
+        // Clear heatmap seulement après validation réussie
+        this.renderer?.clearHeatmap();
         
         // Sauvegarde des debugData pour heatmap si mode PvAI
         if (this.currentMode === GameMode.PLAYER_VS_AI && this.wasmAI) {

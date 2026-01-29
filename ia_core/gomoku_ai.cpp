@@ -218,7 +218,6 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             {
                 if (dm.row == move.row && dm.col == move.col)
                 {
-                    dm.score = SCORE_FIVE;
                     dm.algoType = 2;
                     break;
                 }
@@ -236,19 +235,6 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
             move.score = INT_MIN;
         else
             move.score = score;
-
-        // Update heuristic score in debug list (Type 0)
-        for (auto &dm : aiCandidateMoves)
-        {
-            if (score == INT_MIN)
-                continue;
-
-            if (dm.row == move.row && dm.col == move.col)
-            {
-                dm.score = score;
-                break;
-            }
-        }
 
         if (score > bestScore)
         {

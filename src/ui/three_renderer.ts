@@ -358,8 +358,8 @@ export class ThreeRenderer {
             
             // Gradient d'opacité basé sur le score
             if (maxScore > minScore) {
-                const normalized = (move.score - minScore) / (maxScore - minScore);
-                opacity = 0.4 + (normalized * 0.5);
+                let normalized = (move.score - minScore) / (maxScore - minScore);
+                opacity = 0.5 + (normalized * 0.5);
             } else {
                 opacity = 0.8;
             }
@@ -379,7 +379,13 @@ export class ThreeRenderer {
         const x = (move.col * this.CELL_SIZE) - halfSize;
         const z = (move.row * this.CELL_SIZE) - halfSize;
         
-        mesh.position.set(x, 0.005, z); 
+        // Hauteur différente selon le type pour éviter la superposition
+        let yPos = 0.005;
+        if (move.type === 1) yPos = 0.010; // Minimax rouge au-dessus
+        if (move.type === 2) yPos = 0.015; // One Shot violet au sommet
+        
+        mesh.position.set(x, yPos, z); 
+        mesh.renderOrder = move.type; // Force l'ordre de rendu
         mesh.scale.setScalar(1.0);
 
         this.debugGroup.add(mesh);
