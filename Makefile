@@ -26,9 +26,6 @@ re: fclean all
 
 # --- Sous-Tâches ---
 
-lint:
-	@$(DOCKER_EXEC) npm run lint
-
 install:
 	@$(DOCKER_EXEC) npm install
 
@@ -72,18 +69,13 @@ up:
 down:
 	@docker compose down
 
-shell:
-	@docker compose exec gomoku-dev /bin/bash
-
 clean:
 	@$(DOCKER_EXEC) rm -rf dist .electron
 
-fclean: clean
-	@$(DOCKER_EXEC) rm -rf node_modules
-	@$(DOCKER_EXEC) rm -f src/renderer/ia_core.wasm src/renderer/ia_core.js
+fclean:
+	@$(DOCKER_EXEC) rm -rf dist .electron node_modules src/renderer/ia_core.wasm src/renderer/ia_core.js 2>/dev/null || true
+	@docker compose down -v
 	@rm -f $(NAME)
 
-prune: down
-	@docker system prune -a --volumes
 
 .PHONY: all $(NAME) $(NAME)-debug re lint install wasm wasm-debug tsc copy-static up down shell clean fclean prune
