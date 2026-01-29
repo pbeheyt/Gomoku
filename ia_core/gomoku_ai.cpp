@@ -226,10 +226,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
 
         if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer))
-        {
-            std::cout << "Capturable stone at (" << move.row << ", " << move.col << ")" << std::endl;
             move.score = INT_MIN;
-        }
         else
             move.score = score;
 
@@ -339,14 +336,13 @@ bool GomokuAI::checkWinQuick(int row, int col, int player)
 int GomokuAI::evaluateMoveQuick(int row, int col, int player)
 {
     int score = 0;
-    int potentialCaptureCount = GomokuRules::checkCaptures(board, row, col, player);
-    int oppPotentialCaptureCount = GomokuRules::checkCaptures(board, row, col, getOpponent(player));
-
+    int captureCount = GomokuRules::checkCaptures(board, row, col, player);
     int playerCapture = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
-    int oppCapture = (player == BLACK) ? gameState.capturedByWhite : gameState.capturedByBlack;
 
-    if (playerCapture + potentialCaptureCount >= MAX_CAPTURE_STONES || oppCapture + oppPotentialCaptureCount >= MAX_CAPTURE_STONES)
+    if (playerCapture + captureCount >= MAX_CAPTURE_STONES)
+    {
         return SCORE_FIVE;
+    }
 
     for (int dir = 0; dir < 4; dir++)
     {
@@ -422,10 +418,8 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
     if (score >= SCORE_FIVE)
         return score;
 
-    int captureScore = potentialCaptureCount * SCORE_DEAD_FOUR * 1.1;
-    int oppCaptureScore = oppPotentialCaptureCount * SCORE_DEAD_FOUR * 1.3;
-
-    score += captureScore + oppCaptureScore;
+    int captureScore = captureCount * SCORE_DEAD_FOUR * 1.1;
+    score += captureScore;
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
     int centralityBonus = (BOARD_SIZE - centerDist) * 50;
@@ -473,8 +467,10 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
     for (Move &m : candidates)
     {
         m.score = evaluateMoveQuick(m.row, m.col, player);
-        if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player)))
+        if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player))) {
+            std::cout << "Capturable stone at (" << m.row << ", " << m.col << ")" << std::endl;
             m.score = INT_MIN;
+        }
     }
 
     std::sort(candidates.begin(), candidates.end(),
