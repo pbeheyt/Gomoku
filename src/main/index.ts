@@ -13,11 +13,6 @@ function createWindow() {
     minWidth: 1280,
     minHeight: 800,
     icon: path.join(__dirname, '../renderer/icon.png'),
-    webPreferences: {
-      // SÉCURITÉ : Isole le JS de l'UI du système de fichiers pour éviter les failles.
-      contextIsolation: true,
-      sandbox: true
-    },
   });
 
   mainWindow.maximize();

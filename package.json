@@ -4,7 +4,7 @@
   "description": "A Gomoku AI project using Electron and WebAssembly",
   "main": "dist/main/index.js",
   "scripts": {
-    "start": "electron . --no-sandbox",
+    "start": "electron .",
     "build": "electron-builder",
     "lint": "eslint src/ --ext .ts,.tsx",
     "test": "echo \"Error: no test specified\" && exit 1",
