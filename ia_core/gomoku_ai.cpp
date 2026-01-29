@@ -225,10 +225,8 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         int score = evaluateMoveQuick(move.row, move.col, aiPlayer);
         score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
 
-        if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer)) {
-            std::cout << "Capturable stone at (" << move.row << ", " << move.col << ")" << std::endl;
+        if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer))
             move.score = INT_MIN;
-        }
         else
             move.score = score;
 
