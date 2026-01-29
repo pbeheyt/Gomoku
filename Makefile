@@ -8,16 +8,24 @@ all: $(NAME)
 $(NAME): up install wasm tsc copy-static
 	@echo "Empaquetage de l'application (Electron Builder)..."
 	@$(DOCKER_EXEC) npm run build
-	@echo "Création du lien symbolique..."
-	@ln -sf dist/linux-unpacked/Gomoku $(NAME)
+	@echo "Génération du launcher script..."
+	@rm -f $(NAME)
+	@echo '#!/bin/bash' > $(NAME)
+	@echo 'DIR=$$(dirname "$$(readlink -f "$$0")")' >> $(NAME)
+	@echo 'exec "$$DIR/dist/linux-unpacked/Gomoku" --no-sandbox "$$@"' >> $(NAME)
+	@chmod +x $(NAME)
 	@echo "\n\033[1;32m✅ Build terminé.\033[0m"
 	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
 
-$(NAME)-debug: up install wasm-debug tsc copy-static
+debug: up install wasm-debug tsc copy-static
 	@echo "Empaquetage de l'application (DEBUG MODE)..."
 	@$(DOCKER_EXEC) npm run build
-	@echo "Création du lien symbolique..."
-	@ln -sf dist/linux-unpacked/Gomoku $(NAME)
+	@echo "Génération du launcher script..."
+	@rm -f $(NAME)
+	@echo '#!/bin/bash' > $(NAME)
+	@echo 'DIR=$$(dirname "$$(readlink -f "$$0")")' >> $(NAME)
+	@echo 'exec "$$DIR/dist/linux-unpacked/Gomoku" --no-sandbox "$$@"' >> $(NAME)
+	@chmod +x $(NAME)
 	@echo "\n\033[1;32m✅ Build DEBUG terminé.\033[0m"
 	@echo "\n\033[1;33mLes logs IA s'afficheront dans la console DevTools (F12)\033[0m\n"
 	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
