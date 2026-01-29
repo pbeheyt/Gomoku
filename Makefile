@@ -3,9 +3,9 @@ DOCKER_EXEC = docker compose exec -T gomoku-dev
 
 
 .DEFAULT_GOAL := all
-all: build
+all: $(NAME)
 
-build: up install wasm tsc copy-static
+$(NAME): up install wasm tsc copy-static
 	@echo "Empaquetage de l'application (Electron Builder)..."
 	@$(DOCKER_EXEC) npm run build
 	@echo "Création du lien symbolique..."
@@ -13,7 +13,7 @@ build: up install wasm tsc copy-static
 	@echo "\n\033[1;32m✅ Build terminé.\033[0m"
 	@echo "\nExécutez \033[1;34m./$(NAME)\033[0m pour lancer l'application.\n"
 
-build-debug: up install wasm-debug tsc copy-static
+$(NAME)-debug: up install wasm-debug tsc copy-static
 	@echo "Empaquetage de l'application (DEBUG MODE)..."
 	@$(DOCKER_EXEC) npm run build
 	@echo "Création du lien symbolique..."
@@ -86,4 +86,4 @@ fclean: clean
 prune: down
 	@docker system prune -a --volumes
 
-.PHONY: all build re lint install wasm tsc copy-static up down shell clean fclean prune
+.PHONY: all $(NAME) $(NAME)-debug re lint install wasm wasm-debug tsc copy-static up down shell clean fclean prune
