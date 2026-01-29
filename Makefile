@@ -72,8 +72,8 @@ down:
 clean:
 	@$(DOCKER_EXEC) rm -rf dist .electron
 
-fclean:
-	@$(DOCKER_EXEC) rm -rf dist .electron node_modules src/renderer/ia_core.wasm src/renderer/ia_core.js 2>/dev/null || true
+fclean: clean
+	@$(DOCKER_EXEC) rm -rf node_modules src/renderer/ia_core.wasm src/renderer/ia_core.js 2>/dev/null || true
 	@docker compose down -v
 	@rm -f $(NAME)
 
