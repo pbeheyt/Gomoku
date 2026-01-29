@@ -4,6 +4,7 @@
 #include <cstring>
 #include <set>
 #include <random>
+#include <iostream>
 
 #ifdef DEBUG_AI_LOGS
 #include <emscripten.h>
@@ -27,7 +28,7 @@ const int SCORE_DEAD_TWO = 10000;
 const int SCORE_ONE = 1000;
 
 // Defense score multiplier for heuristic evaluation
-const float DEFENSE_MULTIPLIER = 1.1f;
+const float DEFENSE_MULTIPLIER = 1.2f;
 
 #ifdef DEBUG_AI_LOGS
 
@@ -37,7 +38,7 @@ void logMoveAnalysis(int row, int col, int player, int score, bool isBestMove = 
 
     EM_ASM_({ console.log("%c Position: (%d, %d) | Joueur: %s",
                           "font-weight: bold;",
-                          $0, $1, $2 === 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
+                          $0, $1, $2 == 1 ? "⚫ BLACK" : "⚪ WHITE"); }, row, col, player);
 
     if (isBestMove)
     {
@@ -224,11 +225,19 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
         int score = evaluateMoveQuick(move.row, move.col, aiPlayer);
         score += evaluateMoveQuick(move.row, move.col, humanPlayer) * DEFENSE_MULTIPLIER;
 
-        move.score = score;
+        if (score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, move.row, move.col, humanPlayer)) {
+            std::cout << "Capturable stone at (" << move.row << ", " << move.col << ")" << std::endl;
+            move.score = INT_MIN;
+        }
+        else
+            move.score = score;
 
         // Update heuristic score in debug list (Type 0)
         for (auto &dm : aiCandidateMoves)
         {
+            if (score == INT_MIN)
+                continue;
+
             if (dm.row == move.row && dm.col == move.col)
             {
                 dm.score = score;
@@ -250,7 +259,7 @@ void GomokuAI::getBestMove(int &bestRow, int &bestCol)
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
 
-    int maxCandidates = std::min(6, (int)candidates.size());
+    int maxCandidates = 12;
 
     int alpha = -INT_MAX;
     int beta = INT_MAX;
@@ -330,6 +339,12 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
 {
     int score = 0;
     int captureCount = GomokuRules::checkCaptures(board, row, col, player);
+    int playerCapture = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
+
+    if (playerCapture + captureCount >= MAX_CAPTURE_STONES)
+    {
+        return SCORE_FIVE;
+    }
 
     for (int dir = 0; dir < 4; dir++)
     {
@@ -402,7 +417,10 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
         score += patternScore;
     }
 
-    int captureScore = captureCount * SCORE_LIVE_THREE;
+    if (score >= SCORE_FIVE)
+        return score;
+
+    int captureScore = captureCount * SCORE_DEAD_FOUR * 1.1;
     score += captureScore;
 
     int centerDist = abs(row - BOARD_SIZE / 2) + abs(col - BOARD_SIZE / 2);
@@ -449,16 +467,19 @@ int GomokuAI::minimax(int depth, int alpha, int beta, int player)
         return evaluateBoard(player);
 
     for (Move &m : candidates)
+    {
         m.score = evaluateMoveQuick(m.row, m.col, player);
+        if (m.score < SCORE_LIVE_FOUR && GomokuRules::isStoneCapturable(board, m.row, m.col, getOpponent(player))) {
+            std::cout << "Capturable stone at (" << m.row << ", " << m.col << ")" << std::endl;
+            m.score = INT_MIN;
+        }
+    }
 
     std::sort(candidates.begin(), candidates.end(),
               [](const Move &a, const Move &b)
               { return a.score > b.score; });
 
-    int maxMoves = (depth > 3) ? 4 : 6;
-
-    if (candidates.size() > maxMoves)
-        candidates.resize(maxMoves);
+    candidates.resize(10);
 
     int bestScore = -INT_MAX;
     int oldAlpha = alpha;
@@ -509,22 +530,14 @@ std::vector<Move> GomokuAI::getCandidateMoves(int player)
                         int nr = r + dr;
                         int nc = c + dc;
 
-                        if (GomokuRules::isEmptyCell(board, nr, nc) && !visited[nr][nc])
-                        {
-                            int potentialCapture = GomokuRules::checkCaptures(board, nr, nc, player);
+                        if (!GomokuRules::isEmptyCell(board, nr, nc) && visited[nr][nc])
+                            continue;
 
-                            if (potentialCapture == 0 && GomokuRules::isStoneCapturable(board, nr, nc, getOpponent(player)))
-                            {
-                                visited[nr][nc] = true;
-                                continue;
-                            }
+                        if (GomokuRules::validateMove(board, nr, nc, player) != VALID)
+                            continue;
 
-                            if (GomokuRules::validateMove(board, nr, nc, player) == VALID)
-                            {
-                                candidates.push_back(Move(nr, nc, 0));
-                                visited[nr][nc] = true;
-                            }
-                        }
+                        candidates.push_back(Move(nr, nc, 0));
+                        visited[nr][nc] = true;
                     }
                 }
             }
@@ -550,8 +563,8 @@ int GomokuAI::evaluateBoard(int player)
     int scoreAttack = 0;
     int scoreDefense = 0;
 
-    score += pCaps * SCORE_LIVE_THREE;
-    score -= oCaps * SCORE_LIVE_THREE;
+    score += pCaps * SCORE_DEAD_FOUR * 1.1;
+    score -= oCaps * SCORE_DEAD_FOUR * 1.1;
 
     for (int r = 0; r < BOARD_SIZE; r++)
     {
