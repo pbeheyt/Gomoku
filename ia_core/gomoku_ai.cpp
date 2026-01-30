@@ -413,11 +413,14 @@ int GomokuAI::evaluateMoveQuick(int row, int col, int player)
     int playerCapture = (player == BLACK) ? gameState.capturedByBlack : gameState.capturedByWhite;
     int opponentCapture = (player == BLACK) ? gameState.capturedByWhite : gameState.capturedByBlack;
 
-    if (playerCapture + potentialCaptureCount >= MAX_CAPTURE_STONES)
+    if (potentialCaptureCount > 0 && playerCapture + potentialCaptureCount >= MAX_CAPTURE_STONES)
         return SCORE_FIVE;
 
-    if (opponentCapture + potentialOppCaptureCount >= MAX_CAPTURE_STONES)
+    if (potentialOppCaptureCount > 0 && opponentCapture + potentialOppCaptureCount >= MAX_CAPTURE_STONES)
         return SCORE_FIVE / 2;
+
+    if (potentialOppCaptureCount > 0 && opponentCapture + potentialOppCaptureCount >= MAX_CAPTURE_STONES - 2)
+        return SCORE_FIVE / 4;
 
     score += analyzePatternScore(row, col, player);
     score += analyzePatternScore(row, col, opponent) * DEFENSE_MULTIPLIER;
