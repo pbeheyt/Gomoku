@@ -362,8 +362,11 @@ class GameController {
           return;
         }
         
-        // Clear heatmap seulement après validation réussie
-        this.renderer?.clearHeatmap();
+        // Clear heatmap uniquement si c'est un coup HUMAIN valide
+        const previousPlayer = this.game.getCurrentPlayer() === Player.BLACK ? Player.WHITE : Player.BLACK;
+        if (this.players[previousPlayer] === 'HUMAN') {
+            this.renderer?.clearHeatmap();
+        }
         
         // Sauvegarde des debugData pour heatmap si mode PvAI
         if (this.currentMode === GameMode.PLAYER_VS_AI && this.wasmAI) {
